@@ -722,7 +722,7 @@ Cloudflare Tunnel
 NestJS container
 ```
 
-The VPS should not expose NestJS port `3000` publicly.
+The VPS should not expose NestJS port `4101` publicly.
 
 ### Cloudflare R2
 
