@@ -4,8 +4,8 @@ services:
       context: ..
       dockerfile: apps/api/Dockerfile
     env_file: .env
-    ports:
-      - "127.0.0.1:${PORT}:${PORT}"
+    expose:
+      - "${PORT}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,6 +35,19 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
