@@ -2,37 +2,22 @@
 
 Classora is a multi-tenant SaaS platform for training centers.
 
-## Stack
+## Architecture
 
-### Frontend
+Baseline stack: `docs/architecture/tech-stack.md`
 
-- React
-- Vite
-- TypeScript
+- Monorepo
+- React + Vite + TypeScript
 - shadcn/ui
-- TanStack Query for server state
-- Zustand for client/application state
-
-### Backend
-
+- TanStack Query
+- Zustand
 - NestJS
-- TypeScript
-- PostgreSQL
+- Prisma + PostgreSQL
+- REST API
 - Modular monolith
-- Database-per-tenant isolation
+- Database-per-tenant
 
-### Infrastructure
-
-- Cloudflare DNS
-- Cloudflare Pages for the frontend
-- Cloudflare Tunnel for API ingress
-- VPS + Docker Compose for backend workloads
-- Cloudflare R2 for files/backups
-- GitHub Actions for CI/CD
-
-## Repository
-
-Expected high-level structure:
+Repository:
 
 ```text
 apps/
@@ -45,15 +30,19 @@ docs/
 .claude/
 ```
 
-Read `CONTEXT.md` for domain context and `docs/adr/` for architecture decisions.
+Read:
 
-## Engineering Philosophy
+- `CONTEXT.md` for domain context
+- `docs/adr/` for architecture decisions
+- relevant `.claude/rules/` before changing code
 
-Classora rejects AI-generated code bloat.
+Project rules and ADRs override generic skill/framework advice.
 
-Write code that is intentional, boring, local, readable, and consistent with the existing codebase.
+## Engineering Principles
 
-Optimize for:
+Prefer the simplest solution that fully solves the current requirement.
+
+Prioritize:
 
 1. correctness
 2. security
@@ -63,61 +52,57 @@ Optimize for:
 6. readability
 7. smallest coherent diff
 
-Do not optimize for:
-
-- number of abstractions
-- number of files
-- architectural sophistication
-- hypothetical extensibility
-- demonstrating design patterns
-
 Prefer:
 
-- existing code over new code
-- deletion over addition
+- existing patterns over new patterns
 - local solutions over generic abstractions
 - explicit code over clever code
 - installed dependencies over new dependencies
-- the smallest complete solution
+- fewer moving parts
+- deletion over unnecessary addition
+
+Avoid AI-generated code bloat.
 
 Do not:
 
 - refactor unrelated code
-- split functions/components only to reduce line count
-- create helpers used once unless they materially improve readability
-- create wrappers that only forward arguments
-- create generic repositories/services without a demonstrated need
-- add interfaces for single implementations without a real boundary reason
-- add fallbacks that hide programming/configuration errors
-- add comments that merely restate the code
+- design for hypothetical future requirements
+- introduce unnecessary layers or abstractions
+- create helpers/wrappers that add little value
+- add interfaces for a single implementation without a real boundary
+- split components/functions based only on line count
 - add dependencies for trivial functionality
-- introduce infrastructure for hypothetical future scale
+- add fallbacks that hide bugs or configuration errors
+- add comments that merely restate code
+- introduce infrastructure without a concrete requirement
+
+Before adding an abstraction, prove that the current codebase needs it.
+
+When straightforward code is clearer than a reusable framework, prefer straightforward code.
 
 Security, accessibility, tenant isolation, and data integrity always take precedence over minimalism.
 
-## Frontend Rules
+## Frontend
 
-Use TanStack Query for server state.
+Use:
 
-Use Zustand only for genuine client/application state.
+- TanStack Query for server state
+- local React state for local UI state
+- Zustand only for genuine shared client/application state
 
-Do not copy query data into Zustand.
+Do not mirror TanStack Query data into Zustand.
 
-Prefer local React state before introducing global state.
+Extract components/functions only when they are:
 
-Do not split components based on line count.
+- reused
+- independently meaningful
+- or the current code has become genuinely hard to understand
 
-Extract a component/function only when it is:
+Prefer existing shadcn/ui primitives.
 
-- reused,
-- independently meaningful,
-- or the parent has become genuinely difficult to understand.
+Do not create wrapper components that merely proxy existing components.
 
-Prefer existing shadcn/ui primitives before creating custom primitives.
-
-Do not create wrappers such as `AppButton`, `BaseButton`, or `CustomButton` if they only proxy an existing component.
-
-## Backend Rules
+## Backend
 
 Use NestJS as a modular monolith.
 
@@ -125,69 +110,67 @@ Default flow:
 
 ```text
 Controller
-  -> Service
-  -> Repository / data access
-  -> PostgreSQL
+-> Service
+-> Repository / data access
+-> Prisma
+-> PostgreSQL
 ```
 
 Keep controllers thin.
 
-Business logic belongs to the owning domain/module.
+Business logic belongs to its owning domain/module.
 
-Do not introduce microservices, queues, event buses, Redis, Kafka, RabbitMQ, Kubernetes, or similar infrastructure without a concrete requirement and an ADR.
+Do not introduce microservices, queues, event buses, Redis, Kafka, RabbitMQ, Kubernetes, or similar infrastructure without a concrete requirement and ADR.
 
-Generic NestJS guidance never overrides Classora architecture.
+Do not apply generic NestJS patterns when they conflict with Classora architecture.
 
 ## Multi-Tenancy
 
 Classora uses database-per-tenant isolation.
 
-A tenant request must follow:
+Tenant request flow:
 
 ```text
 request
-  -> authenticate
-  -> resolve tenant
-  -> authorize membership/permission
-  -> resolve tenant database
-  -> execute domain operation
+-> authenticate
+-> resolve tenant
+-> authorize membership/permission
+-> resolve tenant database
+-> execute operation
 ```
 
-Never trust a client-supplied tenant identifier as sufficient authorization.
+Never trust a client-supplied tenant ID as authorization.
 
 Never:
 
-- query tenant data before tenant resolution
+- access tenant data before tenant resolution
 - silently fall back to another tenant database
 - reuse tenant context across unrelated requests
-- derive database credentials directly from untrusted input
-- leak tenant-specific cache/state across tenants
+- derive database credentials from untrusted input
+- leak tenant-specific state or cache across tenants
 
-Any change touching tenant resolution, authentication, authorization, or database connection management requires explicit tenant-isolation review.
+Changes involving tenant resolution, authentication, authorization, or database connections require explicit tenant-isolation review.
 
 ## Skills
 
-Use installed skills selectively. Do not invoke multiple skills mechanically.
+Use skills selectively. Do not invoke multiple skills mechanically.
 
-- Ponytail: default anti-overengineering / anti-AI-slop discipline
-- Matt Pocock skills:
-  - `grill-with-docs` for ambiguous or important requirements
-  - `implement` for meaningful implementation work
-  - `tdd` for behavior that deserves a stable automated boundary
-  - `diagnosing-bugs` for non-obvious bugs
-  - `code-review` for structured review
-  - `domain-modeling` when domain terminology or invariants are unclear
-  - `codebase-design` for meaningful module/API boundary decisions
-- `nestjs-best-practices`: NestJS-specific guidance only
-- Impeccable: meaningful UI design, redesign, audit, critique, or polish
-
-Project rules, `CONTEXT.md`, and ADRs take precedence over generic third-party skill advice.
+- Ponytail: anti-overengineering / anti-AI-slop
+- `grill-with-docs`: ambiguous or important requirements
+- `implement`: meaningful implementation work
+- `tdd`: behavior requiring a stable automated boundary
+- `diagnosing-bugs`: non-obvious bugs
+- `code-review`: structured review
+- `domain-modeling`: unclear domain terminology or invariants
+- `codebase-design`: meaningful module/API boundaries
+- `nestjs-best-practices`: NestJS-specific guidance
+- Impeccable: meaningful UI design, audit, critique, or polish
 
 The smallest useful workflow wins.
 
-## Task Workflow
+## Workflow
 
-For small/local changes:
+Small changes:
 
 ```text
 inspect
@@ -195,34 +178,32 @@ inspect
 -> validate
 ```
 
-For non-trivial changes:
+Non-trivial changes:
 
 ```text
 inspect existing code
 -> identify owning domain/module
 -> understand constraints
--> plan only if needed
+-> plan if needed
 -> implement smallest coherent change
 -> lint/typecheck/relevant tests
 -> review diff
 ```
 
-Do not make a plan merely because a task changes multiple files.
+Plan only when there is meaningful uncertainty, architectural impact, tenant impact, or data-model impact.
 
-Plan when the task has meaningful uncertainty, architectural impact, tenant implications, or data-model impact.
+## Git & Production Safety
 
-## Git
+Use short-lived feature/fix branches from `main`.
 
-Use short-lived feature/fix branches off `main`.
+Prefer Conventional Commits:
 
-Prefer Conventional Commits.
+```text
+feat(students): add student creation
+fix(tenant): prevent cross-tenant lookup
+```
 
-Examples:
-
-- `feat(students): add student creation`
-- `fix(tenant): prevent cross-tenant lookup`
-
-Do not commit, push, deploy, run production migrations, or execute destructive commands unless the user explicitly asks.
+Do not commit, push, deploy, run production migrations, or execute destructive commands unless explicitly requested.
 
 Read-only inspection is allowed.
 
@@ -230,12 +211,12 @@ Read-only inspection is allowed.
 
 Update `CONTEXT.md` when important domain behavior or terminology changes.
 
-Create an ADR in `docs/adr/` only for meaningful architectural decisions such as:
+Create an ADR only for meaningful architectural decisions, such as:
 
-- changing the tenancy model
-- changing ORM/database strategy
-- introducing a queue/cache
-- changing authentication architecture
-- changing deployment/storage architecture
+- tenancy model changes
+- ORM/database strategy changes
+- authentication architecture changes
+- introducing cache/queue infrastructure
+- major deployment or storage changes
 
 Do not create documentation for trivial implementation details.
