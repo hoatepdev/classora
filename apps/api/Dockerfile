@@ -24,8 +24,10 @@ WORKDIR /workspace
 COPY --from=production-dependencies /workspace/node_modules ./node_modules
 COPY --from=production-dependencies /workspace/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /workspace/apps/api/package.json ./apps/api/package.json
+COPY --from=build /workspace/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
+COPY --from=build /workspace/apps/api/prisma ./apps/api/prisma
 COPY --from=build /workspace/apps/api/dist ./apps/api/dist
 
 WORKDIR /workspace/apps/api
 EXPOSE 4101
-CMD ["node", "dist/main.js"]
+CMD ["npm", "run", "start:prod"]

@@ -16,7 +16,9 @@ export class TenantContextService {
     return this.storage.run(context, callback);
   }
 
-  get(): TenantContext | undefined {
-    return this.storage.getStore();
+  get(): TenantContext {
+    const context = this.storage.getStore();
+    if (!context) throw new Error('Tenant context is not available');
+    return context;
   }
 }

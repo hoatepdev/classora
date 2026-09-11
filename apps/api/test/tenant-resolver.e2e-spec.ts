@@ -1,10 +1,17 @@
-import type { INestApplication } from '@nestjs/common';
+import { ExecutionContext, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { AuthGuard } from '../src/auth/auth.guard.js';
+import { ControlDatabaseService } from '../src/database/control-database.service.js';
 import { TenantConnectionManager } from '../src/tenant/tenant-connection-manager.service.js';
-import { TenantResolverService } from '../src/tenant/tenant-resolver.service.js';
+
+const tenant = {
+  id: '01JHZX3V8Q9K5M2N7R4T6W1Y0A',
+  slug: 'demo',
+  dbName: 'classora_tenant_demo',
+};
 
 describe('GET /health/tenant', () => {
   let app: INestApplication;
@@ -14,17 +21,33 @@ describe('GET /health/tenant', () => {
     getConnection: vi.fn(async () => pool),
     releaseConnection: vi.fn(),
   };
+  const database = {
+    tenant: {
+      findUnique: vi.fn(async ({ where }: { where: { slug: string } }) =>
+        where.slug === tenant.slug ? tenant : null,
+      ),
+    },
+    tenantMembership: {
+      findUnique: vi.fn(async () => ({ id: 'membership-id', role: 'OWNER' })),
+    },
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(TenantResolverService)
+      .overrideProvider(AuthGuard)
       .useValue({
-        resolve: (hostname: string) =>
-          hostname === 'demo.classora.io.vn'
-            ? { tenantSlug: 'demo', dbName: 'classora_tenant_demo' }
-            : null,
+        canActivate(context: ExecutionContext) {
+          context.switchToHttp().getRequest().user = {
+            id: 'user-id',
+            email: 'owner@example.com',
+            name: 'Demo Owner',
+          };
+          return true;
+        },
       })
+      .overrideProvider(ControlDatabaseService)
+      .useValue(database)
       .overrideProvider(TenantConnectionManager)
       .useValue(connections)
       .compile();
@@ -35,34 +58,31 @@ describe('GET /health/tenant', () => {
 
   afterEach(() => app.close());
 
-  it('returns the tenant resolved from the hostname', async () => {
+  it('returns safe tenant metadata resolved from the hostname', async () => {
     await request(app.getHttpServer())
       .get('/health/tenant')
       .set('Host', 'demo.classora.io.vn')
       .expect(200)
-      .expect({ tenantSlug: 'demo', dbName: 'classora_tenant_demo' });
+      .expect({ tenantId: tenant.id, tenantSlug: tenant.slug });
   });
 
-  it('queries the resolved tenant database', async () => {
+  it('queries the authorized tenant database', async () => {
     await request(app.getHttpServer())
       .get('/health/tenant/query')
       .set('Host', 'demo.classora.io.vn')
       .expect(200)
-      .expect({ tenantSlug: 'demo', dbName: 'classora_tenant_demo', result: 1 });
+      .expect({ tenantId: tenant.id, tenantSlug: tenant.slug, result: 1 });
 
     expect(query).toHaveBeenCalledWith('SELECT 1 AS result');
-    expect(connections.getConnection).toHaveBeenCalledWith('classora_tenant_demo');
-    expect(connections.releaseConnection).toHaveBeenCalledWith('classora_tenant_demo', pool);
+    expect(connections.getConnection).toHaveBeenCalledWith(tenant.dbName);
+    expect(connections.releaseConnection).toHaveBeenCalledWith(tenant.dbName, pool);
   });
 
   it.each(['api.classora.io.vn', 'app.classora.io.vn', 'unknown.classora.io.vn'])(
-    'allows the non-tenant hostname %s',
+    'rejects the non-tenant hostname %s',
     async (hostname) => {
-      await request(app.getHttpServer())
-        .get('/health/tenant/query')
-        .set('Host', hostname)
-        .expect(200)
-        .expect({ tenant: null });
+      await request(app.getHttpServer()).get('/health/tenant/query').set('Host', hostname).expect(404);
+      expect(connections.getConnection).not.toHaveBeenCalled();
     },
   );
 });

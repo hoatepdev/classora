@@ -1,7 +1,8 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { TenantConnectionInterceptor } from './tenant-connection.interceptor.js';
 import { TenantConnectionManager } from './tenant-connection-manager.service.js';
 import { TenantContextService } from './tenant-context.service.js';
-import { TenantResolverMiddleware } from './tenant-resolver.middleware.js';
+import { TenantMembershipGuard } from './tenant-membership.guard.js';
 import { TenantResolverService } from './tenant-resolver.service.js';
 
 @Module({
@@ -9,12 +10,9 @@ import { TenantResolverService } from './tenant-resolver.service.js';
     TenantResolverService,
     TenantConnectionManager,
     TenantContextService,
-    TenantResolverMiddleware,
+    TenantMembershipGuard,
+    TenantConnectionInterceptor,
   ],
-  exports: [TenantConnectionManager, TenantContextService],
+  exports: [TenantContextService, TenantMembershipGuard, TenantConnectionInterceptor],
 })
-export class TenantModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenantResolverMiddleware).forRoutes('*');
-  }
-}
+export class TenantModule {}
