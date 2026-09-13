@@ -4,12 +4,13 @@ import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ControlDatabaseModule } from './database/control-database.module.js';
 import { HealthController } from './health.controller.js';
+import { StudentsModule } from './students/students.module.js';
 import { TenantConnectionInterceptor } from './tenant/tenant-connection.interceptor.js';
 import { TenantMembershipGuard } from './tenant/tenant-membership.guard.js';
 import { TenantModule } from './tenant/tenant.module.js';
 
 @Module({
-  imports: [ControlDatabaseModule, AuthModule, TenantModule],
+  imports: [ControlDatabaseModule, AuthModule, TenantModule, StudentsModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useExisting: AuthGuard },

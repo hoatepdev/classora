@@ -8,10 +8,11 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:baseline": "prisma migrate resolve --applied 0_existing_control_schema",
     "auth:create-owner": "node dist/database/create-owner.js",
+    "tenant:migrate": "node dist/database/tenant-migrations.js",
     "dev": "pnpm run prisma:generate && nest start --watch",
     "start:dev": "pnpm run dev",
     "build": "pnpm run prisma:generate && nest build",
-    "start:prod": "prisma migrate deploy && node dist/main.js",
+    "start:prod": "prisma migrate deploy && node dist/database/tenant-migrations.js && node dist/main.js",
     "test": "pnpm run prisma:generate && vitest run"
   },
   "dependencies": {
@@ -27,7 +28,8 @@
     "pg": "^8.23.0",
     "prisma": "7.10.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "ulid": "^3.0.2"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
