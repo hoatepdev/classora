@@ -8,3 +8,4 @@ dist/
 apps/api/src/generated/prisma/
 .claude/settings.local.json
 .claude/tasks/
+.claude/worktrees/
