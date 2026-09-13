@@ -185,4 +185,14 @@ describe('authentication and tenant authorization', () => {
       .set('Authorization', `Bearer ${expiredToken}`)
       .expect(401);
   });
+
+  it('does not hide control database failures as authentication failures', async () => {
+    const accessToken = await createAccessToken();
+    database.user.findUnique.mockRejectedValueOnce(new Error('control database unavailable'));
+
+    await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(500);
+  });
 });

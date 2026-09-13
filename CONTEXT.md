@@ -228,15 +228,14 @@ Do not introduce a design-system wrapper layer around shadcn/ui without a real p
 Current infrastructure direction:
 
 ```text
-Browser
-  -> Cloudflare
-     -> Cloudflare Pages -> React frontend
-     -> api.classora.io.vn
-        -> Cloudflare Tunnel
-        -> VPS
-        -> Docker Compose
-        -> NestJS API
-        -> PostgreSQL
+Browser at <tenant>.classora.io.vn
+  -> Cloudflare Tunnel
+  -> VPS
+  -> Docker Compose
+  -> Nginx web gateway
+     -> React frontend
+     -> same-origin /api -> NestJS API
+  -> PostgreSQL
 ```
 
 Cloudflare R2 is used for files/backups where appropriate.
@@ -257,18 +256,18 @@ until a measured or explicit product requirement justifies them.
 
 ## Deployment Boundaries
 
-Frontend and backend have separate deployment concerns.
+Frontend and backend are built separately but deployed behind one web gateway.
 
 Frontend:
 
 - built from the web app
-- deployed to Cloudflare Pages
+- served by the Nginx web container
 
 Backend:
 
 - built as an application/container
 - runs on the VPS through Docker Compose
-- exposed through Cloudflare Tunnel
+- receives same-origin `/api` traffic through the web gateway and Cloudflare Tunnel
 
 Production changes require explicit user intent.
 

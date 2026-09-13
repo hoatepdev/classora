@@ -7,7 +7,7 @@ import type { Student } from "./types.js";
 const column = createColumnHelper<Student>();
 const columns = [
   column.accessor("code", { header: "Mã", cell: ({ getValue }) => <span className="code">{getValue()}</span> }),
-  column.accessor("fullName", { header: "Họ và tên", cell: ({ getValue }) => <span className="name">{getValue()}</span> }),
+  column.accessor("fullName", { header: "Họ và tên", cell: ({ getValue, row }) => <Link className="name" to={`/students/${row.original.id}`}>{getValue()}</Link> }),
   column.accessor("phone", { header: "Điện thoại", cell: ({ getValue }) => getValue() || <span className="muted">—</span> }),
   column.accessor("email", { header: "Email", cell: ({ getValue }) => getValue() || <span className="muted">—</span> }),
   column.accessor("dateOfBirth", { header: "Ngày sinh", cell: ({ getValue }) => getValue() ? new Intl.DateTimeFormat("vi-VN").format(new Date(`${getValue()}T00:00:00`)) : <span className="muted">—</span> }),

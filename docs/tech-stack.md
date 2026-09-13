@@ -32,27 +32,26 @@ Classora uses:
 High-level architecture:
 
 ```text
-User
+User at <tenant>.classora.io.vn
   |
   v
-Cloudflare
+Cloudflare Tunnel
   |
-  +-------------------------+
-  |                         |
-  v                         v
-Cloudflare Pages      Cloudflare Tunnel
-  |                         |
-  v                         v
-React / Vite             NestJS API
-                            |
-                            v
-                          Prisma
-                            |
-                            v
-                        PostgreSQL
-                            |
-                            v
-                      Cloudflare R2
+  v
+Nginx web gateway
+  |
+  +-- React / Vite
+  |
+  +-- same-origin /api
+        |
+        v
+      NestJS API
+        |
+        v
+      PostgreSQL
+        |
+        v
+    Cloudflare R2
 ```
 
 ---
@@ -877,15 +876,14 @@ Use Cloudflare for:
 
 - DNS
 - TLS
-- frontend delivery
-- API ingress
+- tenant-hostname ingress
+- TLS termination
 - object storage
 
 Services:
 
 ```text
 Cloudflare DNS
-Cloudflare Pages
 Cloudflare Tunnel
 Cloudflare R2
 ```
@@ -894,17 +892,13 @@ Cloudflare R2
 
 ## Frontend Deployment
 
-React/Vite frontend is deployed to:
+React/Vite is built into the Nginx web container and served at each tenant hostname:
 
 ```text
-Cloudflare Pages
+https://<tenant>.classora.io.vn
 ```
 
-Example:
-
-```text
-classora.io.vn
-```
+The browser calls the API through same-origin `/api`. The web gateway strips that prefix, preserves the tenant Host, and proxies to NestJS.
 
 ---
 
@@ -920,21 +914,25 @@ VPS
  v
 Docker Compose
  |
+ +-- Nginx web gateway
  +-- NestJS
  +-- PostgreSQL
  +-- cloudflared
 ```
 
-API ingress:
+Application ingress:
 
 ```text
-api.classora.io.vn
+<tenant>.classora.io.vn
         |
         v
 Cloudflare Tunnel
         |
         v
-NestJS container
+Nginx web gateway
+        |
+        +-- static SPA
+        +-- /api -> NestJS container
 ```
 
 The API should not require exposing the application port directly to the public Internet.
@@ -954,6 +952,7 @@ Example:
 
 ```text
 services:
+  web
   api
   postgres
   cloudflared
@@ -989,10 +988,13 @@ Deployment:
 
 ```text
 Frontend
-GitHub
+GitHub Actions
   |
   v
-Cloudflare Pages
+Docker web image
+  |
+  v
+VPS
 ```
 
 ```text
@@ -1069,7 +1071,7 @@ Backend
 
 Infrastructure
 - Cloudflare DNS
-- Cloudflare Pages
+- Nginx
 - Cloudflare Tunnel
 - Cloudflare R2
 - VPS

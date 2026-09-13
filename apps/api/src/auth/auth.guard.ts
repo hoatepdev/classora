@@ -40,21 +40,22 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractToken(request);
 
+    let payload: { sub?: unknown };
     try {
-      const payload = await this.jwt.verifyAsync<{ sub?: unknown }>(token);
-      if (typeof payload.sub !== 'string') throw new UnauthorizedException();
-
-      const user = await this.database.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true, email: true, name: true, status: true },
-      });
-      if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException();
-
-      request.user = { id: user.id, email: user.email, name: user.name };
-      return true;
+      payload = await this.jwt.verifyAsync<{ sub?: unknown }>(token);
     } catch {
       throw new UnauthorizedException();
     }
+    if (typeof payload.sub !== 'string') throw new UnauthorizedException();
+
+    const user = await this.database.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, name: true, status: true },
+    });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException();
+
+    request.user = { id: user.id, email: user.email, name: user.name };
+    return true;
   }
 
   private extractToken(request: Request) {

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React + Vite + TypeScript SPA. UI layer: shadcn/ui (confirmed 2026-09-10, replacing the earlier Ant Design plan in docs/architecture-context.md). Server state: TanStack Query. Client state: Zustand, only for genuine client/application state. Router: not yet confirmed (architecture doc says React Router; current frontend rules omit it). Hosting: Cloudflare Pages. No SSR.
+React + Vite + TypeScript SPA. UI layer: shadcn/ui (confirmed 2026-09-10, replacing the earlier Ant Design plan in docs/architecture-context.md). Server state: TanStack Query. Client state: Zustand, only for genuine client/application state. Router: React Router. Hosting: Docker web gateway behind Cloudflare Tunnel. No SSR.
 
 ## Users
 
@@ -40,7 +40,7 @@ Constraints:
 
 - Architecture: NestJS modular monolith backend; database-per-tenant with a control_db for SaaS-level data; no microservices, Kubernetes, Redis, Kafka, RabbitMQ, queues, or WebSockets without a documented ADR and demonstrated need.
 - Financial history is immutable: incorrect payments are voided/reversed, never hard-deleted. Audit records (who/when/entity/operation/before/after/reason) are required for attendance, tuition, payments, and permission changes.
-- Business tables inside a tenant database do not carry `tenant_id`; the database is the isolation boundary.
+- Tenant business data lives in a separate tenant database. The Student table additionally carries a required `tenant_id` as defense-in-depth; it has no foreign key to the control database, and Student queries must filter by it.
 - Undecided product facts: router choice (React Router per architecture doc, absent from current frontend rules); multi-branch support (explicitly out of MVP, revisit when a real tenant needs it); future capabilities (smart scheduling, makeup matching, parent portal, CRM, LMS, payroll, white-label, AI assistant) must not drive MVP complexity.
 
 ## Brand Commitments
