@@ -73,6 +73,10 @@ POSTGRES_PASSWORD=<strong-password>
 POSTGRES_DB=classora
 CONTROL_DB_NAME=control_db
 JWT_SECRET=<at-least-32-characters>
+INITIAL_USER_EMAIL=<owner-email>
+INITIAL_USER_PASSWORD=<at-least-12-characters>
+INITIAL_USER_NAME=<owner-name>
+INITIAL_TENANT_SLUG=demo
 CLOUDFLARE_TUNNEL_TOKEN=<tunnel-token>
 ```
 
@@ -134,6 +138,14 @@ api           healthy
 web           healthy
 cloudflared   running
 ```
+
+On the first deployment, create the initial owner and tenant membership once:
+
+```bash
+docker compose exec api npm run auth:create-owner
+```
+
+This command uses the `INITIAL_USER_*` and `INITIAL_TENANT_SLUG` values from `infrastructure/.env`. Do not add it to container startup: rerunning it updates the owner's password and membership.
 
 Inspect logs:
 
