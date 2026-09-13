@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-12T00:00:00Z",
+  "title": "Design System: Classora",
+  "extensions": {
+    "colorMeta": {
+      "indigo-ink": {"role": "primary", "displayName": "Deep Indigo Ink", "canonical": "#242261", "tonalRamp": ["#0d0d23", "#15143a", "#1c1b50", "#242261", "#4a4981", "#7776a5", "#aaa9c8", "#d8d8f2"]},
+      "jade": {"role": "primary", "displayName": "Operational Jade", "canonical": "#168866", "tonalRamp": ["#063127", "#0a503e", "#0e6d51", "#168866", "#4ba98b", "#80c7af", "#b3e1d0", "#dcf5eb"]},
+      "mineral-white": {"role": "neutral", "displayName": "Mineral White", "canonical": "#f4f6f8", "tonalRamp": ["#20232a", "#4d535d", "#777e88", "#a5abb3", "#c5cbd1", "#dce0e4", "#ebedef", "#f4f6f8"]},
+      "white": {"role": "neutral", "displayName": "Paper White", "canonical": "#ffffff", "tonalRamp": ["#242424", "#505050", "#7a7a7a", "#a3a3a3", "#c2c2c2", "#d9d9d9", "#eeeeee", "#ffffff"]}
+    },
+    "typographyMeta": {
+      "display": {"displayName": "Operational Display", "purpose": "Login statement only."},
+      "headline": {"displayName": "Register Headline", "purpose": "Student list and form page headings."},
+      "body": {"displayName": "Workhorse Sans", "purpose": "Vietnamese-first interface reading."}
+    },
+    "shadows": [],
+    "motion": [
+      {"name": "settle", "value": "0.24s cubic-bezier(.16,1,.3,1)", "purpose": "Brief route/content settle."},
+      {"name": "button-state", "value": "0.15s ease", "purpose": "Button background and press response."}
+    ],
+    "breakpoints": [{"name": "mobile", "value": "720px"}]
+  },
+  "components": [
+    {"name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Jade action for adding or saving a student.", "html": "<button class=\"ds-btn-primary\">Thêm học viên</button>", "css": ".ds-btn-primary { display:inline-flex; min-height:42px; align-items:center; justify-content:center; border:1px solid transparent; border-radius:8px; padding:0 17px; background:#168866; color:#fff; font:700 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif; cursor:pointer; transition:background .15s ease,transform .15s ease; } .ds-btn-primary:hover { background:#116e54; } .ds-btn-primary:focus-visible { outline:3px solid rgba(16,185,129,.32); outline-offset:2px; } .ds-btn-primary:active { transform:translateY(1px); }"},
+    {"name": "Secondary Button", "kind": "button", "refersTo": "button-secondary", "description": "Outlined white action for cancellation.", "html": "<button class=\"ds-btn-secondary\">Hủy</button>", "css": ".ds-btn-secondary { display:inline-flex; min-height:42px; align-items:center; justify-content:center; border:1px solid #cfd4dc; border-radius:8px; padding:0 17px; background:#fff; color:#28324a; font:700 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif; cursor:pointer; transition:background .15s ease; } .ds-btn-secondary:hover { background:#f8fafb; } .ds-btn-secondary:focus-visible { outline:3px solid rgba(16,185,129,.32); outline-offset:2px; }"},
+    {"name": "Text Input", "kind": "input", "refersTo": "input", "description": "Ruled white field used by login and student forms.", "html": "<input class=\"ds-input\" placeholder=\"Họ và tên\" />", "css": ".ds-input { width:100%; min-height:44px; border:1px solid #bcc3ce; border-radius:7px; padding:9px 12px; background:#fff; color:#182139; font:400 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif; } .ds-input:hover { border-color:#929cab; } .ds-input:focus-visible { border-color:#3730a3; outline:3px solid rgba(55,48,163,.12); outline-offset:0; } .ds-input::placeholder { color:#7b8497; }"},
+    {"name": "Utility Navigation", "kind": "nav", "refersTo": "nav", "description": "Indigo header anchoring the authenticated student surface.", "html": "<nav class=\"ds-nav\"><strong>Classora</strong><a aria-current=\"page\" href=\"#\">Học viên</a></nav>", "css": ".ds-nav { height:64px; display:flex; align-items:center; gap:32px; padding:0 32px; border-bottom:3px solid #19a77b; background:#242261; color:#fff; font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif; } .ds-nav strong { font-size:22px; font-weight:800; letter-spacing:-.03em; } .ds-nav a { color:#fff; font-size:14px; font-weight:650; text-decoration:none; } .ds-nav a:focus-visible { outline:3px solid rgba(16,185,129,.32); outline-offset:2px; }"},
+    {"name": "Student Status", "kind": "chip", "refersTo": "status", "description": "Quiet label communicating whether a student is active.", "html": "<span class=\"ds-status\">Đang học</span>", "css": ".ds-status { display:inline-flex; border-radius:999px; padding:4px 9px; background:#dcf5eb; color:#11664e; font:750 12px ui-sans-serif,system-ui,'Segoe UI',sans-serif; }"}
+  ],
+  "narrative": {
+    "northStar": "The Ruled Operations Register",
+    "overview": "Classora presents a cool mineral-white workspace with deep indigo ink and a single jade operational accent. It is compact, direct, and workmanlike: the roster is the product surface, while thin rules, clear labels, and exact Vietnamese status language provide structure instead of decorative SaaS chrome.\n\nThe Login and Student-management surfaces use scale and alignment for hierarchy. Forms read as carefully ruled enrollment sheets; the register stays flat and wide on desktop and becomes a set of bordered record blocks on narrow screens. Motion is limited to a brief content settle and respects reduced-motion preferences.",
+    "keyCharacteristics": ["Cool mineral-white workspace and deep indigo anchors", "Jade reserved for operational actions and active status", "Ruled, flat information surfaces with compact density", "Native system workhorse sans with strong weight contrast"],
+    "rules": [
+      {"name": "The One Accent Rule", "body": "Jade is the operational signal: use it for primary actions and active status, not as decoration across the screen.", "section": "colors"},
+      {"name": "The Scale-First Rule", "body": "Establish hierarchy through size, weight, and indigo ink; do not add ornamental display treatments.", "section": "typography"},
+      {"name": "The Flat Register Rule", "body": "Let rules, tonal surfaces, and density define structure; do not lift ordinary data into floating cards.", "section": "elevation"}
+    ],
+    "dos": ["Do keep Vietnamese labels and status language precise and action-oriented.", "Do use jade for a real operation or active state, with indigo as the structural anchor.", "Do preserve the ruled register treatment for student data instead of wrapping it in decorative cards.", "Do keep keyboard focus visible and honor reduced-motion preferences."],
+    "donts": ["Don't add dashboard statistics, speculative features, or decorative SaaS chrome to these surfaces.", "Don't use shadows to manufacture hierarchy in the flat register language.", "Don't canonize task-local composition as a reusable template; extend the visual rules, not the exact page arrangement."]
+  }
+}
