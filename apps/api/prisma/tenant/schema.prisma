@@ -42,6 +42,23 @@ model Class {
   @@map("classes")
 }
 
+model Teacher {
+  id        String   @id @db.Char(26)
+  tenantId  String   @map("tenant_id") @db.Char(26)
+  code      String
+  name      String
+  phone     String?
+  email     String?
+  note      String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([tenantId, code], map: "teachers_tenant_id_code_key")
+  @@index([tenantId, name, id], map: "teachers_tenant_id_name_id_idx")
+  @@map("teachers")
+}
+
 model Enrollment {
   id         String   @id @db.Char(26)
   tenantId   String   @map("tenant_id") @db.Char(26)
