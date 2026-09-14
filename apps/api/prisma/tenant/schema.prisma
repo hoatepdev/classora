@@ -24,3 +24,18 @@ model Student {
   @@index([tenantId, fullName, id], map: "students_tenant_id_full_name_id_idx")
   @@map("students")
 }
+
+model Class {
+  id          String   @id @db.Char(26)
+  tenantId    String   @map("tenant_id") @db.Char(26)
+  code        String
+  name        String
+  description String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([tenantId, code], map: "classes_tenant_id_code_key")
+  @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
+  @@map("classes")
+}

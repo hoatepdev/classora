@@ -11,6 +11,7 @@ export function StudentsLayout() {
       <div className="topbar-inner">
         <Link className="brand" to="/students">Classora</Link>
         <Link className="nav-link" aria-current={location.pathname.startsWith("/students") ? "page" : undefined} to="/students">Học viên</Link>
+        <Link className="nav-link" aria-current={location.pathname.startsWith("/classes") ? "page" : undefined} to="/classes">Lớp học</Link>
         <button className="logout" onClick={() => {
           queryClient.clear();
           localStorage.removeItem(accessTokenKey);

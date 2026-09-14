@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ClassesModule } from './classes/classes.module.js';
 import { ControlDatabaseModule } from './database/control-database.module.js';
 import { HealthController } from './health.controller.js';
 import { StudentsModule } from './students/students.module.js';
@@ -10,7 +11,7 @@ import { TenantMembershipGuard } from './tenant/tenant-membership.guard.js';
 import { TenantModule } from './tenant/tenant.module.js';
 
 @Module({
-  imports: [ControlDatabaseModule, AuthModule, TenantModule, StudentsModule],
+  imports: [ControlDatabaseModule, AuthModule, TenantModule, StudentsModule, ClassesModule],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useExisting: AuthGuard },
