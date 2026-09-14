@@ -122,6 +122,10 @@ Tenant identity may eventually be derived from subdomain, custom domain, token c
 
 The exact resolution mechanism should be documented in an ADR when finalized.
 
+### Tenant Provisioning
+
+New tenants are provisioned through the internal `tenant:create` CLI. Wildcard hosting covers tenant subdomains without per-tenant Cloudflare changes. The control tenant record and owner membership are committed only after the tenant database is created and migrated successfully.
+
 ## Backend Architecture
 
 The backend is a NestJS modular monolith.

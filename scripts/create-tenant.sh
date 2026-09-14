@@ -1,3 +1,4 @@
 #!/bin/sh
+set -eu
 
-echo "TODO"
+pnpm --filter api run tenant:create "$@"
