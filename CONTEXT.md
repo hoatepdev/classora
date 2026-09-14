@@ -53,6 +53,7 @@ These belong to each training center:
 - teachers
 - courses
 - classes
+- enrollments
 - schedules
 - attendance
 - payments / tuition
@@ -66,6 +67,8 @@ Potential later domains:
 - marketing automation
 
 Do not implement later domains until there is a concrete requirement.
+
+An enrollment records one Student's membership in one Class. Each Student-Class pair has one canonical enrollment: withdrawal marks it `WITHDRAWN`, and enrolling again reactivates it with a new enrollment date.
 
 ## Multi-Tenancy
 
@@ -87,6 +90,7 @@ Tenant database A
   - teachers
   - courses
   - classes
+  - enrollments
   - schedules
   - attendance
   - payments

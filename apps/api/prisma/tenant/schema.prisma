@@ -9,16 +9,17 @@ datasource db {
 }
 
 model Student {
-  id          String    @id @db.Char(26)
-  tenantId    String    @map("tenant_id") @db.Char(26)
+  id          String       @id @db.Char(26)
+  tenantId    String       @map("tenant_id") @db.Char(26)
   code        String
-  fullName    String    @map("full_name")
+  fullName    String       @map("full_name")
   phone       String?
   email       String?
-  dateOfBirth DateTime? @map("date_of_birth") @db.Date
-  status      String    @default("ACTIVE")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  dateOfBirth DateTime?    @map("date_of_birth") @db.Date
+  status      String       @default("ACTIVE")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  enrollments Enrollment[]
 
   @@unique([tenantId, code], map: "students_tenant_id_code_key")
   @@index([tenantId, fullName, id], map: "students_tenant_id_full_name_id_idx")
@@ -26,16 +27,34 @@ model Student {
 }
 
 model Class {
-  id          String   @id @db.Char(26)
-  tenantId    String   @map("tenant_id") @db.Char(26)
+  id          String       @id @db.Char(26)
+  tenantId    String       @map("tenant_id") @db.Char(26)
   code        String
   name        String
   description String?
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  status      String       @default("ACTIVE")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  enrollments Enrollment[]
 
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
   @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
   @@map("classes")
+}
+
+model Enrollment {
+  id         String   @id @db.Char(26)
+  tenantId   String   @map("tenant_id") @db.Char(26)
+  studentId  String   @map("student_id") @db.Char(26)
+  classId    String   @map("class_id") @db.Char(26)
+  status     String   @default("ACTIVE")
+  enrolledAt DateTime @default(now()) @map("enrolled_at") @db.Timestamptz
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  student    Student  @relation(fields: [studentId], references: [id])
+  class      Class    @relation(fields: [classId], references: [id])
+
+  @@unique([tenantId, studentId, classId], map: "enrollments_tenant_id_student_id_class_id_key")
+  @@index([tenantId, classId, enrolledAt, id], map: "enrollments_tenant_id_class_id_enrolled_at_id_idx")
+  @@map("enrollments")
 }
