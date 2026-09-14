@@ -1,84 +1,107 @@
-import { applyTenantMigrations } from '../src/database/tenant-migrations.js';
+import {
+  BASELINE_MIGRATION,
+  deployTenantSchema,
+  migrateTenantDatabases,
+  tenantDatabaseUrl,
+} from '../src/database/tenant-migrations.js';
 
-type QueryCall = [string, unknown[]?];
-type AppliedMigration = { version: number; name: string };
+const tenants = {
+  alpha: { slug: 'alpha', dbName: 'classora_tenant_alpha' },
+  beta: { slug: 'beta', dbName: 'classora_tenant_beta' },
+};
 
-function client(applied: AppliedMigration[] = [], failSql = false) {
-  const calls: QueryCall[] = [];
-  return {
-    calls,
-    query: vi.fn(async (sql: string, values?: unknown[]) => {
-      calls.push([sql, values]);
-      if (sql.startsWith('SELECT version')) return { rows: applied };
-      if (failSql && sql === 'CREATE STUDENTS') throw new Error('migration failed');
-      return { rows: [] };
-    }),
-  };
-}
+beforeEach(() => {
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('tenant migrations', () => {
-  it('applies an unapplied migration and records it in one transaction', async () => {
-    const database = client();
+  it('deploys to every tenant sequentially and reports start, duration and result', async () => {
+    const deployed: string[] = [];
 
     await expect(
-      applyTenantMigrations(database as never, async () => 'CREATE STUDENTS'),
-    ).resolves.toBe(1);
+      migrateTenantDatabases([tenants.alpha, tenants.beta], async (dbName) => {
+        deployed.push(dbName);
+      }),
+    ).resolves.toBeUndefined();
 
-    expect(database.calls.map(([sql]) => sql)).toEqual([
-      'BEGIN',
-      'SELECT pg_advisory_xact_lock($1)',
-      expect.stringContaining('CREATE TABLE IF NOT EXISTS _classora_tenant_migrations'),
-      'SELECT version, name FROM _classora_tenant_migrations ORDER BY version',
-      'CREATE STUDENTS',
-      'INSERT INTO _classora_tenant_migrations (version, name) VALUES ($1, $2)',
-      'COMMIT',
-    ]);
+    expect(deployed).toEqual(['classora_tenant_alpha', 'classora_tenant_beta']);
+    const logged = vi.mocked(console.log).mock.calls.map(([message]) => String(message));
+    expect(logged).toContain('[tenant alpha] migrating database "classora_tenant_alpha"');
+    expect(logged).toContain('[tenant beta] migrating database "classora_tenant_beta"');
+    expect(logged.some((line) => line.startsWith('[tenant alpha] done in '))).toBe(true);
+    expect(logged.some((line) => line.startsWith('[tenant beta] done in '))).toBe(true);
   });
 
-  it('skips tenant DDL after it committed so metadata can be reconciled separately', async () => {
-    const database = client([{ version: 1, name: 'students' }]);
-    const loadSql = vi.fn(async () => 'CREATE STUDENTS');
+  it('stops at the failing tenant, identifies it and does not continue', async () => {
+    const deployed: string[] = [];
 
-    await expect(applyTenantMigrations(database as never, loadSql)).resolves.toBe(1);
-
-    expect(loadSql).not.toHaveBeenCalled();
-    expect(database.calls.some(([sql]) => sql === 'CREATE STUDENTS')).toBe(false);
-    expect(database.calls.at(-1)?.[0]).toBe('COMMIT');
-  });
-
-  it('rejects migration history created by a newer binary', async () => {
-    const database = client([
-      { version: 1, name: 'students' },
-      { version: 2, name: 'future' },
-    ]);
-
-    await expect(applyTenantMigrations(database as never)).rejects.toThrow(
-      'Unknown tenant migration 2:future',
+    await expect(
+      migrateTenantDatabases([tenants.alpha, tenants.beta], async (dbName) => {
+        deployed.push(dbName);
+        if (dbName === tenants.alpha.dbName) throw new Error('P1001: database unreachable');
+      }),
+    ).rejects.toThrow(
+      /\[tenant alpha\] migration failed after [\d.]+s: P1001: database unreachable/,
     );
 
-    expect(database.calls.at(-1)?.[0]).toBe('ROLLBACK');
+    expect(deployed).toEqual(['classora_tenant_alpha']);
   });
 
-  it('rejects renamed migration history', async () => {
-    const database = client([{ version: 1, name: 'renamed' }]);
-
-    await expect(applyTenantMigrations(database as never)).rejects.toThrow(
-      'Unknown tenant migration 1:renamed',
+  it('builds a URL from trusted metadata and encodes PostgreSQL database names', () => {
+    expect(tenantDatabaseUrl('classora_tenant_demo')).toMatch(
+      /^postgresql:\/\/[^@]+@[^/]+\/classora_tenant_demo$/,
+    );
+    expect(tenantDatabaseUrl('classora-tenant/demo')).toMatch(
+      /\/classora-tenant%2Fdemo$/,
+    );
+    expect(() => tenantDatabaseUrl('control_db')).toThrow(
+      'Tenant database name must not be the control database',
     );
   });
 
-  it('rolls back failed DDL without recording the migration', async () => {
-    const database = client([], true);
+  it('baselines only databases migrated by the retired runner', async () => {
+    type PrismaCall = { dbName: string; args: string[] };
+    type State = {
+      prismaLedger: boolean;
+      legacyLedger: boolean;
+      students: boolean;
+      tables: boolean;
+    };
+
+    const run = async (state: State) => {
+      const invocations: PrismaCall[] = [];
+      await deployTenantSchema(
+        'classora_tenant_alpha',
+        async () => state,
+        async (args, dbName) => {
+          invocations.push({ dbName, args });
+        },
+      );
+      return invocations;
+    };
 
     await expect(
-      applyTenantMigrations(database as never, async () => 'CREATE STUDENTS'),
-    ).rejects.toThrow('migration failed');
-
-    expect(
-      database.calls.some(([sql]) =>
-        sql.startsWith('INSERT INTO _classora_tenant_migrations'),
-      ),
-    ).toBe(false);
-    expect(database.calls.at(-1)?.[0]).toBe('ROLLBACK');
+      run({ prismaLedger: false, legacyLedger: true, students: true, tables: true }),
+    ).resolves.toEqual([
+      { dbName: 'classora_tenant_alpha', args: ['migrate', 'resolve', '--applied', BASELINE_MIGRATION] },
+      { dbName: 'classora_tenant_alpha', args: ['migrate', 'deploy'] },
+    ]);
+    await expect(
+      run({ prismaLedger: false, legacyLedger: false, students: false, tables: false }),
+    ).resolves.toEqual([
+      { dbName: 'classora_tenant_alpha', args: ['migrate', 'deploy'] },
+    ]);
+    await expect(
+      run({ prismaLedger: true, legacyLedger: false, students: true, tables: true }),
+    ).resolves.toEqual([
+      { dbName: 'classora_tenant_alpha', args: ['migrate', 'deploy'] },
+    ]);
+    await expect(
+      run({ prismaLedger: false, legacyLedger: false, students: true, tables: true }),
+    ).rejects.toThrow('Tenant database has an unknown schema and cannot be baselined');
   });
 });

@@ -1,0 +1,26 @@
+// Tenant-database schema, applied to every tenant database by
+// `pnpm tenant:migrate` (prisma migrate deploy per tenant, see
+// src/database/tenant-migrations.ts). Tenant data is queried at runtime
+// through raw pg pools (TenantConnectionManager), so no Prisma client is
+// generated from this schema.
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Student {
+  id          String    @id @db.Char(26)
+  tenantId    String    @map("tenant_id") @db.Char(26)
+  code        String
+  fullName    String    @map("full_name")
+  phone       String?
+  email       String?
+  dateOfBirth DateTime? @map("date_of_birth") @db.Date
+  status      String    @default("ACTIVE")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([tenantId, code], map: "students_tenant_id_code_key")
+  @@index([tenantId, fullName, id], map: "students_tenant_id_full_name_id_idx")
+  @@map("students")
+}

@@ -3,7 +3,6 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "tsConfigPath": "tsconfig.build.json",
-    "assets": ["database/tenant-migrations/*.sql"]
+    "tsConfigPath": "tsconfig.build.json"
   }
 }

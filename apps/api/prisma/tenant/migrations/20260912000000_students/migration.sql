@@ -1,3 +1,6 @@
+-- Baseline tenant schema. Databases migrated by the retired runner adopt it
+-- with `prisma migrate resolve`, so this DDL only runs on empty databases.
+
 CREATE TABLE students (
   id CHAR(26) PRIMARY KEY,
   tenant_id CHAR(26) NOT NULL,

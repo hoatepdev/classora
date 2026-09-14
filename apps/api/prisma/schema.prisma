@@ -28,7 +28,6 @@ model Tenant {
   slug           String             @unique
   domain         String?            @unique
   dbName         String             @unique @map("db_name")
-  schemaVersion  Int                @default(0) @map("schema_version")
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   memberships    TenantMembership[]
