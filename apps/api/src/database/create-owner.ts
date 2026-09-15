@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import * as argon2 from 'argon2';
 import { ControlDatabaseService } from './control-database.service.js';
 import { TenantRole, UserStatus } from '../generated/prisma/enums.js';

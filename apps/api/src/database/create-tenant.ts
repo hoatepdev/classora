@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { parseArgs } from 'node:util';
 import * as argon2 from 'argon2';
 import { isEmail } from 'class-validator';
