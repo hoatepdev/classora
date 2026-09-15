@@ -1,7 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export enum ClassStatus {
+export enum CourseStatus {
   ACTIVE = 'ACTIVE',
   DISABLED = 'DISABLED',
 }
@@ -11,10 +11,7 @@ const trim = ({ value }: { value: unknown }) =>
 const nullableText = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? null : trim({ value });
 
-export class CreateClassDto {
-  @Matches(/^[0-9A-HJKMNP-TV-Z]{26}$/)
-  courseId!: string;
-
+export class CreateCourseDto {
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
@@ -34,6 +31,6 @@ export class CreateClassDto {
   description?: string | null;
 
   @IsOptional()
-  @IsEnum(ClassStatus)
-  status?: ClassStatus;
+  @IsEnum(CourseStatus)
+  status?: CourseStatus;
 }

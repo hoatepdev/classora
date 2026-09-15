@@ -68,6 +68,8 @@ Potential later domains:
 
 Do not implement later domains until there is a concrete requirement.
 
+A Course represents a reusable training offering and groups its concrete running Classes. New Classes require a Course. Disabling a Course keeps it and its existing Classes readable but prevents assigning new or moved Classes to it; `classes.course_id` remains nullable only for Classes created before Courses were introduced.
+
 An enrollment records one Student's membership in one Class. Each Student-Class pair has one canonical enrollment: withdrawal marks it `WITHDRAWN`, and enrolling again reactivates it with a new enrollment date.
 
 An attendance session records one actual Class occurrence and snapshots its currently active enrollments as persistent Student records. Later enrollment changes do not alter that historical roster.

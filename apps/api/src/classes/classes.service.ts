@@ -8,6 +8,9 @@ import type { UpdateClassDto } from './dto/update-class.dto.js';
 type ClassRow = QueryResultRow & {
   id: string;
   tenantId: string;
+  courseId: string | null;
+  courseCode: string | null;
+  courseName: string | null;
   code: string;
   name: string;
   description: string | null;
@@ -16,17 +19,24 @@ type ClassRow = QueryResultRow & {
   updatedAt: Date;
 };
 
+const classColumns = `
+  c.id,
+  c.tenant_id AS "tenantId",
+  c.course_id AS "courseId",
+  course.code AS "courseCode",
+  course.name AS "courseName",
+  c.code,
+  c.name,
+  c.description,
+  c.status,
+  c.created_at AS "createdAt",
+  c.updated_at AS "updatedAt"
+`;
+
 const selectClass = `
-  SELECT
-    id,
-    tenant_id AS "tenantId",
-    code,
-    name,
-    description,
-    status,
-    created_at AS "createdAt",
-    updated_at AS "updatedAt"
-  FROM classes
+  SELECT ${classColumns}
+  FROM classes c
+  LEFT JOIN courses course ON course.id = c.course_id AND course.tenant_id = c.tenant_id
 `;
 
 function serialize(row: ClassRow) {
@@ -55,7 +65,7 @@ export class ClassesService {
   async list() {
     const { tenant, pool } = this.tenantContext.get();
     const result = await pool.query<ClassRow>(
-      `${selectClass} WHERE tenant_id = $1 ORDER BY name ASC, id ASC`,
+      `${selectClass} WHERE c.tenant_id = $1 ORDER BY c.name ASC, c.id ASC`,
       [tenant.tenantId],
     );
     return result.rows.map(serialize);
@@ -64,7 +74,7 @@ export class ClassesService {
   async get(id: string) {
     const { tenant, pool } = this.tenantContext.get();
     const result = await pool.query<ClassRow>(
-      `${selectClass} WHERE tenant_id = $1 AND id = $2`,
+      `${selectClass} WHERE c.tenant_id = $1 AND c.id = $2`,
       [tenant.tenantId, id],
     );
     const classRecord = result.rows[0];
@@ -74,30 +84,33 @@ export class ClassesService {
 
   async create(input: CreateClassDto) {
     const { tenant, pool } = this.tenantContext.get();
+    await this.ensureActiveCourse(pool, tenant.tenantId, input.courseId);
     try {
       const result = await pool.query<ClassRow>(
-        `INSERT INTO classes
-          (id, tenant_id, code, name, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO classes AS c
+          (id, tenant_id, course_id, code, name, description, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING
-           id,
-           tenant_id AS "tenantId",
-           code,
-           name,
-           description,
-           status,
-           created_at AS "createdAt",
-           updated_at AS "updatedAt"`,
+           c.id,
+           c.tenant_id AS "tenantId",
+           c.course_id AS "courseId",
+           c.code,
+           c.name,
+           c.description,
+           c.status,
+           c.created_at AS "createdAt",
+           c.updated_at AS "updatedAt"`,
         [
           ulid(),
           tenant.tenantId,
+          input.courseId,
           input.code.toUpperCase(),
           input.name,
           input.description ?? null,
           input.status ?? ClassStatus.ACTIVE,
         ],
       );
-      return serialize(result.rows[0]);
+      return this.get(result.rows[0].id);
     } catch (error) {
       if (isClassCodeConflict(error)) throw new ConflictException('Class code already exists');
       throw error;
@@ -108,6 +121,7 @@ export class ClassesService {
     const fields: string[] = [];
     const values: unknown[] = [];
     const columns: Array<[keyof UpdateClassDto, string, (value: never) => unknown]> = [
+      ['courseId', 'course_id', (value: string) => value],
       ['code', 'code', (value: string) => value.toUpperCase()],
       ['name', 'name', (value: string) => value],
       ['description', 'description', (value: string | null) => value],
@@ -122,28 +136,45 @@ export class ClassesService {
     if (fields.length === 0) throw new BadRequestException('At least one field is required');
 
     const { tenant, pool } = this.tenantContext.get();
+    if (input.courseId !== undefined) {
+      const existing = await pool.query<{ courseId: string | null }>(
+        'SELECT course_id AS "courseId" FROM classes WHERE tenant_id = $1 AND id = $2',
+        [tenant.tenantId, id],
+      );
+      if (!existing.rows[0]) throw new NotFoundException('Class not found');
+      if (input.courseId !== existing.rows[0].courseId) {
+        await this.ensureActiveCourse(pool, tenant.tenantId, input.courseId);
+      }
+    }
+
     try {
       const result = await pool.query<ClassRow>(
-        `UPDATE classes
+        `UPDATE classes AS c
          SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-         WHERE tenant_id = $1 AND id = $2
-         RETURNING
-           id,
-           tenant_id AS "tenantId",
-           code,
-           name,
-           description,
-           status,
-           created_at AS "createdAt",
-           updated_at AS "updatedAt"`,
+         WHERE c.tenant_id = $1 AND c.id = $2
+         RETURNING c.id`,
         [tenant.tenantId, id, ...values],
       );
       const classRecord = result.rows[0];
       if (!classRecord) throw new NotFoundException('Class not found');
-      return serialize(classRecord);
+      return this.get(classRecord.id);
     } catch (error) {
       if (isClassCodeConflict(error)) throw new ConflictException('Class code already exists');
       throw error;
     }
+  }
+
+  private async ensureActiveCourse(
+    pool: { query: (sql: string, values?: unknown[]) => Promise<{ rows: Array<{ status: string }> }> },
+    tenantId: string,
+    courseId: string,
+  ) {
+    const result = await pool.query('SELECT status FROM courses WHERE tenant_id = $1 AND id = $2', [
+      tenantId,
+      courseId,
+    ]);
+    const course = result.rows[0];
+    if (!course) throw new NotFoundException('Course not found');
+    if (course.status === 'DISABLED') throw new ConflictException('Course is disabled');
   }
 }

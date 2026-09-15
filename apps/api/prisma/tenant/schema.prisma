@@ -27,21 +27,40 @@ model Student {
   @@map("students")
 }
 
+model Course {
+  id          String   @id @db.Char(26)
+  tenantId    String   @map("tenant_id") @db.Char(26)
+  code        String
+  name        String
+  description String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  classes     Class[]
+
+  @@unique([tenantId, code], map: "courses_tenant_id_code_key")
+  @@index([tenantId, name, id], map: "courses_tenant_id_name_id_idx")
+  @@map("courses")
+}
+
 model Class {
   id          String       @id @db.Char(26)
   tenantId    String       @map("tenant_id") @db.Char(26)
+  courseId    String?      @map("course_id") @db.Char(26)
   code        String
   name        String
   description String?
   status      String       @default("ACTIVE")
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  course            Course?             @relation(fields: [courseId], references: [id])
   enrollments       Enrollment[]
   schedules         Schedule[]
   attendanceSessions AttendanceSession[]
 
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
   @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
+  @@index([tenantId, courseId, name, id], map: "classes_tenant_id_course_id_name_id_idx")
   @@map("classes")
 }
 

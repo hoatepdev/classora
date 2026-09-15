@@ -13,6 +13,10 @@ const user = {
   name: 'Owner',
   status: 'ACTIVE' as const,
 };
+const activeCourseId = '01JHZX3V8Q9K5M2N7R4T6W1Y0E';
+const disabledCourseId = '01JHZX3V8Q9K5M2N7R4T6W1Y0F';
+const betaCourseId = '01JHZX3V8Q9K5M2N7R4T6W1Y0G';
+
 const tenants = {
   alpha: {
     id: '01JHZX3V8Q9K5M2N7R4T6W1Y0A',
@@ -26,9 +30,18 @@ const tenants = {
   },
 };
 
+type CourseRecord = {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  status: 'ACTIVE' | 'DISABLED';
+};
+
 type ClassRecord = {
   id: string;
   tenantId: string;
+  courseId: string | null;
   code: string;
   name: string;
   description: string | null;
@@ -39,16 +52,38 @@ type ClassRecord = {
 
 function classPool() {
   const rows = new Map<string, ClassRecord>();
+  const courses = new Map<string, CourseRecord>();
+  const withCourse = (record: ClassRecord) => {
+    const course = record.courseId ? courses.get(record.courseId) : undefined;
+    return {
+      ...record,
+      courseCode: course?.code ?? null,
+      courseName: course?.name ?? null,
+    };
+  };
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+    if (sql.includes('SELECT status FROM courses')) {
+      const [tenantId, id] = values;
+      const course = courses.get(id as string);
+      return { rows: course?.tenantId === tenantId ? [{ status: course.status }] : [] };
+    }
+
+    if (sql.includes('SELECT course_id AS "courseId" FROM classes')) {
+      const [tenantId, id] = values;
+      const record = rows.get(id as string);
+      return { rows: record?.tenantId === tenantId ? [{ courseId: record.courseId }] : [] };
+    }
+
     if (sql.includes('INSERT INTO classes')) {
       const now = new Date('2026-09-14T00:00:00.000Z');
       const classRecord: ClassRecord = {
         id: values[0] as string,
         tenantId: values[1] as string,
-        code: values[2] as string,
-        name: values[3] as string,
-        description: values[4] as string | null,
-        status: values[5] as ClassRecord['status'],
+        courseId: values[2] as string,
+        code: values[3] as string,
+        name: values[4] as string,
+        description: values[5] as string | null,
+        status: values[6] as ClassRecord['status'],
         createdAt: now,
         updatedAt: now,
       };
@@ -63,7 +98,7 @@ function classPool() {
         });
       }
       rows.set(classRecord.id, classRecord);
-      return { rows: [classRecord] };
+      return { rows: [withCourse(classRecord)] };
     }
 
     if (sql.includes('UPDATE classes')) {
@@ -76,28 +111,30 @@ function classPool() {
         name: 'name',
         description: 'description',
         status: 'status',
+        course_id: 'courseId',
       };
       assignments.forEach((assignment, index) => {
         classRecord[propertyByColumn[assignment.split(' = ')[0]]] = updates[index] as never;
       });
       classRecord.updatedAt = new Date('2026-09-14T01:00:00.000Z');
-      return { rows: [classRecord] };
+      return { rows: [withCourse(classRecord)] };
     }
 
-    if (sql.includes('AND id = $2')) {
+    if (sql.includes('AND c.id = $2')) {
       const [tenantId, id] = values;
       const classRecord = rows.get(id as string);
-      return { rows: classRecord?.tenantId === tenantId ? [classRecord] : [] };
+      return { rows: classRecord?.tenantId === tenantId ? [withCourse(classRecord)] : [] };
     }
 
     return {
       rows: [...rows.values()]
         .filter((classRecord) => classRecord.tenantId === values[0])
-        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+        .map(withCourse),
     };
   });
 
-  return { pool: { query } as unknown as Pool, query, rows };
+  return { pool: { query } as unknown as Pool, query, rows, courses };
 }
 
 describe('classes', () => {
@@ -127,6 +164,28 @@ describe('classes', () => {
   };
 
   beforeAll(async () => {
+    alpha.courses.set(activeCourseId, {
+      id: activeCourseId,
+      tenantId: tenants.alpha.id,
+      code: 'IELTS-FND',
+      name: 'IELTS Foundation',
+      status: 'ACTIVE',
+    });
+    alpha.courses.set(disabledCourseId, {
+      id: disabledCourseId,
+      tenantId: tenants.alpha.id,
+      code: 'OLD',
+      name: 'Disabled Course',
+      status: 'DISABLED',
+    });
+    beta.courses.set(betaCourseId, {
+      id: betaCourseId,
+      tenantId: tenants.beta.id,
+      code: 'IELTS-FND',
+      name: 'Beta IELTS',
+      status: 'ACTIVE',
+    });
+
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ControlDatabaseService)
       .useValue(database)
@@ -161,11 +220,14 @@ describe('classes', () => {
 
   it('creates, lists, gets, and edits a Class in the trusted tenant', async () => {
     const created = await authorized('post', '/classes')
-      .send({ code: ' cls001 ', name: ' English Beginner ', description: '' })
+      .send({ courseId: activeCourseId, code: ' cls001 ', name: ' English Beginner ', description: '' })
       .expect(201);
 
     expect(created.body).toMatchObject({
       tenantId: tenants.alpha.id,
+      courseId: activeCourseId,
+      courseCode: 'IELTS-FND',
+      courseName: 'IELTS Foundation',
       code: 'CLS001',
       name: 'English Beginner',
       description: null,
@@ -198,7 +260,7 @@ describe('classes', () => {
 
   it('rejects client tenant selectors and empty patches', async () => {
     await authorized('post', '/classes')
-      .send({ code: 'CLS002', name: 'Class', tenantId: tenants.beta.id })
+      .send({ courseId: activeCourseId, code: 'CLS002', name: 'Class', tenantId: tenants.beta.id })
       .expect(400);
 
     const existing = [...alpha.rows.values()][0];
@@ -207,7 +269,7 @@ describe('classes', () => {
 
   it('maps the Class code constraint to conflict', async () => {
     await authorized('post', '/classes')
-      .send({ code: 'cls001', name: 'Duplicate' })
+      .send({ courseId: activeCourseId, code: 'cls001', name: 'Duplicate' })
       .expect(409);
   });
 
@@ -228,7 +290,7 @@ describe('classes', () => {
 
   it('allows the same code in separate tenant databases', async () => {
     await authorized('post', '/classes', 'beta')
-      .send({ code: ' cls001 ', name: 'Beta English' })
+      .send({ courseId: betaCourseId, code: ' cls001 ', name: 'Beta English' })
       .expect(201)
       .expect(({ body }) => {
         expect(body.tenantId).toBe(tenants.beta.id);
@@ -236,14 +298,65 @@ describe('classes', () => {
       });
   });
 
+  it('requires an active Course from the same tenant and preserves disabled existing assignments', async () => {
+    await authorized('post', '/classes')
+      .send({ code: 'MISSING', name: 'Missing Course' })
+      .expect(400);
+    await authorized('post', '/classes')
+      .send({ courseId: '01JHZX3V8Q9K5M2N7R4T6W1Y0H', code: 'UNKNOWN', name: 'Unknown Course' })
+      .expect(404);
+    await authorized('post', '/classes')
+      .send({ courseId: disabledCourseId, code: 'DISABLED', name: 'Disabled Course' })
+      .expect(409);
+    await authorized('post', '/classes', 'beta')
+      .send({ courseId: activeCourseId, code: 'CROSS', name: 'Cross Tenant Course' })
+      .expect(404);
+
+    const created = await authorized('post', '/classes')
+      .send({ courseId: activeCourseId, code: 'MOVE', name: 'Move Me' })
+      .expect(201);
+    await authorized('patch', `/classes/${created.body.id}`)
+      .send({ courseId: disabledCourseId })
+      .expect(409);
+
+    alpha.rows.get(created.body.id)!.courseId = disabledCourseId;
+    await authorized('patch', `/classes/${created.body.id}`)
+      .send({ name: 'Still Editable' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.courseId).toBe(disabledCourseId);
+        expect(body.name).toBe('Still Editable');
+      });
+  });
+
+  it('keeps migrated Classes without a Course readable', async () => {
+    const now = new Date('2026-09-14T00:00:00.000Z');
+    const id = '01JHZX3V8Q9K5M2N7R4T6W1Y0J';
+    alpha.rows.set(id, {
+      id,
+      tenantId: tenants.alpha.id,
+      courseId: null,
+      code: 'LEGACY',
+      name: 'Legacy Class',
+      description: null,
+      status: 'ACTIVE',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await authorized('get', `/classes/${id}`).expect(200).expect(({ body }) => {
+      expect(body).toMatchObject({ courseId: null, courseCode: null, courseName: null });
+    });
+  });
+
   it('validates IDs, required fields, status, and non-nullable patches', async () => {
     await authorized('post', '/classes')
-      .send({ code: '', name: '', status: 'UNKNOWN' })
+      .send({ courseId: '', code: '', name: '', status: 'UNKNOWN' })
       .expect(400);
     await authorized('get', '/classes/not-an-id').expect(400);
 
     const existing = [...alpha.rows.values()][0];
-    for (const field of ['code', 'name', 'status']) {
+    for (const field of ['courseId', 'code', 'name', 'status']) {
       await authorized('patch', `/classes/${existing.id}`)
         .send({ [field]: null })
         .expect(400);

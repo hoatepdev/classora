@@ -4,6 +4,9 @@ import { AttendanceSessionPage } from "./features/attendance/AttendanceSessionPa
 import { ClassDetail } from "./features/classes/ClassDetail.js";
 import { ClassForm } from "./features/classes/ClassForm.js";
 import { ClassesPage } from "./features/classes/ClassesPage.js";
+import { CourseDetail } from "./features/courses/CourseDetail.js";
+import { CourseForm } from "./features/courses/CourseForm.js";
+import { CoursesPage } from "./features/courses/CoursesPage.js";
 import { ProtectedRoute } from "./features/students/ProtectedRoute.js";
 import { TeacherDetail } from "./features/teachers/TeacherDetail.js";
 import { TeacherForm } from "./features/teachers/TeacherForm.js";
@@ -22,6 +25,10 @@ export function App() {
         <Route path="/students/new" element={<StudentForm />} />
         <Route path="/students/:id" element={<StudentDetail />} />
         <Route path="/students/:id/edit" element={<StudentForm />} />
+        <Route path="/courses" element={<CoursesPage />} />
+        <Route path="/courses/new" element={<CourseForm />} />
+        <Route path="/courses/:id" element={<CourseDetail />} />
+        <Route path="/courses/:id/edit" element={<CourseForm />} />
         <Route path="/classes" element={<ClassesPage />} />
         <Route path="/classes/new" element={<ClassForm />} />
         <Route path="/classes/:id" element={<ClassDetail />} />

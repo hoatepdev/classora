@@ -5,23 +5,17 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
-import { ClassStatus } from './create-class.dto.js';
+import { CourseStatus } from './create-course.dto.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 const nullableText = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? null : trim({ value });
 
-export class UpdateClassDto {
-  @ValidateIf((_, value) => value !== undefined)
-  @IsDefined()
-  @Matches(/^[0-9A-HJKMNP-TV-Z]{26}$/)
-  courseId?: string;
-
+export class UpdateCourseDto {
   @Transform(trim)
   @ValidateIf((_, value) => value !== undefined)
   @IsDefined()
@@ -46,6 +40,6 @@ export class UpdateClassDto {
 
   @ValidateIf((_, value) => value !== undefined)
   @IsDefined()
-  @IsEnum(ClassStatus)
-  status?: ClassStatus;
+  @IsEnum(CourseStatus)
+  status?: CourseStatus;
 }

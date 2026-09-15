@@ -95,6 +95,7 @@ export function ClassDetail() {
     </div>
     <dl className="detail-sheet">
       {fields.map(([label, value]) => <div className="detail-field" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+      <div className="detail-field"><dt>Khóa học</dt><dd>{classRecord.data.courseId && classRecord.data.courseCode && classRecord.data.courseName ? <Link className="action-link" to={`/courses/${classRecord.data.courseId}`}>{classRecord.data.courseCode} — {classRecord.data.courseName}</Link> : "—"}</dd></div>
       <div className="detail-field"><dt>Trạng thái</dt><dd><span className={`status ${classRecord.data.status === "DISABLED" ? "disabled" : ""}`}>{classRecord.data.status === "ACTIVE" ? "Đang hoạt động" : "Ngừng hoạt động"}</span></dd></div>
     </dl>
 

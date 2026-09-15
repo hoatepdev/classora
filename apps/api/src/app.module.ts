@@ -4,6 +4,7 @@ import { AttendanceModule } from './attendance/attendance.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ClassesModule } from './classes/classes.module.js';
+import { CoursesModule } from './courses/courses.module.js';
 import { ControlDatabaseModule } from './database/control-database.module.js';
 import { EnrollmentsModule } from './enrollments/enrollments.module.js';
 import { HealthController } from './health.controller.js';
@@ -20,6 +21,7 @@ import { TenantModule } from './tenant/tenant.module.js';
     AuthModule,
     TenantModule,
     StudentsModule,
+    CoursesModule,
     ClassesModule,
     EnrollmentsModule,
     TeachersModule,
