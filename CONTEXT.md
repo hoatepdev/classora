@@ -70,6 +70,8 @@ Do not implement later domains until there is a concrete requirement.
 
 An enrollment records one Student's membership in one Class. Each Student-Class pair has one canonical enrollment: withdrawal marks it `WITHDRAWN`, and enrolling again reactivates it with a new enrollment date.
 
+An attendance session records one actual Class occurrence and snapshots its currently active enrollments as persistent Student records. Later enrollment changes do not alter that historical roster.
+
 ## Multi-Tenancy
 
 Classora uses database-per-tenant isolation.

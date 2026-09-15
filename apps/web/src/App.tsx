@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./auth/LoginPage.js";
+import { AttendanceSessionPage } from "./features/attendance/AttendanceSessionPage.js";
 import { ClassDetail } from "./features/classes/ClassDetail.js";
 import { ClassForm } from "./features/classes/ClassForm.js";
 import { ClassesPage } from "./features/classes/ClassesPage.js";
@@ -25,6 +26,7 @@ export function App() {
         <Route path="/classes/new" element={<ClassForm />} />
         <Route path="/classes/:id" element={<ClassDetail />} />
         <Route path="/classes/:id/edit" element={<ClassForm />} />
+        <Route path="/attendance-sessions/:id" element={<AttendanceSessionPage />} />
         <Route path="/teachers" element={<TeachersPage />} />
         <Route path="/teachers/new" element={<TeacherForm />} />
         <Route path="/teachers/:id" element={<TeacherDetail />} />

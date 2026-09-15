@@ -9,6 +9,7 @@ import {
   studentEnrollmentQueryKey,
   withdrawEnrollment,
 } from "../enrollments/api.js";
+import { ClassAttendanceSection } from "../attendance/ClassAttendanceSection.js";
 import { ClassSchedulesSection } from "../schedules/ClassSchedulesSection.js";
 import { listStudents, studentQueryKey } from "../students/api.js";
 import { classQueryKey, getClass } from "./api.js";
@@ -136,6 +137,7 @@ export function ClassDetail() {
     </section>
 
     <ClassSchedulesSection classId={classRecord.data.id} />
+    <ClassAttendanceSection classId={classRecord.data.id} />
 
     <div className="form-actions"><Link className="button secondary" to="/classes">Quay lại danh sách</Link></div>
   </main>;

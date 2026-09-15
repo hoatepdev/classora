@@ -19,7 +19,8 @@ model Student {
   status      String       @default("ACTIVE")
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  enrollments Enrollment[]
+  enrollments       Enrollment[]
+  attendanceRecords AttendanceRecord[]
 
   @@unique([tenantId, code], map: "students_tenant_id_code_key")
   @@index([tenantId, fullName, id], map: "students_tenant_id_full_name_id_idx")
@@ -35,8 +36,9 @@ model Class {
   status      String       @default("ACTIVE")
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  enrollments Enrollment[]
-  schedules   Schedule[]
+  enrollments       Enrollment[]
+  schedules         Schedule[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
   @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
@@ -54,7 +56,8 @@ model Teacher {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  schedules Schedule[]
+  schedules          Schedule[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([tenantId, code], map: "teachers_tenant_id_code_key")
   @@index([tenantId, name, id], map: "teachers_tenant_id_name_id_idx")
@@ -91,10 +94,51 @@ model Schedule {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  class     Class    @relation(fields: [classId], references: [id])
-  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  class              Class               @relation(fields: [classId], references: [id])
+  teacher            Teacher             @relation(fields: [teacherId], references: [id])
+  attendanceSessions AttendanceSession[]
 
   @@index([tenantId, classId, dayOfWeek, startTime, id], map: "schedules_tenant_id_class_id_day_of_week_start_time_id_idx")
   @@index([tenantId, teacherId, dayOfWeek, startTime, id], map: "schedules_tenant_id_teacher_id_day_of_week_start_time_id_idx")
   @@map("schedules")
+}
+
+/// Schedule/date uniqueness is enforced by the migration's partial unique index, which Prisma cannot model.
+model AttendanceSession {
+  id          String   @id @db.Char(26)
+  tenantId    String   @map("tenant_id") @db.Char(26)
+  classId     String   @map("class_id") @db.Char(26)
+  scheduleId  String?  @map("schedule_id") @db.Char(26)
+  teacherId   String?  @map("teacher_id") @db.Char(26)
+  sessionDate DateTime @map("session_date") @db.Date
+  startTime   DateTime @map("start_time") @db.Time(0)
+  endTime     DateTime @map("end_time") @db.Time(0)
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  class       Class    @relation(fields: [classId], references: [id])
+  schedule    Schedule? @relation(fields: [scheduleId], references: [id])
+  teacher     Teacher? @relation(fields: [teacherId], references: [id])
+  records     AttendanceRecord[]
+
+  @@unique([tenantId, classId, sessionDate, startTime, endTime], map: "attendance_sessions_occurrence_key")
+  @@index([tenantId, classId, sessionDate, id], map: "attendance_sessions_tenant_id_class_id_session_date_id_idx")
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id                  String            @id @db.Char(26)
+  tenantId            String            @map("tenant_id") @db.Char(26)
+  attendanceSessionId String            @map("attendance_session_id") @db.Char(26)
+  studentId           String            @map("student_id") @db.Char(26)
+  status              String            @default("PRESENT")
+  note                String?
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id])
+  student             Student           @relation(fields: [studentId], references: [id])
+
+  @@unique([tenantId, attendanceSessionId, studentId], map: "attendance_records_session_student_key")
+  @@index([tenantId, studentId, id], map: "attendance_records_tenant_id_student_id_id_idx")
+  @@map("attendance_records")
 }

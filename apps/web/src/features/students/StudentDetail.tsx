@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Link, useParams } from "react-router-dom";
+import { StudentAttendanceSection } from "../attendance/StudentAttendanceSection.js";
 import { listStudentEnrollments, studentEnrollmentQueryKey } from "../enrollments/api.js";
 import { getStudent, studentQueryKey } from "./api.js";
 
@@ -62,6 +63,8 @@ export function StudentDetail() {
         </table>
       </div>}
     </section>
+
+    <StudentAttendanceSection studentId={student.data.id} />
 
     <div className="form-actions"><Link className="button secondary" to="/students">Quay lại danh sách</Link></div>
   </main>;
