@@ -56,7 +56,10 @@ describe('GET /health/tenant', () => {
     await app.init();
   });
 
-  afterEach(() => app.close());
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await app.close();
+  });
 
   it('returns safe tenant metadata resolved from the hostname', async () => {
     await request(app.getHttpServer())
@@ -85,4 +88,21 @@ describe('GET /health/tenant', () => {
       expect(connections.getConnection).not.toHaveBeenCalled();
     },
   );
+
+  it('falls back to the demo tenant for non-tenant hostnames outside production', async () => {
+    await request(app.getHttpServer())
+      .get('/health/tenant')
+      .set('Host', 'localhost:4100')
+      .expect(200)
+      .expect({ tenantId: tenant.id, tenantSlug: tenant.slug });
+  });
+
+  it('keeps rejecting non-tenant hostnames in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    await request(app.getHttpServer())
+      .get('/health/tenant')
+      .set('Host', 'localhost:4100')
+      .expect(404);
+    expect(connections.getConnection).not.toHaveBeenCalled();
+  });
 });
