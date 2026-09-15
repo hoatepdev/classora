@@ -69,6 +69,10 @@ label { color: #344056; font-size: 13px; font-weight: 750; }
 .relationship-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
 .enrollment-control { display: flex; align-items: end; gap: 10px; }
 .enrollment-control .input { min-width: min(360px, 50vw); }
+.schedule-form { margin-bottom: 22px; border-top: 2px solid #25245d; padding-top: 20px; }
+.schedule-fields { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr; gap: 16px; align-items: start; }
+.schedule-actions, .row-actions { display: flex; gap: 12px; }
+.schedule-actions { margin-top: 16px; }
 .action-button { border: 0; padding: 0; color: #34339a; background: transparent; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .action-button:disabled { opacity: .55; cursor: not-allowed; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
@@ -97,6 +101,8 @@ label { color: #344056; font-size: 13px; font-weight: 750; }
   .detail-field { grid-template-columns: 1fr; gap: 6px; }
   .relationship-heading, .enrollment-control { align-items: stretch; flex-direction: column; }
   .enrollment-control .input { min-width: 0; }
+  .schedule-fields { grid-template-columns: 1fr; }
+  .schedule-actions, .row-actions { flex-wrap: wrap; }
   .login-page { grid-template-columns: 1fr; background: #f8f9fb; }
   .login-context { min-height: 210px; padding: 28px; }
   .login-message h1 { margin-top: 48px; font-size: 38px; }

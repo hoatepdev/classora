@@ -36,6 +36,7 @@ model Class {
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   enrollments Enrollment[]
+  schedules   Schedule[]
 
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
   @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
@@ -52,7 +53,8 @@ model Teacher {
   note      String?
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  schedules Schedule[]
 
   @@unique([tenantId, code], map: "teachers_tenant_id_code_key")
   @@index([tenantId, name, id], map: "teachers_tenant_id_name_id_idx")
@@ -74,4 +76,25 @@ model Enrollment {
   @@unique([tenantId, studentId, classId], map: "enrollments_tenant_id_student_id_class_id_key")
   @@index([tenantId, classId, enrolledAt, id], map: "enrollments_tenant_id_class_id_enrolled_at_id_idx")
   @@map("enrollments")
+}
+
+/// Active duplicates are prevented by the migration's partial unique index, which Prisma cannot model.
+model Schedule {
+  id        String   @id @db.Char(26)
+  tenantId  String   @map("tenant_id") @db.Char(26)
+  classId   String   @map("class_id") @db.Char(26)
+  teacherId String   @map("teacher_id") @db.Char(26)
+  dayOfWeek String   @map("day_of_week")
+  startTime DateTime @map("start_time") @db.Time(0)
+  endTime   DateTime @map("end_time") @db.Time(0)
+  room      String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  class     Class    @relation(fields: [classId], references: [id])
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+
+  @@index([tenantId, classId, dayOfWeek, startTime, id], map: "schedules_tenant_id_class_id_day_of_week_start_time_id_idx")
+  @@index([tenantId, teacherId, dayOfWeek, startTime, id], map: "schedules_tenant_id_teacher_id_day_of_week_start_time_id_idx")
+  @@map("schedules")
 }

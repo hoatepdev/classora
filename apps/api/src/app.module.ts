@@ -6,6 +6,7 @@ import { ClassesModule } from './classes/classes.module.js';
 import { ControlDatabaseModule } from './database/control-database.module.js';
 import { EnrollmentsModule } from './enrollments/enrollments.module.js';
 import { HealthController } from './health.controller.js';
+import { SchedulesModule } from './schedules/schedules.module.js';
 import { StudentsModule } from './students/students.module.js';
 import { TeachersModule } from './teachers/teachers.module.js';
 import { TenantConnectionInterceptor } from './tenant/tenant-connection.interceptor.js';
@@ -21,6 +22,7 @@ import { TenantModule } from './tenant/tenant.module.js';
     ClassesModule,
     EnrollmentsModule,
     TeachersModule,
+    SchedulesModule,
   ],
   controllers: [HealthController],
   providers: [
