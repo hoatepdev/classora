@@ -124,4 +124,13 @@ describe("GET /health/tenant", () => {
       .expect(404);
     expect(connections.getConnection).not.toHaveBeenCalled();
   });
+
+  it("keeps rejecting non-tenant hostnames in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    await request(app.getHttpServer())
+      .get("/health/tenant")
+      .set("Host", "localhost:4100")
+      .expect(404);
+    expect(connections.getConnection).not.toHaveBeenCalled();
+  });
 });
