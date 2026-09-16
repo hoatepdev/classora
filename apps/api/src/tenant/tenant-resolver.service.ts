@@ -3,7 +3,6 @@ import { ControlDatabaseService } from '../database/control-database.service.js'
 
 export const TENANT_HOST_SUFFIX = '.classora.io.vn';
 export const RESERVED_TENANT_SLUGS = ['api', 'app'];
-const DEV_FALLBACK_SLUG = 'demo';
 
 export type ResolvedTenant = {
   tenantId: string;
@@ -35,9 +34,8 @@ export class TenantResolverService {
       return this.resolveBySlug(slug);
     }
 
-    // Non-tenant hostnames (e.g. localhost) fall back to the demo tenant so dev
-    // works without a hosts entry; production must keep failing closed.
-    if (process.env.NODE_ENV === 'production') return null;
-    return this.resolveBySlug(DEV_FALLBACK_SLUG);
+    const devTenantSlug = process.env.DEV_TENANT_SLUG;
+    if (process.env.NODE_ENV === 'production' || !devTenantSlug) return null;
+    return this.resolveBySlug(devTenantSlug);
   }
 }

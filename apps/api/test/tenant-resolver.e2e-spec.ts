@@ -81,15 +81,18 @@ describe('GET /health/tenant', () => {
     expect(connections.releaseConnection).toHaveBeenCalledWith(tenant.dbName, pool);
   });
 
-  it.each(['api.classora.io.vn', 'app.classora.io.vn', 'unknown.classora.io.vn'])(
-    'rejects the non-tenant hostname %s',
-    async (hostname) => {
-      await request(app.getHttpServer()).get('/health/tenant/query').set('Host', hostname).expect(404);
-      expect(connections.getConnection).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    'api.classora.io.vn',
+    'app.classora.io.vn',
+    'nested.demo.classora.io.vn',
+    'unknown.classora.io.vn',
+  ])('rejects the invalid tenant hostname %s', async (hostname) => {
+    await request(app.getHttpServer()).get('/health/tenant/query').set('Host', hostname).expect(404);
+    expect(connections.getConnection).not.toHaveBeenCalled();
+  });
 
-  it('falls back to the demo tenant for non-tenant hostnames outside production', async () => {
+  it('uses the configured development tenant for non-tenant hostnames', async () => {
+    vi.stubEnv('DEV_TENANT_SLUG', tenant.slug);
     await request(app.getHttpServer())
       .get('/health/tenant')
       .set('Host', 'localhost:4100')
@@ -97,8 +100,18 @@ describe('GET /health/tenant', () => {
       .expect({ tenantId: tenant.id, tenantSlug: tenant.slug });
   });
 
+  it('rejects non-tenant hostnames without a configured development tenant', async () => {
+    vi.stubEnv('DEV_TENANT_SLUG', '');
+    await request(app.getHttpServer())
+      .get('/health/tenant')
+      .set('Host', 'localhost:4100')
+      .expect(404);
+    expect(connections.getConnection).not.toHaveBeenCalled();
+  });
+
   it('keeps rejecting non-tenant hostnames in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DEV_TENANT_SLUG', tenant.slug);
     await request(app.getHttpServer())
       .get('/health/tenant')
       .set('Host', 'localhost:4100')
