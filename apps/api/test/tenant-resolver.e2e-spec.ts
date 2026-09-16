@@ -89,6 +89,19 @@ describe('GET /health/tenant', () => {
     },
   );
 
+  it.each([
+    '-demo.classora.io.vn',
+    'demo-.classora.io.vn',
+    'bad_slug.classora.io.vn',
+    `${'a'.repeat(48)}.classora.io.vn`,
+    'nested.demo.classora.io.vn',
+  ])('rejects malformed tenant hostname %s before lookup', async (hostname) => {
+    await request(app.getHttpServer()).get('/health/tenant/query').set('Host', hostname).expect(404);
+
+    expect(database.tenant.findUnique).not.toHaveBeenCalled();
+    expect(connections.getConnection).not.toHaveBeenCalled();
+  });
+
   it('falls back to the demo tenant for non-tenant hostnames outside production', async () => {
     await request(app.getHttpServer())
       .get('/health/tenant')

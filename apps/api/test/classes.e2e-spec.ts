@@ -62,13 +62,13 @@ function classPool() {
     };
   };
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
-    if (sql.includes('SELECT status FROM courses')) {
+    if (sql.includes('SELECT status') && sql.includes('FROM courses')) {
       const [tenantId, id] = values;
       const course = courses.get(id as string);
       return { rows: course?.tenantId === tenantId ? [{ status: course.status }] : [] };
     }
 
-    if (sql.includes('SELECT course_id AS "courseId" FROM classes')) {
+    if (sql.includes('SELECT course_id AS "courseId"') && sql.includes('FROM classes')) {
       const [tenantId, id] = values;
       const record = rows.get(id as string);
       return { rows: record?.tenantId === tenantId ? [{ courseId: record.courseId }] : [] };
@@ -134,7 +134,13 @@ function classPool() {
     };
   });
 
-  return { pool: { query } as unknown as Pool, query, rows, courses };
+  const release = vi.fn();
+  const pool = {
+    query,
+    connect: vi.fn(async () => ({ query, release })),
+  } as unknown as Pool;
+
+  return { pool, query, release, rows, courses };
 }
 
 describe('classes', () => {
@@ -253,6 +259,9 @@ describe('classes', () => {
         expect(body.status).toBe('DISABLED');
       });
 
+    expect(alpha.release.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      alpha.query.mock.invocationCallOrder.at(-1)!,
+    );
     expect(alpha.query.mock.calls.some(([, values]) => values?.includes(tenants.alpha.id))).toBe(true);
     expect(connections.getConnection).toHaveBeenCalledWith(tenants.alpha.dbName);
     expect(connections.releaseConnection).toHaveBeenCalledWith(tenants.alpha.dbName, alpha.pool);
@@ -308,6 +317,12 @@ describe('classes', () => {
     await authorized('post', '/classes')
       .send({ courseId: disabledCourseId, code: 'DISABLED', name: 'Disabled Course' })
       .expect(409);
+    expect(
+      alpha.query.mock.calls.some(
+        ([sql]) =>
+          sql.includes('SELECT status') && sql.includes('FROM courses') && sql.includes('FOR SHARE'),
+      ),
+    ).toBe(true);
     await authorized('post', '/classes', 'beta')
       .send({ courseId: activeCourseId, code: 'CROSS', name: 'Cross Tenant Course' })
       .expect(404);
