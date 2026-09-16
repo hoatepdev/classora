@@ -51,6 +51,21 @@ describe('tenant migrations', () => {
     expect(deployed).toEqual(['classora_tenant_alpha']);
   });
 
+  it('retries cleanly after a failed migration run', async () => {
+    let attempts = 0;
+    const deploy = vi.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('transient failure');
+    });
+
+    await expect(migrateTenantDatabases([tenants.alpha], deploy)).rejects.toThrow(
+      'transient failure',
+    );
+    await expect(migrateTenantDatabases([tenants.alpha], deploy)).resolves.toBeUndefined();
+
+    expect(deploy).toHaveBeenCalledTimes(2);
+  });
+
   it('builds a URL from trusted metadata and encodes PostgreSQL database names', () => {
     expect(tenantDatabaseUrl('classora_tenant_demo')).toMatch(
       /^postgresql:\/\/[^@]+@[^/]+\/classora_tenant_demo$/,
@@ -68,6 +83,7 @@ describe('tenant migrations', () => {
     type State = {
       prismaLedger: boolean;
       legacyLedger: boolean;
+      legacyMigrations: Array<{ version: number; name: string }>;
       students: boolean;
       tables: boolean;
     };
@@ -85,23 +101,67 @@ describe('tenant migrations', () => {
     };
 
     await expect(
-      run({ prismaLedger: false, legacyLedger: true, students: true, tables: true }),
+      run({
+        prismaLedger: false,
+        legacyLedger: true,
+        legacyMigrations: [{ version: 1, name: 'students' }],
+        students: true,
+        tables: true,
+      }),
     ).resolves.toEqual([
       { dbName: 'classora_tenant_alpha', args: ['migrate', 'resolve', '--applied', BASELINE_MIGRATION] },
       { dbName: 'classora_tenant_alpha', args: ['migrate', 'deploy'] },
     ]);
     await expect(
-      run({ prismaLedger: false, legacyLedger: false, students: false, tables: false }),
+      run({
+        prismaLedger: false,
+        legacyLedger: false,
+        legacyMigrations: [],
+        students: false,
+        tables: false,
+      }),
     ).resolves.toEqual([
       { dbName: 'classora_tenant_alpha', args: ['migrate', 'deploy'] },
     ]);
     await expect(
-      run({ prismaLedger: true, legacyLedger: false, students: true, tables: true }),
+      run({
+        prismaLedger: true,
+        legacyLedger: false,
+        legacyMigrations: [],
+        students: true,
+        tables: true,
+      }),
     ).resolves.toEqual([
       { dbName: 'classora_tenant_alpha', args: ['migrate', 'deploy'] },
     ]);
+
+    for (const legacyMigrations of [
+      [],
+      [{ version: 1, name: 'renamed' }],
+      [
+        { version: 1, name: 'students' },
+        { version: 2, name: 'unknown' },
+      ],
+    ]) {
+      await expect(
+        run({
+          prismaLedger: false,
+          legacyLedger: true,
+          legacyMigrations,
+          students: true,
+          tables: true,
+        }),
+      ).rejects.toThrow('Tenant database has an unknown schema and cannot be baselined');
+    }
+
     await expect(
-      run({ prismaLedger: false, legacyLedger: false, students: true, tables: true }),
+      run({
+        prismaLedger: false,
+        legacyLedger: false,
+        legacyMigrations: [],
+        students: true,
+        tables: true,
+      }),
     ).rejects.toThrow('Tenant database has an unknown schema and cannot be baselined');
   });
 });

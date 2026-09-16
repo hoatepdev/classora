@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import { ulid } from 'ulid';
 import { TenantContextService } from '../tenant/tenant-context.service.js';
 import { ClassStatus, type CreateClassDto } from './dto/create-class.dto.js';
@@ -84,24 +84,18 @@ export class ClassesService {
 
   async create(input: CreateClassDto) {
     const { tenant, pool } = this.tenantContext.get();
-    await this.ensureActiveCourse(pool, tenant.tenantId, input.courseId);
+    const client = await pool.connect();
+    let id: string;
     try {
-      const result = await pool.query<ClassRow>(
-        `INSERT INTO classes AS c
+      await client.query('BEGIN');
+      await this.ensureActiveCourse(client, tenant.tenantId, input.courseId);
+      id = ulid();
+      await client.query(
+        `INSERT INTO classes
           (id, tenant_id, course_id, code, name, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING
-           c.id,
-           c.tenant_id AS "tenantId",
-           c.course_id AS "courseId",
-           c.code,
-           c.name,
-           c.description,
-           c.status,
-           c.created_at AS "createdAt",
-           c.updated_at AS "updatedAt"`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
-          ulid(),
+          id,
           tenant.tenantId,
           input.courseId,
           input.code.toUpperCase(),
@@ -110,11 +104,15 @@ export class ClassesService {
           input.status ?? ClassStatus.ACTIVE,
         ],
       );
-      return this.get(result.rows[0].id);
+      await client.query('COMMIT');
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
       if (isClassCodeConflict(error)) throw new ConflictException('Class code already exists');
       throw error;
+    } finally {
+      client.release();
     }
+    return this.get(id);
   }
 
   async update(id: string, input: UpdateClassDto) {
@@ -136,43 +134,46 @@ export class ClassesService {
     if (fields.length === 0) throw new BadRequestException('At least one field is required');
 
     const { tenant, pool } = this.tenantContext.get();
-    if (input.courseId !== undefined) {
-      const existing = await pool.query<{ courseId: string | null }>(
-        'SELECT course_id AS "courseId" FROM classes WHERE tenant_id = $1 AND id = $2',
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query<{ courseId: string | null }>(
+        `SELECT course_id AS "courseId"
+         FROM classes
+         WHERE tenant_id = $1 AND id = $2
+         FOR UPDATE`,
         [tenant.tenantId, id],
       );
       if (!existing.rows[0]) throw new NotFoundException('Class not found');
-      if (input.courseId !== existing.rows[0].courseId) {
-        await this.ensureActiveCourse(pool, tenant.tenantId, input.courseId);
+      if (input.courseId !== undefined && input.courseId !== existing.rows[0].courseId) {
+        await this.ensureActiveCourse(client, tenant.tenantId, input.courseId);
       }
-    }
 
-    try {
-      const result = await pool.query<ClassRow>(
-        `UPDATE classes AS c
+      await client.query(
+        `UPDATE classes
          SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-         WHERE c.tenant_id = $1 AND c.id = $2
-         RETURNING c.id`,
+         WHERE tenant_id = $1 AND id = $2`,
         [tenant.tenantId, id, ...values],
       );
-      const classRecord = result.rows[0];
-      if (!classRecord) throw new NotFoundException('Class not found');
-      return this.get(classRecord.id);
+      await client.query('COMMIT');
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
       if (isClassCodeConflict(error)) throw new ConflictException('Class code already exists');
       throw error;
+    } finally {
+      client.release();
     }
+    return this.get(id);
   }
 
-  private async ensureActiveCourse(
-    pool: { query: (sql: string, values?: unknown[]) => Promise<{ rows: Array<{ status: string }> }> },
-    tenantId: string,
-    courseId: string,
-  ) {
-    const result = await pool.query('SELECT status FROM courses WHERE tenant_id = $1 AND id = $2', [
-      tenantId,
-      courseId,
-    ]);
+  private async ensureActiveCourse(client: PoolClient, tenantId: string, courseId: string) {
+    const result = await client.query(
+      `SELECT status
+       FROM courses
+       WHERE tenant_id = $1 AND id = $2
+       FOR SHARE`,
+      [tenantId, courseId],
+    );
     const course = result.rows[0];
     if (!course) throw new NotFoundException('Course not found');
     if (course.status === 'DISABLED') throw new ConflictException('Course is disabled');

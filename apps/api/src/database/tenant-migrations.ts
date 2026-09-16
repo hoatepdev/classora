@@ -23,9 +23,15 @@ export function tenantDatabaseUrl(dbName: string): string {
   return `postgresql://${user}:${password}@${host}:${port}/${encodeURIComponent(dbName)}`;
 }
 
-async function tenantDatabaseState(
-  dbName: string,
-): Promise<{ prismaLedger: boolean; legacyLedger: boolean; students: boolean; tables: boolean }> {
+type TenantDatabaseState = {
+  prismaLedger: boolean;
+  legacyLedger: boolean;
+  legacyMigrations: Array<{ version: number; name: string }>;
+  students: boolean;
+  tables: boolean;
+};
+
+async function tenantDatabaseState(dbName: string): Promise<TenantDatabaseState> {
   const pool = new Pool({
     host: process.env.POSTGRES_HOST ?? 'localhost',
     port: Number(process.env.POSTGRES_PORT ?? 5432),
@@ -36,19 +42,22 @@ async function tenantDatabaseState(
     connectionTimeoutMillis: 5_000,
   });
   try {
-    const result = await pool.query<{
-      prismaLedger: boolean;
-      legacyLedger: boolean;
-      students: boolean;
-      tables: boolean;
-    }>(
+    const result = await pool.query<Omit<TenantDatabaseState, 'legacyMigrations'>>(
       `SELECT
          to_regclass('public._prisma_migrations') IS NOT NULL AS "prismaLedger",
          to_regclass('public._classora_tenant_migrations') IS NOT NULL AS "legacyLedger",
          to_regclass('public.students') IS NOT NULL AS students,
          EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public') AS tables`,
     );
-    return result.rows[0];
+    const state = result.rows[0];
+    const legacyMigrations = state.legacyLedger
+      ? (
+          await pool.query<{ version: number; name: string }>(
+            'SELECT version, name FROM _classora_tenant_migrations ORDER BY version',
+          )
+        ).rows
+      : [];
+    return { ...state, legacyMigrations };
   } finally {
     await pool.end();
   }
@@ -81,19 +90,21 @@ function runPrisma(args: string[], dbName: string): Promise<void> {
 
 export async function deployTenantSchema(
   dbName: string,
-  state: (dbName: string) => Promise<{
-    prismaLedger: boolean;
-    legacyLedger: boolean;
-    students: boolean;
-    tables: boolean;
-  }> = tenantDatabaseState,
+  state: (dbName: string) => Promise<TenantDatabaseState> = tenantDatabaseState,
   prisma: (args: string[], dbName: string) => Promise<void> = runPrisma,
 ): Promise<void> {
-  const { prismaLedger, legacyLedger, students, tables } = await state(dbName);
-  if (!prismaLedger && legacyLedger && students) {
+  const databaseState = await state(dbName);
+  if (!databaseState.prismaLedger && databaseState.tables) {
+    const knownLegacySchema =
+      databaseState.legacyLedger &&
+      databaseState.students &&
+      databaseState.legacyMigrations.length === 1 &&
+      databaseState.legacyMigrations[0].version === 1 &&
+      databaseState.legacyMigrations[0].name === 'students';
+    if (!knownLegacySchema) {
+      throw new Error('Tenant database has an unknown schema and cannot be baselined');
+    }
     await prisma(['migrate', 'resolve', '--applied', BASELINE_MIGRATION], dbName);
-  } else if (!prismaLedger && tables) {
-    throw new Error('Tenant database has an unknown schema and cannot be baselined');
   }
   await prisma(['migrate', 'deploy'], dbName);
 }

@@ -5,7 +5,7 @@ import { isEmail } from 'class-validator';
 import { escapeIdentifier, Pool } from 'pg';
 import { ulid } from 'ulid';
 import { TenantRole, UserStatus } from '../generated/prisma/enums.js';
-import { RESERVED_TENANT_SLUGS, TENANT_HOST_SUFFIX } from '../tenant/tenant-resolver.service.js';
+import { isValidTenantSlug, TENANT_HOST_SUFFIX } from '../tenant/tenant-resolver.service.js';
 import { ControlDatabaseService } from './control-database.service.js';
 import { deployTenantSchema } from './tenant-migrations.js';
 
@@ -83,12 +83,7 @@ export async function provisionTenant(
   const domain = `${code}${TENANT_HOST_SUFFIX}`;
   const dbName = `${TENANT_DATABASE_PREFIX}${code}`;
 
-  if (
-    !code ||
-    code.length > 47 ||
-    !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(code) ||
-    RESERVED_TENANT_SLUGS.includes(code)
-  ) {
+  if (!isValidTenantSlug(code)) {
     throw new Error('Tenant code must be a non-reserved DNS label of at most 47 characters');
   }
   if (!name) throw new Error('Tenant name is required');
