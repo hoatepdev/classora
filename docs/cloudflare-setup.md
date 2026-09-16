@@ -201,7 +201,7 @@ Open:
 http://demo.classora.io.vn:4100
 ```
 
-Direct `localhost` does not carry tenant identity and is expected to fail tenant resolution.
+Direct `localhost` does not carry tenant identity and fails tenant resolution by default. To intentionally use it with `pnpm --filter api dev`, set `DEV_TENANT_SLUG=demo` in the untracked `apps/api/.env`.
 
 ## 9. Operational rules
 
