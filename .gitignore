@@ -6,6 +6,8 @@ dist/
 *.log
 *.tsbuildinfo
 apps/api/src/generated/prisma/
+infrastructure/backup/*
+!infrastructure/backup/.gitkeep
 .claude/settings.local.json
 .claude/tasks/
 .claude/worktrees/

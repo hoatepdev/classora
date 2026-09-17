@@ -203,7 +203,74 @@ http://demo.classora.io.vn:4100
 
 Direct `localhost` does not carry tenant identity and fails tenant resolution by default. To intentionally use it with `pnpm --filter api dev`, set `DEV_TENANT_SLUG=demo` in the untracked `apps/api/.env`.
 
-## 9. Operational rules
+## 9. Database backups
+
+The backup script reads tenant database names from the trusted control-database registry and creates standard PostgreSQL custom-format archives. It also backs up the control database separately because the tenant registry, users, and memberships are required for full recovery.
+
+Prerequisites:
+
+- the Compose `postgres` service is running;
+- `infrastructure/.env` contains the existing PostgreSQL and `CONTROL_DB_NAME` values;
+- Docker Compose is installed;
+- `infrastructure/backup/` has enough free disk space.
+
+Run from the repository root:
+
+```bash
+./scripts/backup-tenants.sh
+```
+
+The script resolves repository paths from its own location, so an absolute path also works from another directory.
+
+Each run uses one UTC timestamp and writes:
+
+```text
+infrastructure/backup/<YYYYMMDDTHHMMSSZ>/
+  control-<timestamp>.dump
+  tenant-<slug>-<timestamp>.dump
+```
+
+The script reports each control/tenant result and a final count. Dumps are taken sequentially, so they are independent database snapshots rather than one cross-database transaction. A failed dump has its `.partial` file removed; other registered tenants are still attempted, and any failure makes the command exit nonzero. An empty registry is reported explicitly.
+
+Archives remain on local disk in this milestone. The repository has no R2 backup credentials or upload tool yet. Before scheduling production backups, configure authenticated R2 upload and upload verification, retention, scheduling, failure alerting, and periodic restore drills.
+
+### Restore verification
+
+Never restore automatically or into production. Verify an archive in an empty, temporary development database. Choose the tenant archive explicitly; do not derive it from untrusted input.
+
+From the repository root, replace the archive path below with one produced by the backup script. The first command generates a unique temporary database name; `&&` prevents restore when database creation fails.
+
+```bash
+verify_db="classora_restore_verify_$(date -u +%Y%m%dT%H%M%SZ)"
+docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml \
+  exec -T postgres sh -c 'createdb --username "$POSTGRES_USER" "$1"' sh "$verify_db" &&
+docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml \
+  exec -T postgres sh -c \
+  'pg_restore --exit-on-error --no-owner --no-privileges --username "$POSTGRES_USER" --dbname "$1"' sh "$verify_db" \
+  < infrastructure/backup/<timestamp>/tenant-<slug>-<timestamp>.dump &&
+docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml \
+  exec -T postgres sh -c \
+  'psql -X --set ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$1" --command="SELECT to_regclass('\''public.students'\''), count(*) FROM students"' sh "$verify_db"
+```
+
+After successful verification, remove the temporary development database:
+
+```bash
+docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml \
+  exec -T postgres sh -c 'dropdb --username "$POSTGRES_USER" "$1"' sh "$verify_db"
+```
+
+Inspect a custom archive without restoring it:
+
+```bash
+docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml \
+  exec -T postgres pg_restore --list \
+  < infrastructure/backup/<timestamp>/tenant-<slug>-<timestamp>.dump
+```
+
+For complete disaster recovery, restore the control archive separately, then restore each tenant archive into its registered database.
+
+## 10. Operational rules
 
 - Use one shared web image; do not deploy one frontend per tenant.
 - Tenant identity comes from the validated hostname and trusted control database.
