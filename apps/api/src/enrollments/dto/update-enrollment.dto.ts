@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Equals } from 'class-validator';
 
 export enum EnrollmentStatus {
@@ -6,6 +7,7 @@ export enum EnrollmentStatus {
 }
 
 export class UpdateEnrollmentDto {
+  @ApiProperty({ enum: [EnrollmentStatus.WITHDRAWN] })
   @Equals(EnrollmentStatus.WITHDRAWN)
   status!: EnrollmentStatus.WITHDRAWN;
 }

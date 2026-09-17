@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsDefined, IsEnum, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 
@@ -16,11 +17,13 @@ const nullableText = ({ value }: { value: unknown }) =>
       : value;
 
 export class UpdateAttendanceRecordDto {
+  @ApiPropertyOptional({ enum: AttendanceRecordStatus })
   @ValidateIf((_, value) => value !== undefined)
   @IsDefined()
   @IsEnum(AttendanceRecordStatus)
   status?: AttendanceRecordStatus;
 
+  @ApiPropertyOptional({ type: String, maxLength: 1000, nullable: true })
   @Transform(nullableText)
   @IsOptional()
   @IsString()

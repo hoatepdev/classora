@@ -1,0 +1,112 @@
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { AppModule } from '../src/app.module.js';
+import { ControlDatabaseService } from '../src/database/control-database.service.js';
+import { setupOpenApi } from '../src/openapi.js';
+import { TenantConnectionManager } from '../src/tenant/tenant-connection-manager.service.js';
+
+async function createApp(swaggerEnabled: boolean) {
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(ControlDatabaseService)
+    .useValue({})
+    .overrideProvider(TenantConnectionManager)
+    .useValue({})
+    .compile();
+  const app = moduleRef.createNestApplication();
+  setupOpenApi(app, swaggerEnabled);
+  await app.init();
+  return app;
+}
+
+describe('OpenAPI', () => {
+  let enabledApp: INestApplication;
+  let disabledApp: INestApplication;
+
+  beforeAll(async () => {
+    enabledApp = await createApp(true);
+    disabledApp = await createApp(false);
+  });
+
+  afterAll(async () => {
+    await Promise.all([enabledApp.close(), disabledApp.close()]);
+  });
+
+  it('exposes the UI and JSON only when enabled', async () => {
+    await request(enabledApp.getHttpServer()).get('/docs/').expect(200).expect('Content-Type', /html/);
+    await request(enabledApp.getHttpServer()).get('/docs/openapi.json').expect(200);
+
+    await request(disabledApp.getHttpServer()).get('/docs/').expect(404);
+    await request(disabledApp.getHttpServer()).get('/docs/openapi.json').expect(404);
+  });
+
+  it('documents domains, statuses, bearer authentication, and the gateway base path', async () => {
+    const { body } = await request(enabledApp.getHttpServer())
+      .get('/docs/openapi.json')
+      .expect(200);
+
+    expect(body.info).toMatchObject({ title: 'Classora API', version: 'v1' });
+    expect(body.servers).toEqual([
+      { url: '/api', description: 'Same-origin web gateway' },
+      { url: '/', description: 'Direct NestJS' },
+    ]);
+    expect(body.components.securitySchemes.bearer).toMatchObject({ type: 'http', scheme: 'bearer' });
+    const tags = Object.values(body.paths)
+      .flatMap((path) => Object.values(path as Record<string, { tags?: string[] }>))
+      .flatMap((operation) => operation.tags ?? []);
+    expect(tags).toEqual(
+      expect.arrayContaining([
+        'Auth',
+        'Students',
+        'Teachers',
+        'Courses',
+        'Classes',
+        'Enrollments',
+        'Schedules',
+        'Attendance',
+        'Health',
+      ]),
+    );
+    expect(body.paths['/auth/login'].post.responses).toHaveProperty('200');
+    expect(body.paths['/students'].post.responses).toHaveProperty('201');
+    expect(body.paths['/students'].get.responses['200'].content['application/json'].schema).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/Student' },
+    });
+    expect(body.components.schemas.CreateStudentDto).toMatchObject({
+      required: ['code', 'fullName'],
+      properties: {
+        dateOfBirth: { type: 'string', format: 'date', nullable: true },
+        status: { enum: ['ACTIVE', 'DISABLED'] },
+      },
+    });
+    expect(body.paths['/auth/login'].post.security).toBeUndefined();
+    expect(body.paths['/health'].get.security).toBeUndefined();
+    expect(body.paths['/auth/me'].get.security).toEqual([{ bearer: [] }]);
+    expect(body.paths['/students'].get.security).toEqual([{ bearer: [] }]);
+  });
+
+  it('does not document a client-controlled tenant selector', async () => {
+    const { body } = await request(enabledApp.getHttpServer())
+      .get('/docs/openapi.json')
+      .expect(200);
+    const forbidden = new Set(['x-tenant-id', 'tenantid', 'dbname', 'database', 'databaseserver']);
+
+    for (const path of Object.values(body.paths) as Record<string, unknown>[]) {
+      for (const operation of Object.values(path) as Record<string, unknown>[]) {
+        if (!operation || typeof operation !== 'object') continue;
+        for (const parameter of (operation.parameters ?? []) as Array<{ name?: string }>) {
+          expect(forbidden.has(parameter.name?.toLowerCase() ?? '')).toBe(false);
+        }
+      }
+    }
+    for (const [name, schema] of Object.entries(body.components.schemas) as Array<
+      [string, { properties?: Record<string, unknown> }]
+    >) {
+      if (!name.endsWith('Dto')) continue;
+      for (const property of Object.keys(schema.properties ?? {})) {
+        expect(forbidden.has(property.toLowerCase())).toBe(false);
+      }
+    }
+  });
+});

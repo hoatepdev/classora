@@ -1,3 +1,4 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
@@ -16,36 +17,42 @@ const nullableEmail = ({ value }: { value: unknown }) => {
 };
 
 export class CreateTeacherDto {
+  @ApiProperty({ maxLength: 50 })
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
   code!: string;
 
+  @ApiProperty({ maxLength: 200 })
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
   name!: string;
 
+  @ApiPropertyOptional({ type: String, maxLength: 50, nullable: true })
   @Transform(nullableText)
   @IsOptional()
   @IsString()
   @MaxLength(50)
   phone?: string | null;
 
+  @ApiPropertyOptional({ type: String, format: 'email', maxLength: 254, nullable: true })
   @Transform(nullableEmail)
   @IsOptional()
   @IsEmail()
   @MaxLength(254)
   email?: string | null;
 
+  @ApiPropertyOptional({ type: String, maxLength: 1000, nullable: true })
   @Transform(nullableText)
   @IsOptional()
   @IsString()
   @MaxLength(1000)
   note?: string | null;
 
+  @ApiPropertyOptional({ enum: TeacherStatus, default: TeacherStatus.ACTIVE })
   @IsOptional()
   @IsEnum(TeacherStatus)
   status?: TeacherStatus;

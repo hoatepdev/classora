@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Equals } from 'class-validator';
 
 export enum AttendanceSessionStatus {
@@ -6,6 +7,7 @@ export enum AttendanceSessionStatus {
 }
 
 export class UpdateAttendanceSessionDto {
+  @ApiProperty({ enum: [AttendanceSessionStatus.COMPLETED] })
   @Equals(AttendanceSessionStatus.COMPLETED)
   status!: AttendanceSessionStatus.COMPLETED;
 }

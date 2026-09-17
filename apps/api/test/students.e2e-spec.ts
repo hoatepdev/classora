@@ -228,6 +228,9 @@ describe('students', () => {
     await authorized('post', '/students')
       .send({ code: '', fullName: '', email: 'bad', dateOfBirth: '2010-02-31' })
       .expect(400);
+    await authorized('post', '/students')
+      .send({ code: 'S002', fullName: 'Student', dateOfBirth: '2010-05-12T00:00:00Z' })
+      .expect(400);
     await authorized('get', '/students/not-an-id').expect(400);
 
     const existing = [...alpha.rows.values()][0];
