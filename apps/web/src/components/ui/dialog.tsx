@@ -12,14 +12,14 @@ function DialogPortal(props: React.ComponentProps<typeof DialogPrimitive.Portal>
 }
 
 function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
-  return <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 bg-[#15183b]/55", className)} {...props} />;
+  return <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 bg-[#0f172a]/45", className)} {...props} />;
 }
 
 function DialogContent({ className, children, ...props }: React.ComponentProps<typeof DialogPrimitive.Content>) {
   return <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
-      className={cn("fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-5 border-t-2 border-t-[#25245d] bg-card p-6 text-card-foreground", className)}
+      className={cn("fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-5 rounded-xl border border-[#e2e8f0] bg-card p-6 text-card-foreground shadow-xl", className)}
       {...props}
     >
       {children}
@@ -39,7 +39,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn("text-xl font-extrabold tracking-[-.02em] text-[#15183b]", className)} {...props} />;
+  return <DialogPrimitive.Title className={cn("text-xl font-bold tracking-[-.02em] text-[#0f172a]", className)} {...props} />;
 }
 
 function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {

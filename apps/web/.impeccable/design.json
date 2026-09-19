@@ -4,20 +4,18 @@
   "title": "Design System: Classora",
   "extensions": {
     "colorMeta": {
-      "indigo-ink": { "role": "primary", "displayName": "Structural Indigo", "canonical": "#242261", "tonalRamp": ["#111031", "#1a1947", "#242261", "#4b4a82", "#7675a3", "#aaa9c8", "#d8d8f2", "#f1f1fa"] },
-      "indigo-deep": { "role": "primary", "displayName": "Navigation Indigo", "canonical": "#201f5b", "tonalRamp": ["#0d0d27", "#15143c", "#201f5b", "#49487d", "#7473a0", "#a7a6c6", "#d6d6e9", "#f0f0f8"] },
-      "jade": { "role": "primary", "displayName": "Operational Jade", "canonical": "#147f5f", "tonalRamp": ["#062c22", "#0a4937", "#0f674e", "#147f5f", "#49a387", "#7bc3aa", "#afe0cf", "#dcf5eb"] },
-      "mineral-white": { "role": "neutral", "displayName": "Mineral Workspace", "canonical": "#f4f6f8", "tonalRamp": ["#20232a", "#4d535d", "#777e88", "#a5abb3", "#c5cbd1", "#dce0e4", "#ebedef", "#f4f6f8"] },
+      "blue": { "role": "primary", "displayName": "Interaction Blue", "canonical": "#2563EB", "tonalRamp": ["#172554", "#1e3a8a", "#1d4ed8", "#2563eb", "#60a5fa", "#93c5fd", "#dbeafe", "#eff6ff"] },
+      "green": { "role": "semantic", "displayName": "Success Green", "canonical": "#15803D", "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#22c55e", "#86efac", "#dcfce7", "#f0fdf4"] },
+      "workspace": { "role": "neutral", "displayName": "Cool Gray Workspace", "canonical": "#f8fafc", "tonalRamp": ["#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"] },
       "white": { "role": "neutral", "displayName": "Operational Surface", "canonical": "#ffffff", "tonalRamp": ["#242424", "#505050", "#7a7a7a", "#a3a3a3", "#c2c2c2", "#d9d9d9", "#eeeeee", "#ffffff"] }
     },
     "typographyMeta": {
-      "headline": { "displayName": "Page Headline", "purpose": "Compact operational page titles." },
-      "body": { "displayName": "Workhorse Sans", "purpose": "Vietnamese-first interface reading." },
-      "label": { "displayName": "Operational Label", "purpose": "Navigation, controls, and dense table headers." }
+      "headline": { "displayName": "Page Headline", "purpose": "Compact 28–32px operational page titles." },
+      "body": { "displayName": "Workhorse Sans", "purpose": "Vietnamese-first 14px interface reading." },
+      "label": { "displayName": "Operational Label", "purpose": "Navigation, controls, metadata, and dense table headers." }
     },
     "shadows": [
-      { "name": "surface-low", "value": "0 1px 2px rgba(24,33,57,.04)", "purpose": "Quiet separation for white operational surfaces." },
-      { "name": "navigation-active", "value": "0 1px 2px rgba(0,0,0,.08)", "purpose": "Active destination inside the indigo navigation frame." }
+      { "name": "surface-low", "value": "0 1px 2px rgba(15,23,42,.04)", "purpose": "Quiet separation for white operational surfaces." }
     ],
     "motion": [
       { "name": "content-settle", "value": "0.2s cubic-bezier(.16,1,.3,1)", "purpose": "Brief content arrival only." },
@@ -34,33 +32,17 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Jade action for the page's primary operation.",
+      "description": "Blue action for the page's primary operation.",
       "html": "<button class=\"ds-btn-primary\">Thêm học viên</button>",
-      "css": ".ds-btn-primary{display:inline-flex;min-height:42px;align-items:center;justify-content:center;border:1px solid transparent;border-radius:8px;padding:0 16px;background:#147f5f;color:#fff;font:700 14px ui-sans-serif,system-ui,'Segoe UI',sans-serif;cursor:pointer;transition:background .15s ease}.ds-btn-primary:hover{background:#116e54}.ds-btn-primary:focus-visible{outline:3px solid rgba(16,185,129,.32);outline-offset:2px}"
-    },
-    {
-      "name": "Secondary Button",
-      "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "White bordered action for cancellation and secondary choices.",
-      "html": "<button class=\"ds-btn-secondary\">Hủy</button>",
-      "css": ".ds-btn-secondary{display:inline-flex;min-height:42px;align-items:center;justify-content:center;border:1px solid #d9dee7;border-radius:8px;padding:0 16px;background:#fff;color:#28324a;font:700 14px ui-sans-serif,system-ui,'Segoe UI',sans-serif;cursor:pointer}.ds-btn-secondary:hover{background:#f8fafb}.ds-btn-secondary:focus-visible{outline:3px solid rgba(16,185,129,.32);outline-offset:2px}"
-    },
-    {
-      "name": "Text Input",
-      "kind": "input",
-      "refersTo": "input",
-      "description": "White field for compact operational forms.",
-      "html": "<input class=\"ds-input\" placeholder=\"Họ và tên\" />",
-      "css": ".ds-input{width:100%;min-height:44px;border:1px solid #bcc3ce;border-radius:8px;padding:9px 12px;background:#fff;color:#182139;font:400 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-input:hover{border-color:#929cab}.ds-input:focus-visible{border-color:#3730a3;outline:3px solid rgba(55,48,163,.12)}"
+      "css": ".ds-btn-primary{display:inline-flex;min-height:42px;align-items:center;justify-content:center;border:1px solid transparent;border-radius:8px;padding:0 16px;background:#2563eb;color:#fff;font:700 14px ui-sans-serif,system-ui,'Segoe UI',sans-serif;cursor:pointer;transition:background .15s ease}.ds-btn-primary:hover{background:#1d4ed8}.ds-btn-primary:focus-visible{outline:3px solid rgba(37,99,235,.22);outline-offset:2px}"
     },
     {
       "name": "Application Navigation",
       "kind": "nav",
       "refersTo": "navigation",
-      "description": "Indigo authenticated frame with visible center identity and compact destinations.",
+      "description": "Light authenticated frame with visible center identity and compact destinations.",
       "html": "<nav class=\"ds-nav\"><strong>Classora</strong><div class=\"ds-center\">Sunshine English</div><a aria-current=\"page\" href=\"#\">Học viên</a><a href=\"#\">Giáo viên</a></nav>",
-      "css": ".ds-nav{width:248px;min-height:320px;display:grid;align-content:start;gap:6px;padding:20px 12px;background:#201f5b;color:#fff;font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-nav strong{padding:0 8px 14px;font-size:20px}.ds-center{margin-bottom:14px;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;background:rgba(255,255,255,.08);font-size:14px;font-weight:700}.ds-nav a{border-radius:8px;padding:11px 12px;color:#e0e0f5;text-decoration:none;font-size:14px;font-weight:600}.ds-nav a[aria-current=page]{background:#fff;color:#242261}"
+      "css": ".ds-nav{width:216px;min-height:320px;display:grid;align-content:start;gap:6px;padding:20px 12px;border-right:1px solid #e2e8f0;background:#fff;color:#334155;font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-nav strong{padding:0 8px 14px;color:#0f172a;font-size:20px}.ds-center{margin-bottom:14px;padding:10px 12px;color:#64748b;font-size:13px}.ds-nav a{border-radius:8px;padding:10px 12px;color:#334155;text-decoration:none;font-size:14px;font-weight:600}.ds-nav a[aria-current=page]{background:#eff6ff;color:#2563eb}"
     },
     {
       "name": "Operational Surface",
@@ -68,29 +50,30 @@
       "refersTo": "surface",
       "description": "White grouped information surface used for details and forms.",
       "html": "<section class=\"ds-surface\"><h3>Thông tin cá nhân</h3><p>Họ và tên · Nguyễn Văn An</p></section>",
-      "css": ".ds-surface{border:1px solid #d9dee7;border-radius:12px;padding:24px;background:#fff;color:#182139;box-shadow:0 1px 2px rgba(24,33,57,.04);font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-surface h3{margin:0 0 16px;font-size:18px}.ds-surface p{margin:0;color:#667085;font-size:14px}"
+      "css": ".ds-surface{border:1px solid #e2e8f0;border-radius:12px;padding:24px;background:#fff;color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.04);font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-surface h3{margin:0 0 16px;font-size:18px}.ds-surface p{margin:0;color:#64748b;font-size:14px}"
     },
     {
       "name": "Active Status",
       "kind": "chip",
       "refersTo": "status-active",
-      "description": "Quiet jade state label for active operational records.",
+      "description": "Quiet green state label for active operational records.",
       "html": "<span class=\"ds-status\">Đang học</span>",
-      "css": ".ds-status{display:inline-flex;border-radius:999px;padding:4px 10px;background:#dcf5eb;color:#11664e;font:700 12px ui-sans-serif,system-ui,'Segoe UI',sans-serif}"
+      "css": ".ds-status{display:inline-flex;border-radius:999px;padding:4px 10px;background:#dcfce7;color:#166534;font:700 12px ui-sans-serif,system-ui,'Segoe UI',sans-serif}"
     }
   ],
   "narrative": {
-    "northStar": "The Operational Workspace",
-    "overview": "Classora is a Vietnamese-first workspace for running a training center's day. It uses a compact indigo application frame, white operational surfaces, jade actions, and dense readable data so the interface feels current without becoming a generic analytics dashboard.",
+    "northStar": "The Light Operational Workspace",
+    "overview": "Classora is a Vietnamese-first workspace for running a training center's day. It uses a light application shell, white operational surfaces, blue interactions, green success states, and dense readable data.",
     "keyCharacteristics": [
-      "Indigo authenticated frame with persistent tenant identity",
-      "Jade reserved for primary operations and active states",
-      "Mineral-white workspace with grouped white surfaces",
+      "Light authenticated frame with persistent tenant identity",
+      "Blue primary actions and navigation emphasis",
+      "Green reserved for positive operational states",
+      "Cool-gray workspace with grouped white surfaces",
       "Compact Vietnamese-first typography and dense readable tables"
     ],
     "rules": [
       { "name": "Operational Honesty", "body": "Every surface, metric, and control must support real center operations and real data.", "section": "components" },
-      { "name": "Structural Indigo", "body": "Indigo owns navigation, links, and focus; jade owns actions and positive states.", "section": "colors" },
+      { "name": "Semantic Color", "body": "Blue owns interaction and focus; green owns active and successful states.", "section": "colors" },
       { "name": "Compact Clarity", "body": "Use grouped information and dense tables without oversized cards or ornamental hierarchy.", "section": "layout" }
     ],
     "dos": [
@@ -99,7 +82,7 @@
       "Do preserve semantic tables, labels, focus states, and reduced motion."
     ],
     "donts": [
-      "Don't add metrics, charts, search, notifications, or future navigation without working product behavior.",
+      "Don't add metrics, charts, global search, notifications, or future navigation without working product behavior.",
       "Don't use gradients, glassmorphism, oversized cards, or heavy shadows.",
       "Don't introduce another component library or a generic page factory."
     ]

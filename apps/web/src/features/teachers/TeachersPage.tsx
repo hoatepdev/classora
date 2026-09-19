@@ -19,7 +19,7 @@ const columns = [
     id: "teacher",
     header: "Giáo viên",
     cell: ({ row }) => <div className="min-w-52">
-      <Link className="font-bold text-[#182139] no-underline hover:text-[#3730a3]" to={`/teachers/${row.original.id}`}>{row.original.name}</Link>
+      <Link className="font-bold text-[#0f172a] no-underline hover:text-[#2563eb]" to={`/teachers/${row.original.id}`}>{row.original.name}</Link>
       <span className="mt-0.5 block text-xs font-semibold text-[#667085]">{row.original.code}</span>
     </div>,
   }),

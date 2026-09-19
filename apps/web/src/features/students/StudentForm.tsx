@@ -66,7 +66,7 @@ export function StudentForm() {
   const email = register("email");
   const dateOfBirth = register("dateOfBirth");
 
-  return <PageContainer className="max-w-5xl">
+  return <PageContainer className="max-w-[900px]">
     <Button variant="ghost" size="sm" asChild className="mb-4 -ml-3">
       <Link to="/students"><ChevronLeft size={16} aria-hidden="true" />Học viên</Link>
     </Button>
@@ -77,10 +77,10 @@ export function StudentForm() {
     <form onSubmit={handleSubmit((values) => mutation.mutate(values))} noValidate>
       {errors.root && <p className="mb-5 rounded-lg border border-[#efb6b0] bg-[#fff5f4] px-4 py-3 text-sm text-[#8d231b]" role="alert">{errors.root.message}</p>}
       <div className="grid gap-5">
-        <section className="rounded-xl border border-[#d9dee7] bg-white p-5 shadow-[0_1px_2px_rgba(24,33,57,.04)] md:p-6" aria-labelledby="basic-information-heading">
-          <div className="mb-5 border-b border-[#e9ecf1] pb-4">
-            <h2 id="basic-information-heading" className="text-lg font-extrabold text-[#15183b]">Thông tin cơ bản</h2>
-            <p className="mt-1 mb-0 text-sm text-[#667085]">Thông tin nhận diện và trạng thái hồ sơ.</p>
+        <section className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,.04)] md:p-6" aria-labelledby="basic-information-heading">
+          <div className="mb-5 border-b border-[#f1f5f9] pb-4">
+            <h2 id="basic-information-heading" className="text-lg font-semibold text-[#0f172a]">Thông tin cơ bản</h2>
+            <p className="mt-1 mb-0 text-sm text-[#64748b]">Thông tin nhận diện và trạng thái hồ sơ.</p>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             <FormField id="student-code" label="Mã học viên" required error={errors.code?.message}>
@@ -97,10 +97,10 @@ export function StudentForm() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-[#d9dee7] bg-white p-5 shadow-[0_1px_2px_rgba(24,33,57,.04)] md:p-6" aria-labelledby="contact-information-heading">
-          <div className="mb-5 border-b border-[#e9ecf1] pb-4">
-            <h2 id="contact-information-heading" className="text-lg font-extrabold text-[#15183b]">Thông tin liên hệ</h2>
-            <p className="mt-1 mb-0 text-sm text-[#667085]">Thông tin dùng để liên hệ và đối chiếu học viên.</p>
+        <section className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,.04)] md:p-6" aria-labelledby="contact-information-heading">
+          <div className="mb-5 border-b border-[#f1f5f9] pb-4">
+            <h2 id="contact-information-heading" className="text-lg font-semibold text-[#0f172a]">Thông tin liên hệ</h2>
+            <p className="mt-1 mb-0 text-sm text-[#64748b]">Thông tin dùng để liên hệ và đối chiếu học viên.</p>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             <FormField id="student-phone" label="Điện thoại" error={errors.phone?.message}>
@@ -115,7 +115,7 @@ export function StudentForm() {
           </div>
         </section>
       </div>
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-6 flex flex-wrap gap-3 border-t border-[#e2e8f0] pt-5">
         <Button disabled={mutation.isPending}>{mutation.isPending ? "Đang lưu…" : "Lưu học viên"}</Button>
         <Button variant="secondary" asChild><Link to="/students">Hủy</Link></Button>
       </div>

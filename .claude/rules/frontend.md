@@ -40,6 +40,20 @@ Prefer local React state before introducing global state.
 
 Prefer existing shadcn/ui primitives before creating custom primitives.
 
+Before meaningful UI implementation, read:
+
+- `apps/web/PRODUCT.md`
+- `apps/web/DESIGN.md`
+
+Follow `apps/web/DESIGN.md` for visual language, layout, spacing,
+density, responsive behavior, and interaction patterns.
+
+Reuse the existing Classora visual language and shadcn/ui primitives.
+
+Do not create a parallel design system.
+Do not introduce new colors, spacing scales, radii, or component styles
+when an existing Classora pattern already covers the requirement.
+
 Do not create wrappers such as:
 
 - AppButton

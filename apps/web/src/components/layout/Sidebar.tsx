@@ -18,21 +18,21 @@ export function Sidebar({ centerName, hostname, user, onNavigate, onLogout }: {
   onLogout: () => void;
 }) {
   const { pathname } = useLocation();
-  return <div className="flex h-full flex-col bg-[#201f5b] text-white">
-    <div className="border-b border-white/10 px-5 py-5">
-      <Link to="/students" onClick={onNavigate} className="inline-flex items-center gap-2 text-xl font-extrabold tracking-[-.03em]">
-        <span className="grid size-8 place-items-center rounded-lg bg-white text-[#242261]">C</span>
+  return <div className="flex h-full flex-col border-r border-[#e2e8f0] bg-white text-[#334155]">
+    <div className="px-5 pt-5 pb-4">
+      <Link to="/students" onClick={onNavigate} className="inline-flex items-center gap-2.5 text-xl font-bold tracking-[-.03em] text-[#0f172a]">
+        <span className="grid size-8 place-items-center rounded-lg bg-[#2563eb] text-sm font-bold text-white">C</span>
         Classora
       </Link>
     </div>
 
-    <div className="mx-3 mt-4 rounded-xl border border-white/10 bg-white/8 p-3.5">
-      <p className="m-0 truncate text-sm font-bold text-white">{centerName ?? "Trung tâm hiện tại"}</p>
-      <p className="mt-1 truncate text-xs text-indigo-200">{hostname}</p>
+    <div className="mx-3 border-y border-[#f1f5f9] px-2 py-4">
+      <p className="m-0 truncate text-sm font-semibold text-[#0f172a]">{centerName ?? "Trung tâm hiện tại"}</p>
+      <p className="mt-1 truncate text-xs text-[#64748b]">{hostname}</p>
     </div>
 
-    <nav className="flex-1 px-3 py-6" aria-label="Điều hướng chính">
-      <p className="mb-2 px-3 text-[11px] font-bold tracking-[.08em] text-indigo-300 uppercase">Vận hành</p>
+    <nav className="flex-1 px-3 py-5" aria-label="Điều hướng chính">
+      <p className="mb-2 px-3 text-[11px] font-semibold tracking-[.08em] text-[#94a3b8] uppercase">Vận hành</p>
       <div className="grid gap-1">
         {navigation.map(({ to, label, icon: Icon }) => {
           const active = pathname.startsWith(to) || (to === "/classes" && pathname.startsWith("/attendance-sessions"));
@@ -42,23 +42,23 @@ export function Sidebar({ centerName, hostname, user, onNavigate, onLogout }: {
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-indigo-100 transition-colors hover:bg-white/8 hover:text-white",
-              active && "bg-white text-[#242261] shadow-sm hover:bg-white hover:text-[#242261]",
+              "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
+              active && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
             )}
           >
-            <Icon size={18} strokeWidth={1.9} aria-hidden="true" />
+            <Icon size={18} strokeWidth={1.9} className={active ? "text-[#2563eb]" : "text-[#94a3b8]"} aria-hidden="true" />
             {label}
           </Link>;
         })}
       </div>
     </nav>
 
-    <div className="border-t border-white/10 p-3">
+    <div className="border-t border-[#e2e8f0] p-3">
       <div className="px-3 py-2">
-        <p className="m-0 truncate text-sm font-bold">{user?.name ?? "Tài khoản"}</p>
-        <p className="mt-1 truncate text-xs text-indigo-200">{user?.email ?? "Đang tải thông tin…"}</p>
+        <p className="m-0 truncate text-sm font-semibold text-[#0f172a]">{user?.name ?? "Tài khoản"}</p>
+        <p className="mt-1 truncate text-xs text-[#64748b]">{user?.email ?? "Đang tải thông tin…"}</p>
       </div>
-      <button type="button" onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-indigo-100 hover:bg-white/8 hover:text-white">
+      <button type="button" onClick={onLogout} className="mt-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#64748b] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]">
         <LogOut size={17} aria-hidden="true" />
         Đăng xuất
       </button>

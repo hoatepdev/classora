@@ -4,7 +4,7 @@ Classora is a multi-tenant SaaS platform for training centers.
 
 ## Architecture
 
-Baseline stack: `docs/architecture/tech-stack.md`
+Baseline stack: `docs/tech-stack.md`
 
 - Monorepo
 - React + Vite + TypeScript
@@ -101,6 +101,17 @@ Extract components/functions only when they are:
 Prefer existing shadcn/ui primitives.
 
 Do not create wrapper components that merely proxy existing components.
+
+For meaningful frontend UI work, read:
+
+- `apps/web/PRODUCT.md`
+- `apps/web/DESIGN.md`
+- `.claude/rules/frontend.md`
+
+`apps/web/DESIGN.md` is the source of truth for Classora's visual language,
+layout patterns, spacing, density, and interaction design.
+
+Do not introduce a competing visual system.
 
 ## Backend
 
