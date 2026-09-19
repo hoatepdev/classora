@@ -1,6 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
+import { GraduationCap, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { DataTable } from "@/components/data-table";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { listStudents, studentQueryKey } from "./api.js";
 import type { Student } from "./types.js";
 
@@ -11,25 +20,22 @@ const columns = [
   column.accessor("phone", { header: "Điện thoại", cell: ({ getValue }) => getValue() || <span className="muted">—</span> }),
   column.accessor("email", { header: "Email", cell: ({ getValue }) => getValue() || <span className="muted">—</span> }),
   column.accessor("dateOfBirth", { header: "Ngày sinh", cell: ({ getValue }) => getValue() ? new Intl.DateTimeFormat("vi-VN").format(new Date(`${getValue()}T00:00:00`)) : <span className="muted">—</span> }),
-  column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <span className={`status ${getValue() === "DISABLED" ? "disabled" : ""}`}>{getValue() === "ACTIVE" ? "Đang học" : "Ngừng học"}</span> }),
+  column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <StatusBadge status={getValue()}>{getValue() === "ACTIVE" ? "Đang học" : "Ngừng học"}</StatusBadge> }),
   column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => <Link className="action-link" to={`/students/${row.original.id}/edit`}>Chỉnh sửa</Link> }),
 ];
 
 export function StudentsPage() {
   const query = useQuery({ queryKey: studentQueryKey(), queryFn: listStudents });
-  const table = useReactTable({ data: query.data ?? [], columns, getCoreRowModel: getCoreRowModel() });
 
-  return <main className="page">
-    <div className="page-heading">
-      <div><h1>Học viên</h1><p className="subtitle">Danh sách học viên của trung tâm.</p></div>
-      <Link className="button" to="/students/new">Thêm học viên</Link>
-    </div>
-    {query.isPending ? <div className="state" aria-live="polite"><strong>Đang tải danh sách</strong>Vui lòng đợi trong giây lát.</div>
-      : query.isError ? <div className="state error" role="alert"><strong>Không thể tải học viên</strong>Kiểm tra kết nối và thử lại.</div>
-      : query.data.length === 0 ? <div className="state"><strong>Chưa có học viên</strong>Thêm học viên đầu tiên để bắt đầu quản lý danh sách.</div>
-      : <div className="register"><table>
-        <thead>{table.getHeaderGroups().map(group => <tr key={group.id}>{group.headers.map(header => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-        <tbody>{table.getRowModel().rows.map(row => <tr key={row.id}>{row.getVisibleCells().map(cell => <td key={cell.id} data-label={String(cell.column.columnDef.header ?? "")}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
-      </table></div>}
-  </main>;
+  return <PageContainer>
+    <PageHeader
+      title="Học viên"
+      description="Danh sách học viên của trung tâm."
+      primaryAction={<Button asChild><Link to="/students/new"><Plus size={17} aria-hidden="true" />Thêm học viên</Link></Button>}
+    />
+    {query.isPending ? <LoadingState label="Đang tải danh sách học viên" />
+      : query.isError ? <ErrorState title="Không thể tải học viên" message="Kiểm tra kết nối và thử lại." onRetry={() => void query.refetch()} />
+      : query.data.length === 0 ? <EmptyState icon={GraduationCap} title="Chưa có học viên" description="Thêm học viên đầu tiên để bắt đầu quản lý danh sách." />
+      : <DataTable columns={columns} data={query.data} />}
+  </PageContainer>;
 }

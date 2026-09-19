@@ -1,5 +1,8 @@
 {
   "name": "classora",
   "private": true,
-  "packageManager": "pnpm@10.15.1"
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "dev": "pnpm --parallel --filter web --filter api dev"
+  }
 }

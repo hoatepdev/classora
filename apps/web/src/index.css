@@ -1,9 +1,52 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 1px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
 :root {
+  --background: #f4f6f8;
+  --foreground: #182139;
+  --card: #ffffff;
+  --card-foreground: #182139;
+  --popover: #ffffff;
+  --popover-foreground: #182139;
+  --primary: #147f5f;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #28324a;
+  --muted: #eef1f5;
+  --muted-foreground: #667085;
+  --accent: #eef1f5;
+  --accent-foreground: #242261;
+  --destructive: #b42318;
+  --border: #cbd1d9;
+  --input: #bcc3ce;
+  --ring: #3730a3;
+  --radius: 7px;
   font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-  color: #182139;
-  background: #f4f6f8;
+  color: var(--foreground);
+  background: var(--background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }

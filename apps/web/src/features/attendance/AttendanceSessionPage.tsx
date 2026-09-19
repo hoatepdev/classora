@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Link, useParams } from "react-router-dom";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import { getApiErrorMessage } from "@/lib/api";
 import {
   attendanceSessionQueryKey,
   classAttendanceQueryKey,
@@ -41,7 +45,9 @@ export function AttendanceSessionPage() {
         queryClient.invalidateQueries({ queryKey: attendanceSessionQueryKey(result.id) }),
         queryClient.invalidateQueries({ queryKey: classAttendanceQueryKey(result.classId) }),
       ]);
+      toast.success("Đã hoàn thành buổi điểm danh.");
     },
+    onError: (error) => toast.error(getApiErrorMessage(error, "Không thể hoàn thành buổi điểm danh. Vui lòng thử lại.")),
   });
 
   if (session.isPending) return <main className="page"><div className="state">Đang tải điểm danh…</div></main>;
@@ -54,7 +60,15 @@ export function AttendanceSessionPage() {
   return <main className="page">
     <div className="page-heading">
       <div><h1>{session.data.classCode} — {session.data.className}</h1><p className="subtitle">{dateFormatter.format(new Date(`${session.data.sessionDate}T00:00:00`))} · {session.data.startTime}–{session.data.endTime}{session.data.teacherName ? ` · ${session.data.teacherName}` : ""}</p></div>
-      {!locked && <button className="button" type="button" disabled={complete.isPending} onClick={() => complete.mutate()}>{complete.isPending ? "Đang hoàn thành…" : "Hoàn thành"}</button>}
+      {!locked && <ConfirmDialog
+        trigger={<Button type="button">Hoàn thành</Button>}
+        title="Hoàn thành buổi điểm danh?"
+        description="Sau khi hoàn thành, danh sách điểm danh sẽ bị khóa và không thể chỉnh sửa."
+        confirmLabel="Hoàn thành"
+        pendingLabel="Đang hoàn thành…"
+        pending={complete.isPending}
+        onConfirm={() => complete.mutateAsync()}
+      />}
     </div>
     {(update.isError || complete.isError) && <p className="form-error" role="alert">Không thể lưu điểm danh. Vui lòng thử lại.</p>}
     {session.data.records.length === 0 ? <div className="state">Buổi học không có học viên đủ điều kiện tại thời điểm tạo.</div> : <div className="register">
