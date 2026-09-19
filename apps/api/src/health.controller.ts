@@ -1,20 +1,38 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from './auth/auth.guard.js';
 import { TenantContextService } from './tenant/tenant-context.service.js';
 import { errorResponse, schemaRef } from './openapi.js';
 import { TenantRoute } from './tenant/tenant-route.js';
+import { ControlDatabaseService } from './database/control-database.service.js';
 
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
-  constructor(private readonly tenantContext: TenantContextService) {}
+  constructor(
+    private readonly tenantContext: TenantContextService,
+    private readonly controlDatabase: ControlDatabaseService,
+  ) {}
 
   @Public()
   @Get()
   @ApiOkResponse({ schema: schemaRef('Health') })
   getHealth() {
     return { status: 'ok', timestamp: new Date().toISOString() };
+  }
+
+  @Public()
+  @Get('ready')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ schema: schemaRef('Readiness') })
+  @ApiResponse({ status: 503, description: 'Control database unavailable', ...errorResponse })
+  async getReadiness() {
+    try {
+      await this.controlDatabase.$queryRaw`SELECT 1`;
+      return { status: 'ready', timestamp: new Date().toISOString() };
+    } catch {
+      throw new ServiceUnavailableException('Control database unavailable');
+    }
   }
 
   @TenantRoute()

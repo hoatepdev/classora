@@ -4,18 +4,27 @@
 
 Classora is a SaaS platform for training centers.
 
-The product should help a training center manage its core daily operations without forcing enterprise complexity onto small teams.
+The product should help training centers manage their core daily operations
+without exposing unnecessary operational complexity to customers.
 
-The current product direction favors a focused operational core first, then expansion based on real usage.
+Classora is intended to be production-grade from its first real release.
+Product scope should remain focused, while the implementation quality,
+security, reliability, and operational discipline should meet production
+standards.
+
+Feature breadth should expand based on real product requirements rather than
+speculation.
 
 ## Product Principles
 
-- Keep workflows simple for small and medium training centers.
-- Prefer clear operational concepts over technical abstractions.
+- Keep customer workflows simple for small and medium training centers.
+- Deliver production-grade quality even when product scope is intentionally focused.
+- Prefer clear operational concepts over unnecessary product complexity.
 - Avoid features that exist only because competitors have them.
-- Introduce complexity only when a real product requirement demands it.
-- Preserve tenant isolation as a product and security boundary.
-- Keep the system maintainable by a small engineering team.
+- Introduce product and infrastructure complexity only when a concrete requirement or risk justifies it.
+- Preserve tenant isolation as a fundamental product and security boundary.
+- Keep the system operable and maintainable by a small engineering team.
+- Preserve clear evolution paths for growth without prematurely distributing the architecture.
 
 ## Users
 

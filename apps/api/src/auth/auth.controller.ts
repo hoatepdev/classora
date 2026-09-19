@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
@@ -14,6 +15,7 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOkResponse({ schema: schemaRef('LoginResponse') })
   @ApiResponse({ status: 400, description: 'Invalid login input', ...errorResponse })
   @ApiResponse({ status: 401, description: 'Invalid credentials', ...errorResponse })

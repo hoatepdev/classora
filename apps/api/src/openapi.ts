@@ -79,6 +79,11 @@ export const openApiSchemas = {
     properties: { status: { type: 'string', enum: ['ok'] }, timestamp },
     required: ['status', 'timestamp'],
   },
+  Readiness: {
+    type: 'object',
+    properties: { status: { type: 'string', enum: ['ready'] }, timestamp },
+    required: ['status', 'timestamp'],
+  },
   TenantHealth: {
     type: 'object',
     properties: { tenantId: ulid, tenantSlug: { type: 'string' } },

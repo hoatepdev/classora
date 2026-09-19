@@ -3,17 +3,15 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
+import { apiConfig } from '../config.js';
 
-const jwtSecret = process.env.JWT_SECRET;
-if (!jwtSecret || Buffer.byteLength(jwtSecret) < 32) {
-  throw new Error('JWT_SECRET must be at least 32 bytes');
-}
+const config = apiConfig();
 
 @Module({
   imports: [
     JwtModule.register({
-      secret: jwtSecret,
-      signOptions: { expiresIn: (process.env.JWT_ACCESS_TTL ?? '1h') as never },
+      secret: config.jwtSecret,
+      signOptions: { expiresIn: config.accessTtl as never },
     }),
   ],
   controllers: [AuthController],

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ControlDatabaseService } from "../database/control-database.service.js";
+import { runtimeEnvironment } from "../config.js";
 
 export const TENANT_HOST_SUFFIX = ".classora.io.vn";
 export const RESERVED_TENANT_SLUGS = ["api", "app"];
@@ -45,8 +46,9 @@ export class TenantResolverService {
       return this.resolveBySlug(slug);
     }
 
-    const devTenantSlug = process.env.DEV_TENANT_SLUG;
-    if (process.env.NODE_ENV === "production" || !devTenantSlug) return null;
+    const environment = runtimeEnvironment();
+    const devTenantSlug = process.env.DEV_TENANT_SLUG?.trim();
+    if (environment === "production" || !devTenantSlug) return null;
     return this.resolveBySlug(devTenantSlug);
   }
 }

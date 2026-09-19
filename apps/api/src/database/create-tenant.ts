@@ -8,6 +8,7 @@ import { TenantRole, UserStatus } from '../generated/prisma/enums.js';
 import { isValidTenantSlug, TENANT_HOST_SUFFIX } from '../tenant/tenant-resolver.service.js';
 import { ControlDatabaseService } from './control-database.service.js';
 import { deployTenantSchema } from './tenant-migrations.js';
+import { postgresConfig } from '../config.js';
 
 const TENANT_DATABASE_PREFIX = 'classora_tenant_';
 
@@ -29,12 +30,13 @@ type ProvisionTenantResult = {
 type DatabaseError = Error & { code?: string };
 
 async function runDatabaseCommand(command: 'CREATE' | 'DROP', dbName: string) {
+  const config = postgresConfig();
   const pool = new Pool({
-    host: process.env.POSTGRES_HOST ?? 'localhost',
-    port: Number(process.env.POSTGRES_PORT ?? 5432),
-    user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD,
-    database: process.env.CONTROL_DB_NAME ?? 'control_db',
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.controlDatabase,
     max: 1,
     connectionTimeoutMillis: 5_000,
   });

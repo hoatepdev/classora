@@ -1,14 +1,16 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
+import { postgresConfig } from '../config.js';
 
 function controlDatabaseConfig() {
+  const config = postgresConfig();
   return {
-    host: process.env.POSTGRES_HOST ?? 'localhost',
-    port: Number(process.env.POSTGRES_PORT ?? 5432),
-    user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD,
-    database: process.env.CONTROL_DB_NAME ?? 'control_db',
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.controlDatabase,
     max: 5,
     connectionTimeoutMillis: 5_000,
   };

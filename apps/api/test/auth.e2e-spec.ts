@@ -138,6 +138,20 @@ describe('authentication and tenant authorization', () => {
       .expect(401);
   });
 
+  it('limits repeated login attempts', async () => {
+    const attempts = [];
+    for (let index = 0; index < 11; index += 1) {
+      attempts.push(
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: user.email, password: 'wrong password' }),
+      );
+    }
+
+    expect(attempts.some(({ status }) => status === 429)).toBe(true);
+    expect(attempts.every(({ status }) => status === 401 || status === 429)).toBe(true);
+  });
+
   it('does not resolve or open a tenant database before authentication', async () => {
     await request(app.getHttpServer())
       .get('/health/tenant/query')

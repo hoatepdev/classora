@@ -13,7 +13,8 @@
     "dev": "pnpm run prisma:generate && nest start --watch",
     "start:dev": "pnpm run dev",
     "build": "pnpm run prisma:generate && nest build",
-    "start:prod": "prisma migrate deploy && node dist/database/tenant-migrations.js && node dist/main.js",
+    "db:migrate:all": "prisma migrate deploy && node dist/database/tenant-migrations.js",
+    "start:prod": "node dist/main.js",
     "test": "pnpm run prisma:generate && vitest run"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@nestjs/jwt": "12.0.1",
     "@nestjs/platform-express": "^12.0.1",
     "@nestjs/swagger": "^12.0.1",
+    "@nestjs/throttler": "^6.7.0",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "argon2": "0.45.1",

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AttendanceModule } from './attendance/attendance.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
@@ -17,6 +18,9 @@ import { TenantModule } from './tenant/tenant.module.js';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+    }),
     ControlDatabaseModule,
     AuthModule,
     TenantModule,
@@ -30,6 +34,7 @@ import { TenantModule } from './tenant/tenant.module.js';
   ],
   controllers: [HealthController],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: AuthGuard },
     { provide: APP_GUARD, useExisting: TenantMembershipGuard },
     { provide: APP_INTERCEPTOR, useExisting: TenantConnectionInterceptor },

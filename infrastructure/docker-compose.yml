@@ -6,12 +6,12 @@ services:
     expose:
       - "80"
     ports:
-      - "127.0.0.1:${WEB_PORT:-8080}:80"
+      - "127.0.0.1:${WEB_PORT:-4100}:80"
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,36 +22,50 @@ services:
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
-    env_file: .env
+    env_file: ${COMPOSE_ENV_FILE:-.env}
+    environment:
+      NODE_ENV: production
+      PORT: 4101
     expose:
-      - "${PORT}"
+      - "4101"
     depends_on:
-      postgres:
-        condition: service_healthy
+      api-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:' + process.env.PORT + '/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+        - "fetch('http://127.0.0.1:' + process.env.PORT + '/health/ready').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     restart: unless-stopped
 
+  api-migrate:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    env_file: ${COMPOSE_ENV_FILE:-.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npm", "run", "db:migrate:all"]
+    restart: "no"
+
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18.0-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      CONTROL_DB_NAME: ${CONTROL_DB_NAME:-control_db}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      CONTROL_DB_NAME: ${CONTROL_DB_NAME:?CONTROL_DB_NAME is required}
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${CONTROL_DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,13 +73,14 @@ services:
     restart: unless-stopped
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    profiles: [production]
+    image: cloudflare/cloudflared:2025.9.1
     command:
       - tunnel
       - --no-autoupdate
       - run
     environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required when the production profile is enabled}
     depends_on:
       web:
         condition: service_healthy

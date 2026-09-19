@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+import { postgresConfig } from '../config.js';
 
 const MAX_POOLS = 10;
 const IDLE_TIMEOUT_MS = 10 * 60_000;
@@ -41,11 +42,12 @@ export class TenantConnectionManager implements OnModuleDestroy {
 
       if (this.pools.size >= MAX_POOLS) await this.evictLeastRecentlyUsedPool();
 
+      const config = postgresConfig();
       const pool = new Pool({
-        host: process.env.POSTGRES_HOST ?? 'localhost',
-        port: Number(process.env.POSTGRES_PORT ?? 5432),
-        user: process.env.POSTGRES_USER,
-        password: process.env.POSTGRES_PASSWORD,
+        host: config.host,
+        port: config.port,
+        user: config.user,
+        password: config.password,
         database: dbName,
         max: 3,
       });

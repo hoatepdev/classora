@@ -84,6 +84,7 @@ describe('tenant migrations', () => {
       prismaLedger: boolean;
       legacyLedger: boolean;
       legacyMigrations: Array<{ version: number; name: string }>;
+      legacyCatalogMatches: boolean;
       students: boolean;
       tables: boolean;
     };
@@ -105,6 +106,7 @@ describe('tenant migrations', () => {
         prismaLedger: false,
         legacyLedger: true,
         legacyMigrations: [{ version: 1, name: 'students' }],
+        legacyCatalogMatches: true,
         students: true,
         tables: true,
       }),
@@ -117,6 +119,7 @@ describe('tenant migrations', () => {
         prismaLedger: false,
         legacyLedger: false,
         legacyMigrations: [],
+        legacyCatalogMatches: false,
         students: false,
         tables: false,
       }),
@@ -128,6 +131,7 @@ describe('tenant migrations', () => {
         prismaLedger: true,
         legacyLedger: false,
         legacyMigrations: [],
+        legacyCatalogMatches: false,
         students: true,
         tables: true,
       }),
@@ -148,6 +152,7 @@ describe('tenant migrations', () => {
           prismaLedger: false,
           legacyLedger: true,
           legacyMigrations,
+          legacyCatalogMatches: true,
           students: true,
           tables: true,
         }),
@@ -159,6 +164,18 @@ describe('tenant migrations', () => {
         prismaLedger: false,
         legacyLedger: false,
         legacyMigrations: [],
+        legacyCatalogMatches: false,
+        students: true,
+        tables: true,
+      }),
+    ).rejects.toThrow('Tenant database has an unknown schema and cannot be baselined');
+
+    await expect(
+      run({
+        prismaLedger: false,
+        legacyLedger: true,
+        legacyMigrations: [{ version: 1, name: 'students' }],
+        legacyCatalogMatches: false,
         students: true,
         tables: true,
       }),

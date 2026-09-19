@@ -11,11 +11,11 @@ Classora isolates tenants with one database per tenant. Tenant schemas first mig
 ## Decision
 
 - Manage tenant schemas with Prisma migrations: `prisma/tenant/schema.prisma` with its own `prisma/tenant/prisma.config.ts` and `prisma/tenant/migrations/`, separate from the control-database config in `prisma.config.ts`. A tenant deploy can never read control migrations.
-- Apply them with `pnpm tenant:migrate` (`apps/api/src/database/tenant-migrations.ts`): load tenants from the control database, then run `prisma migrate deploy` sequentially against each tenant `DATABASE_URL` passed only through the child process environment.
+- Apply them with the explicit `pnpm db:migrate:all` deployment step: control migrations run first, then `apps/api/src/database/tenant-migrations.ts` loads tenants from the control database and runs `prisma migrate deploy` sequentially against each tenant `DATABASE_URL` passed only through the child process environment.
 - Adopt databases migrated by the retired runner by detecting tables without a `_prisma_migrations` ledger and running `prisma migrate resolve --applied 20260912000000_students` before deploy (same approach as the control `db:baseline` script).
 - Rely on Prisma's `_prisma_migrations` ledger as the only migration state. The `_classora_tenant_migrations` tables and the `tenants.schema_version` counter are dropped.
 - A failed tenant migration stops the run with a non-zero exit; no tenant is skipped silently.
 
 ## Consequences
 
-`docker compose exec api npm run tenant:migrate` migrates all tenants; `start:prod` also runs it on every deploy. Adding a tenant migration means adding a file under `prisma/tenant/migrations/` — no runner code changes. New tenant databases must be created empty; the runner baselines only databases that carry the retired runner's tables.
+The Compose `api-migrate` service runs `npm run db:migrate:all` and must complete successfully before the API starts. A failed run leaves earlier tenants migrated and later tenants untouched; operators fix the failing tenant and rerun the service. This is forward-only migration management: rollback requires a compatible application version or database restore because there are no down migrations. Adding a tenant migration means adding a file under `prisma/tenant/migrations/` — no runner code changes. New tenant databases must be created empty; the runner baselines only databases that carry the retired runner's tables.

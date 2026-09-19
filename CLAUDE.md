@@ -40,47 +40,27 @@ Project rules and ADRs override generic skill/framework advice.
 
 ## Engineering Principles
 
-Prefer the simplest solution that fully solves the current requirement.
+Read `.claude/rules/engineering.md` before making engineering decisions.
 
-Prioritize:
+`.claude/rules/engineering.md` is the authoritative Classora Engineering
+Standard.
 
-1. correctness
-2. security
-3. tenant isolation
-4. data integrity
-5. simplicity
-6. readability
-7. smallest coherent diff
+Classora is a production SaaS product, not an MVP or prototype.
 
-Prefer:
+The target is:
 
-- existing patterns over new patterns
-- local solutions over generic abstractions
-- explicit code over clever code
-- installed dependencies over new dependencies
-- fewer moving parts
-- deletion over unnecessary addition
+- enterprise-grade within current constraints
+- production-ready now
+- secure by default
+- observable and recoverable
+- scale-ready by design
+- no MVP shortcuts
+- no enterprise theater
+- no unnecessary complexity
 
-Avoid AI-generated code bloat.
-
-Do not:
-
-- refactor unrelated code
-- design for hypothetical future requirements
-- introduce unnecessary layers or abstractions
-- create helpers/wrappers that add little value
-- add interfaces for a single implementation without a real boundary
-- split components/functions based only on line count
-- add dependencies for trivial functionality
-- add fallbacks that hide bugs or configuration errors
-- add comments that merely restate code
-- introduce infrastructure without a concrete requirement
-
-Before adding an abstraction, prove that the current codebase needs it.
-
-When straightforward code is clearer than a reusable framework, prefer straightforward code.
-
-Security, accessibility, tenant isolation, and data integrity always take precedence over minimalism.
+When generic framework guidance, third-party skills, or common industry
+patterns conflict with the Classora Engineering Standard, Classora's rules
+take precedence.
 
 ## Frontend
 

@@ -20,3 +20,42 @@ jobs:
       - run: pnpm --filter api run test
         env:
           NODE_ENV: test
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare smoke environment
+        run: |
+          cp infrastructure/.env.example /tmp/classora-smoke.env
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/classora-smoke.env')
+          values = {
+              'POSTGRES_PASSWORD': 'ci-postgres-password',
+              'JWT_SECRET': '01234567890123456789012345678901',
+              'INITIAL_USER_EMAIL': 'smoke@example.test',
+              'INITIAL_USER_PASSWORD': 'smoke-password-123',
+              'INITIAL_USER_NAME': 'Smoke-Owner',
+          }
+          lines = path.read_text().splitlines()
+          for key, value in values.items():
+              lines = [f'{key}={value}' if line.startswith(f'{key}=') else line for line in lines]
+          path.write_text('\\n'.join(lines) + '\\n')
+          PY
+          echo "SMOKE_ENV_FILE=/tmp/classora-smoke.env" >> "$GITHUB_ENV"
+          echo "COMPOSE_ENV_FILE=/tmp/classora-smoke.env" >> "$GITHUB_ENV"
+          echo "SMOKE_PROJECT_NAME=classora-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+      - name: Run Compose production smoke
+        run: ./scripts/smoke-prod.sh
+      - name: Collect Compose logs
+        if: failure()
+        run: docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml logs --no-color
+      - name: Tear down Compose
+        if: always()
+        run: docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml down --volumes --remove-orphans

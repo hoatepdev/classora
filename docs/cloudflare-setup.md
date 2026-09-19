@@ -49,12 +49,12 @@ postgres     control and tenant databases
 cloudflared  outbound Cloudflare Tunnel connector
 ```
 
-Only the web gateway receives Tunnel traffic. API port `4101` and PostgreSQL port `5432` stay inside the Docker network.
+Only the web gateway receives Tunnel traffic. API port `4101` and PostgreSQL port `5432` stay inside the Docker network. The `api-migrate` service must complete successfully before the API is started; migration failures are fixed and rerun rather than bypassed.
 
 For local verification, Compose binds the gateway only to loopback:
 
 ```text
-127.0.0.1:${WEB_PORT:-8080}
+127.0.0.1:${WEB_PORT:-4100}
 ```
 
 This is not a public production port.
@@ -65,7 +65,7 @@ Copy `infrastructure/.env.example` to an untracked `infrastructure/.env` and set
 
 ```env
 PORT=4101
-WEB_PORT=8080
+WEB_PORT=4100
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 POSTGRES_USER=classora
@@ -126,7 +126,7 @@ These are Cloudflare Dashboard operations; repository deployment does not perfor
 From `infrastructure/`:
 
 ```bash
-docker compose up -d --build
+docker compose --profile production up -d --build
 docker compose ps
 ```
 
@@ -160,7 +160,7 @@ docker compose logs -f cloudflared
 Local gateway health check while preserving a tenant Host:
 
 ```bash
-curl -H 'Host: demo.classora.io.vn' http://127.0.0.1:8080/api/health
+curl -H 'Host: demo.classora.io.vn' http://127.0.0.1:4100/api/health/ready
 ```
 
 Public health check after Cloudflare configuration:
