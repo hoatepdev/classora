@@ -46,13 +46,13 @@ export function LoginPage() {
         {errors.root && <p className="form-error" role="alert">{errors.root.message}</p>}
         <div className="field">
           <label htmlFor="email">Email</label>
-          <input className="input" id="email" type="email" autoComplete="email" {...register("email")} />
-          {errors.email && <p className="field-error">{errors.email.message}</p>}
+          <input className="input" id="email" type="email" autoComplete="email" aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "email-error" : undefined} {...register("email")} />
+          {errors.email && <p className="field-error" id="email-error">{errors.email.message}</p>}
         </div>
         <div className="field">
           <label htmlFor="password">Mật khẩu</label>
-          <input className="input" id="password" type="password" autoComplete="current-password" {...register("password")} />
-          {errors.password && <p className="field-error">{errors.password.message}</p>}
+          <input className="input" id="password" type="password" autoComplete="current-password" aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "password-error" : undefined} {...register("password")} />
+          {errors.password && <p className="field-error" id="password-error">{errors.password.message}</p>}
         </div>
         <button className="button" disabled={isSubmitting}>{isSubmitting ? "Đang đăng nhập…" : "Đăng nhập"}</button>
       </form>

@@ -2,21 +2,21 @@
 version: 1
 slug: "src-app-tsx"
 primary_target: "src/App.tsx"
-related_targets: ["src/features/students"]
+related_targets: ["src/components/layout", "src/features/students", "src/features/teachers", "src/features/courses", "src/features/classes"]
 ---
 
-SCOPE: Login and Student management routes. MODE: Operate.
+SCOPE: Authenticated Classora operations routes. MODE: Operate.
 
-AUDIENCE: Vietnamese center managers maintaining a small, trusted student roster throughout the workday. JOB: sign in, scan the roster, create a student, and correct a student record quickly. PRIMARY ACTION: add or save a student. CONSTRAINTS: Vietnamese-first, accessible, desktop-efficient, mobile-capable, restrained, no dashboard statistics or speculative features.
+AUDIENCE: Vietnamese training-center managers moving repeatedly among student, teacher, course, class, schedule, enrollment, and attendance work. JOB: know which center they are operating, reach a real capability quickly, scan current records, and complete one operation without losing context. PRIMARY ACTION: the current page's real create, edit, enrollment, schedule, or attendance action. CONSTRAINTS: Vietnamese-first, accessible, desktop-efficient, mobile-capable, tenant identity always visible, no dashboard data or controls without backend support.
 
-THESIS: A precise working register: the student roster is the surface, not a stack of dashboard cards. Refuse decorative SaaS chrome and let the ruled list, clear actions, and exact status language carry the product.
+THESIS: The operational workspace: a compact SaaS frame keeps center identity and real capabilities stable while white working surfaces carry the task. Refuse both the old Students-specific topbar and the generic dashboard template.
 
-OWN-WORLD: Cool mineral-white workspace, deep indigo ink, one jade operational accent, thin slate rules, compact workhorse sans typography, square-to-soft 8px corners, and status expressed through quiet tinted labels. Navigation is a narrow utility rail; forms read like a carefully ruled enrollment sheet.
+OWN-WORLD: Deep indigo sidebar, restrained white topbar, mineral-white workspace, white grouped surfaces with fine slate borders and minimal ambient shadow, jade primary actions, quiet semantic status tints, Lucide icons, workhorse system typography, and 8–12px practical corners.
 
-STORY: The manager enters their center, immediately sees the roster and its real state, then adds or corrects one record without losing context. Empty, loading, error, duplicate, and unauthorized states each name the next useful action.
+STORY: The manager enters the current tenant, confirms the center and hostname, chooses Students, Teachers, Courses, or Classes, then works through lists, details, forms, schedules, enrollments, and attendance using one consistent visual vocabulary. Loading, empty, error, duplicate, completed, and unauthorized states remain explicit.
 
-FIRST VIEWPORT: A slim indigo header anchors Classora and the Students destination. Below, a wide register begins with “Học viên”, one-line supporting copy, and the green Add action at the right. The table owns the remaining viewport with strong column rhythm and no surrounding card. On mobile, rows become bordered record blocks and the action remains visible. Signature interaction: successful save returns to the register with the changed row naturally present; motion is limited to a brief route/content settle and respects reduced motion.
+FIRST VIEWPORT: Desktop fixes a 248px indigo sidebar at left with Classora, the center identity, four real destinations, and the authenticated user/logout area; a 64px white topbar names the current section; content opens immediately into the page title, description, real action, and primary operational surface. Mobile replaces the sidebar with an accessible left drawer and keeps the current section visible. Signature interaction: active navigation remains obvious through nested routes while tenant identity never becomes a client-controlled selector; motion is limited to brief state feedback and respects reduced motion.
 
-FORM: Assigned grounded direction 7, seed 1196355b: Vietnamese school register translated into a modern operations surface, selected for direct audience recognition and product clarity. Raises retained from declined challengers: high-density discipline for information economy; type-specimen discipline for hierarchy through scale rather than decoration; instrument discipline for unmistakable active state.
+FORM: Code-led extension of the approved Classora palette and component foundation. Composition follows the user's approved operational SaaS direction and current repository capabilities rather than a visual concept tournament.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

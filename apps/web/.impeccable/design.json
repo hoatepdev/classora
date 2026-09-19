@@ -1,43 +1,107 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-12T00:00:00Z",
+  "generatedAt": "2026-09-19T00:00:00Z",
   "title": "Design System: Classora",
   "extensions": {
     "colorMeta": {
-      "indigo-ink": {"role": "primary", "displayName": "Deep Indigo Ink", "canonical": "#242261", "tonalRamp": ["#0d0d23", "#15143a", "#1c1b50", "#242261", "#4a4981", "#7776a5", "#aaa9c8", "#d8d8f2"]},
-      "jade": {"role": "primary", "displayName": "Operational Jade", "canonical": "#168866", "tonalRamp": ["#063127", "#0a503e", "#0e6d51", "#168866", "#4ba98b", "#80c7af", "#b3e1d0", "#dcf5eb"]},
-      "mineral-white": {"role": "neutral", "displayName": "Mineral White", "canonical": "#f4f6f8", "tonalRamp": ["#20232a", "#4d535d", "#777e88", "#a5abb3", "#c5cbd1", "#dce0e4", "#ebedef", "#f4f6f8"]},
-      "white": {"role": "neutral", "displayName": "Paper White", "canonical": "#ffffff", "tonalRamp": ["#242424", "#505050", "#7a7a7a", "#a3a3a3", "#c2c2c2", "#d9d9d9", "#eeeeee", "#ffffff"]}
+      "indigo-ink": { "role": "primary", "displayName": "Structural Indigo", "canonical": "#242261", "tonalRamp": ["#111031", "#1a1947", "#242261", "#4b4a82", "#7675a3", "#aaa9c8", "#d8d8f2", "#f1f1fa"] },
+      "indigo-deep": { "role": "primary", "displayName": "Navigation Indigo", "canonical": "#201f5b", "tonalRamp": ["#0d0d27", "#15143c", "#201f5b", "#49487d", "#7473a0", "#a7a6c6", "#d6d6e9", "#f0f0f8"] },
+      "jade": { "role": "primary", "displayName": "Operational Jade", "canonical": "#147f5f", "tonalRamp": ["#062c22", "#0a4937", "#0f674e", "#147f5f", "#49a387", "#7bc3aa", "#afe0cf", "#dcf5eb"] },
+      "mineral-white": { "role": "neutral", "displayName": "Mineral Workspace", "canonical": "#f4f6f8", "tonalRamp": ["#20232a", "#4d535d", "#777e88", "#a5abb3", "#c5cbd1", "#dce0e4", "#ebedef", "#f4f6f8"] },
+      "white": { "role": "neutral", "displayName": "Operational Surface", "canonical": "#ffffff", "tonalRamp": ["#242424", "#505050", "#7a7a7a", "#a3a3a3", "#c2c2c2", "#d9d9d9", "#eeeeee", "#ffffff"] }
     },
     "typographyMeta": {
-      "display": {"displayName": "Operational Display", "purpose": "Login statement only."},
-      "headline": {"displayName": "Register Headline", "purpose": "Student list and form page headings."},
-      "body": {"displayName": "Workhorse Sans", "purpose": "Vietnamese-first interface reading."}
+      "headline": { "displayName": "Page Headline", "purpose": "Compact operational page titles." },
+      "body": { "displayName": "Workhorse Sans", "purpose": "Vietnamese-first interface reading." },
+      "label": { "displayName": "Operational Label", "purpose": "Navigation, controls, and dense table headers." }
     },
-    "shadows": [],
-    "motion": [
-      {"name": "settle", "value": "0.24s cubic-bezier(.16,1,.3,1)", "purpose": "Brief route/content settle."},
-      {"name": "button-state", "value": "0.15s ease", "purpose": "Button background and press response."}
+    "shadows": [
+      { "name": "surface-low", "value": "0 1px 2px rgba(24,33,57,.04)", "purpose": "Quiet separation for white operational surfaces." },
+      { "name": "navigation-active", "value": "0 1px 2px rgba(0,0,0,.08)", "purpose": "Active destination inside the indigo navigation frame." }
     ],
-    "breakpoints": [{"name": "mobile", "value": "720px"}]
+    "motion": [
+      { "name": "content-settle", "value": "0.2s cubic-bezier(.16,1,.3,1)", "purpose": "Brief content arrival only." },
+      { "name": "control-state", "value": "0.15s ease", "purpose": "Hover and active control feedback." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
   },
   "components": [
-    {"name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Jade action for adding or saving a student.", "html": "<button class=\"ds-btn-primary\">Thêm học viên</button>", "css": ".ds-btn-primary { display:inline-flex; min-height:42px; align-items:center; justify-content:center; border:1px solid transparent; border-radius:8px; padding:0 17px; background:#168866; color:#fff; font:700 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif; cursor:pointer; transition:background .15s ease,transform .15s ease; } .ds-btn-primary:hover { background:#116e54; } .ds-btn-primary:focus-visible { outline:3px solid rgba(16,185,129,.32); outline-offset:2px; } .ds-btn-primary:active { transform:translateY(1px); }"},
-    {"name": "Secondary Button", "kind": "button", "refersTo": "button-secondary", "description": "Outlined white action for cancellation.", "html": "<button class=\"ds-btn-secondary\">Hủy</button>", "css": ".ds-btn-secondary { display:inline-flex; min-height:42px; align-items:center; justify-content:center; border:1px solid #cfd4dc; border-radius:8px; padding:0 17px; background:#fff; color:#28324a; font:700 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif; cursor:pointer; transition:background .15s ease; } .ds-btn-secondary:hover { background:#f8fafb; } .ds-btn-secondary:focus-visible { outline:3px solid rgba(16,185,129,.32); outline-offset:2px; }"},
-    {"name": "Text Input", "kind": "input", "refersTo": "input", "description": "Ruled white field used by login and student forms.", "html": "<input class=\"ds-input\" placeholder=\"Họ và tên\" />", "css": ".ds-input { width:100%; min-height:44px; border:1px solid #bcc3ce; border-radius:7px; padding:9px 12px; background:#fff; color:#182139; font:400 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif; } .ds-input:hover { border-color:#929cab; } .ds-input:focus-visible { border-color:#3730a3; outline:3px solid rgba(55,48,163,.12); outline-offset:0; } .ds-input::placeholder { color:#7b8497; }"},
-    {"name": "Utility Navigation", "kind": "nav", "refersTo": "nav", "description": "Indigo header anchoring the authenticated student surface.", "html": "<nav class=\"ds-nav\"><strong>Classora</strong><a aria-current=\"page\" href=\"#\">Học viên</a></nav>", "css": ".ds-nav { height:64px; display:flex; align-items:center; gap:32px; padding:0 32px; border-bottom:3px solid #19a77b; background:#242261; color:#fff; font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif; } .ds-nav strong { font-size:22px; font-weight:800; letter-spacing:-.03em; } .ds-nav a { color:#fff; font-size:14px; font-weight:650; text-decoration:none; } .ds-nav a:focus-visible { outline:3px solid rgba(16,185,129,.32); outline-offset:2px; }"},
-    {"name": "Student Status", "kind": "chip", "refersTo": "status", "description": "Quiet label communicating whether a student is active.", "html": "<span class=\"ds-status\">Đang học</span>", "css": ".ds-status { display:inline-flex; border-radius:999px; padding:4px 9px; background:#dcf5eb; color:#11664e; font:750 12px ui-sans-serif,system-ui,'Segoe UI',sans-serif; }"}
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Jade action for the page's primary operation.",
+      "html": "<button class=\"ds-btn-primary\">Thêm học viên</button>",
+      "css": ".ds-btn-primary{display:inline-flex;min-height:42px;align-items:center;justify-content:center;border:1px solid transparent;border-radius:8px;padding:0 16px;background:#147f5f;color:#fff;font:700 14px ui-sans-serif,system-ui,'Segoe UI',sans-serif;cursor:pointer;transition:background .15s ease}.ds-btn-primary:hover{background:#116e54}.ds-btn-primary:focus-visible{outline:3px solid rgba(16,185,129,.32);outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "White bordered action for cancellation and secondary choices.",
+      "html": "<button class=\"ds-btn-secondary\">Hủy</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;min-height:42px;align-items:center;justify-content:center;border:1px solid #d9dee7;border-radius:8px;padding:0 16px;background:#fff;color:#28324a;font:700 14px ui-sans-serif,system-ui,'Segoe UI',sans-serif;cursor:pointer}.ds-btn-secondary:hover{background:#f8fafb}.ds-btn-secondary:focus-visible{outline:3px solid rgba(16,185,129,.32);outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "White field for compact operational forms.",
+      "html": "<input class=\"ds-input\" placeholder=\"Họ và tên\" />",
+      "css": ".ds-input{width:100%;min-height:44px;border:1px solid #bcc3ce;border-radius:8px;padding:9px 12px;background:#fff;color:#182139;font:400 15px ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-input:hover{border-color:#929cab}.ds-input:focus-visible{border-color:#3730a3;outline:3px solid rgba(55,48,163,.12)}"
+    },
+    {
+      "name": "Application Navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Indigo authenticated frame with visible center identity and compact destinations.",
+      "html": "<nav class=\"ds-nav\"><strong>Classora</strong><div class=\"ds-center\">Sunshine English</div><a aria-current=\"page\" href=\"#\">Học viên</a><a href=\"#\">Giáo viên</a></nav>",
+      "css": ".ds-nav{width:248px;min-height:320px;display:grid;align-content:start;gap:6px;padding:20px 12px;background:#201f5b;color:#fff;font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-nav strong{padding:0 8px 14px;font-size:20px}.ds-center{margin-bottom:14px;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;background:rgba(255,255,255,.08);font-size:14px;font-weight:700}.ds-nav a{border-radius:8px;padding:11px 12px;color:#e0e0f5;text-decoration:none;font-size:14px;font-weight:600}.ds-nav a[aria-current=page]{background:#fff;color:#242261}"
+    },
+    {
+      "name": "Operational Surface",
+      "kind": "card",
+      "refersTo": "surface",
+      "description": "White grouped information surface used for details and forms.",
+      "html": "<section class=\"ds-surface\"><h3>Thông tin cá nhân</h3><p>Họ và tên · Nguyễn Văn An</p></section>",
+      "css": ".ds-surface{border:1px solid #d9dee7;border-radius:12px;padding:24px;background:#fff;color:#182139;box-shadow:0 1px 2px rgba(24,33,57,.04);font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif}.ds-surface h3{margin:0 0 16px;font-size:18px}.ds-surface p{margin:0;color:#667085;font-size:14px}"
+    },
+    {
+      "name": "Active Status",
+      "kind": "chip",
+      "refersTo": "status-active",
+      "description": "Quiet jade state label for active operational records.",
+      "html": "<span class=\"ds-status\">Đang học</span>",
+      "css": ".ds-status{display:inline-flex;border-radius:999px;padding:4px 10px;background:#dcf5eb;color:#11664e;font:700 12px ui-sans-serif,system-ui,'Segoe UI',sans-serif}"
+    }
   ],
   "narrative": {
-    "northStar": "The Ruled Operations Register",
-    "overview": "Classora presents a cool mineral-white workspace with deep indigo ink and a single jade operational accent. It is compact, direct, and workmanlike: the roster is the product surface, while thin rules, clear labels, and exact Vietnamese status language provide structure instead of decorative SaaS chrome.\n\nThe Login and Student-management surfaces use scale and alignment for hierarchy. Forms read as carefully ruled enrollment sheets; the register stays flat and wide on desktop and becomes a set of bordered record blocks on narrow screens. Motion is limited to a brief content settle and respects reduced-motion preferences.",
-    "keyCharacteristics": ["Cool mineral-white workspace and deep indigo anchors", "Jade reserved for operational actions and active status", "Ruled, flat information surfaces with compact density", "Native system workhorse sans with strong weight contrast"],
-    "rules": [
-      {"name": "The One Accent Rule", "body": "Jade is the operational signal: use it for primary actions and active status, not as decoration across the screen.", "section": "colors"},
-      {"name": "The Scale-First Rule", "body": "Establish hierarchy through size, weight, and indigo ink; do not add ornamental display treatments.", "section": "typography"},
-      {"name": "The Flat Register Rule", "body": "Let rules, tonal surfaces, and density define structure; do not lift ordinary data into floating cards.", "section": "elevation"}
+    "northStar": "The Operational Workspace",
+    "overview": "Classora is a Vietnamese-first workspace for running a training center's day. It uses a compact indigo application frame, white operational surfaces, jade actions, and dense readable data so the interface feels current without becoming a generic analytics dashboard.",
+    "keyCharacteristics": [
+      "Indigo authenticated frame with persistent tenant identity",
+      "Jade reserved for primary operations and active states",
+      "Mineral-white workspace with grouped white surfaces",
+      "Compact Vietnamese-first typography and dense readable tables"
     ],
-    "dos": ["Do keep Vietnamese labels and status language precise and action-oriented.", "Do use jade for a real operation or active state, with indigo as the structural anchor.", "Do preserve the ruled register treatment for student data instead of wrapping it in decorative cards.", "Do keep keyboard focus visible and honor reduced-motion preferences."],
-    "donts": ["Don't add dashboard statistics, speculative features, or decorative SaaS chrome to these surfaces.", "Don't use shadows to manufacture hierarchy in the flat register language.", "Don't canonize task-local composition as a reusable template; extend the visual rules, not the exact page arrangement."]
+    "rules": [
+      { "name": "Operational Honesty", "body": "Every surface, metric, and control must support real center operations and real data.", "section": "components" },
+      { "name": "Structural Indigo", "body": "Indigo owns navigation, links, and focus; jade owns actions and positive states.", "section": "colors" },
+      { "name": "Compact Clarity", "body": "Use grouped information and dense tables without oversized cards or ornamental hierarchy.", "section": "layout" }
+    ],
+    "dos": [
+      "Do keep the current center identity visible in the authenticated shell.",
+      "Do use meaningful grouping for operational details and forms.",
+      "Do preserve semantic tables, labels, focus states, and reduced motion."
+    ],
+    "donts": [
+      "Don't add metrics, charts, search, notifications, or future navigation without working product behavior.",
+      "Don't use gradients, glassmorphism, oversized cards, or heavy shadows.",
+      "Don't introduce another component library or a generic page factory."
+    ]
   }
 }

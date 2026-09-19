@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./auth/LoginPage.js";
+import { AppShell } from "./components/layout/AppShell.js";
 import { AttendanceSessionPage } from "./features/attendance/AttendanceSessionPage.js";
 import { ClassDetail } from "./features/classes/ClassDetail.js";
 import { ClassForm } from "./features/classes/ClassForm.js";
@@ -13,14 +14,13 @@ import { TeacherForm } from "./features/teachers/TeacherForm.js";
 import { TeachersPage } from "./features/teachers/TeachersPage.js";
 import { StudentDetail } from "./features/students/StudentDetail.js";
 import { StudentForm } from "./features/students/StudentForm.js";
-import { StudentsLayout } from "./features/students/StudentsLayout.js";
 import { StudentsPage } from "./features/students/StudentsPage.js";
 
 export function App() {
   return <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route element={<ProtectedRoute />}>
-      <Route element={<StudentsLayout />}>
+      <Route element={<AppShell />}>
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/students/new" element={<StudentForm />} />
         <Route path="/students/:id" element={<StudentDetail />} />

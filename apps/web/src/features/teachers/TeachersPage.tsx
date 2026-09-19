@@ -1,34 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
-import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
+import { Pencil, Plus, Users } from "lucide-react";
 import { Link } from "react-router-dom";
+import { DataTable } from "@/components/data-table";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { listTeachers, teacherQueryKey } from "./api.js";
 import type { Teacher } from "./types.js";
 
 const column = createColumnHelper<Teacher>();
 const columns = [
-  column.accessor("code", { header: "Mã", cell: ({ getValue }) => <span className="code">{getValue()}</span> }),
-  column.accessor("name", { header: "Họ và tên", cell: ({ getValue, row }) => <Link className="name" to={`/teachers/${row.original.id}`}>{getValue()}</Link> }),
-  column.accessor("phone", { header: "Điện thoại", cell: ({ getValue }) => getValue() || <span className="muted">—</span> }),
-  column.accessor("email", { header: "Email", cell: ({ getValue }) => getValue() || <span className="muted">—</span> }),
-  column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <span className={`status ${getValue() === "DISABLED" ? "disabled" : ""}`}>{getValue() === "ACTIVE" ? "Đang dạy" : "Ngừng dạy"}</span> }),
-  column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => <Link className="action-link" to={`/teachers/${row.original.id}/edit`}>Chỉnh sửa</Link> }),
+  column.display({
+    id: "teacher",
+    header: "Giáo viên",
+    cell: ({ row }) => <div className="min-w-52">
+      <Link className="font-bold text-[#182139] no-underline hover:text-[#3730a3]" to={`/teachers/${row.original.id}`}>{row.original.name}</Link>
+      <span className="mt-0.5 block text-xs font-semibold text-[#667085]">{row.original.code}</span>
+    </div>,
+  }),
+  column.display({
+    id: "contact",
+    header: "Liên hệ",
+    cell: ({ row }) => <div className="grid gap-0.5"><span>{row.original.phone || "—"}</span><span className="text-xs text-[#667085]">{row.original.email || "Chưa có email"}</span></div>,
+  }),
+  column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <StatusBadge status={getValue()}>{getValue() === "ACTIVE" ? "Đang dạy" : "Ngừng dạy"}</StatusBadge> }),
+  column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => <Button variant="ghost" size="sm" asChild><Link to={`/teachers/${row.original.id}/edit`}><Pencil size={15} aria-hidden="true" />Chỉnh sửa</Link></Button> }),
 ];
 
 export function TeachersPage() {
   const query = useQuery({ queryKey: teacherQueryKey(), queryFn: listTeachers });
-  const table = useReactTable({ data: query.data ?? [], columns, getCoreRowModel: getCoreRowModel() });
-
-  return <main className="page">
-    <div className="page-heading">
-      <div><h1>Giáo viên</h1><p className="subtitle">Danh sách giáo viên của trung tâm.</p></div>
-      <Link className="button" to="/teachers/new">Thêm giáo viên</Link>
-    </div>
-    {query.isPending ? <div className="state" aria-live="polite"><strong>Đang tải danh sách</strong>Vui lòng đợi trong giây lát.</div>
-      : query.isError ? <div className="state error" role="alert"><strong>Không thể tải giáo viên</strong>Kiểm tra kết nối và thử lại.</div>
-      : query.data.length === 0 ? <div className="state"><strong>Chưa có giáo viên</strong>Thêm giáo viên đầu tiên để bắt đầu quản lý danh sách.</div>
-      : <div className="register"><table>
-        <thead>{table.getHeaderGroups().map(group => <tr key={group.id}>{group.headers.map(header => <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead>
-        <tbody>{table.getRowModel().rows.map(row => <tr key={row.id}>{row.getVisibleCells().map(cell => <td key={cell.id} data-label={String(cell.column.columnDef.header ?? "")}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody>
-      </table></div>}
-  </main>;
+  return <PageContainer>
+    <PageHeader title="Giáo viên" description="Quản lý đội ngũ giảng dạy của trung tâm." primaryAction={<Button asChild><Link to="/teachers/new"><Plus size={17} aria-hidden="true" />Thêm giáo viên</Link></Button>} />
+    {query.isPending ? <LoadingState label="Đang tải danh sách giáo viên" />
+      : query.isError ? <ErrorState title="Không thể tải giáo viên" message="Kiểm tra kết nối và thử lại." onRetry={() => void query.refetch()} />
+      : query.data.length === 0 ? <EmptyState icon={Users} title="Chưa có giáo viên" description="Thêm giáo viên đầu tiên để bắt đầu quản lý đội ngũ." />
+      : <section aria-label="Danh sách giáo viên"><p className="mb-3 text-sm font-semibold text-[#667085]">{query.data.length} giáo viên</p><DataTable columns={columns} data={query.data} /></section>}
+  </PageContainer>;
 }

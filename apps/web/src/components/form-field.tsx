@@ -10,7 +10,7 @@ export function FormField({ id, label, required, error, full, children }: {
   children: React.ReactNode;
 }) {
   const errorId = `${id}-error`;
-  return <div className={cn("field", full && "full")}>
+  return <div className={cn("grid gap-2", full && "md:col-span-2")}>
     <Label htmlFor={id}>{label}{required && <span className="required"> *</span>}</Label>
     {children}
     {error && <p className="field-error" id={errorId}>{error}</p>}
