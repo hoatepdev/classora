@@ -1,0 +1,12 @@
+[Unit]
+Description=Classora PostgreSQL off-host backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/classora
+EnvironmentFile=/etc/classora/backup.env
+ExecStart=/opt/classora/scripts/backup-tenants.sh run
+UMask=0077
+NoNewPrivileges=true

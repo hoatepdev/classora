@@ -23,6 +23,12 @@ describe('strict configuration', () => {
     expect(controlDatabaseUrl()).toContain('class%20ora:test%2Fpassword');
   });
 
+  it('requires the access-token TTL in production', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_ACCESS_TTL;
+    expect(() => apiConfig()).toThrow('JWT_ACCESS_TTL is required in production');
+  });
+
   it('validates the API port and JWT secret', () => {
     expect(apiConfig().port).toBe(4101);
     process.env.PORT = '0';

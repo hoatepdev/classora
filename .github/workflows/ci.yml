@@ -51,7 +51,8 @@ jobs:
           echo "SMOKE_ENV_FILE=/tmp/classora-smoke.env" >> "$GITHUB_ENV"
           echo "COMPOSE_ENV_FILE=/tmp/classora-smoke.env" >> "$GITHUB_ENV"
           echo "SMOKE_PROJECT_NAME=classora-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
-      - name: Run Compose production smoke
+          echo "SMOKE_BACKUP_RESTORE=1" >> "$GITHUB_ENV"
+      - name: Run Compose production smoke and backup restore drill
         run: ./scripts/smoke-prod.sh
       - name: Collect Compose logs
         if: failure()

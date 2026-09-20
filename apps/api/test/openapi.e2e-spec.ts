@@ -86,6 +86,16 @@ describe('OpenAPI', () => {
     expect(body.paths['/students'].get.security).toEqual([{ bearer: [] }]);
   });
 
+  it('rejects Swagger when production is enabled', async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(() => setupOpenApi(disabledApp, true)).toThrow('ENABLE_SWAGGER must be false in production');
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
   it('does not document a client-controlled tenant selector', async () => {
     const { body } = await request(enabledApp.getHttpServer())
       .get('/docs/openapi.json')

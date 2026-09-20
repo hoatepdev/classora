@@ -4,8 +4,28 @@ import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { ControlDatabaseService } from './control-database.service.js';
 import { postgresConfig, tenantDatabaseUrl as buildTenantDatabaseUrl } from '../config.js';
+import { isValidTenantSlug } from '../tenant/tenant-resolver.service.js';
 
 export type TenantDatabase = { slug: string; dbName: string };
+
+export function validateTenantDatabase(tenant: TenantDatabase): void {
+  const config = postgresConfig();
+  const expectedDatabase = `classora_tenant_${tenant.slug}`;
+  if (!isValidTenantSlug(tenant.slug)) {
+    throw new Error(`Invalid tenant slug in registry: ${tenant.slug}`);
+  }
+  if (tenant.dbName !== expectedDatabase) {
+    throw new Error(
+      `Tenant database mapping does not match the trusted tenant slug: ${tenant.slug} -> ${tenant.dbName}`,
+    );
+  }
+  if (tenant.dbName === config.controlDatabase) {
+    throw new Error(`Tenant database must not be the control database: ${tenant.dbName}`);
+  }
+  if (tenant.dbName === config.postgresDatabase) {
+    throw new Error(`Tenant database must not be the PostgreSQL default database: ${tenant.dbName}`);
+  }
+}
 
 // First Prisma tenant migration. Databases migrated by the retired hand-rolled
 // runner have tables but no _prisma_migrations ledger; prisma migrate deploy
@@ -14,8 +34,12 @@ export type TenantDatabase = { slug: string; dbName: string };
 export const BASELINE_MIGRATION = '20260912000000_students';
 
 export function tenantDatabaseUrl(dbName: string): string {
-  if (dbName === postgresConfig().controlDatabase) {
+  const config = postgresConfig();
+  if (dbName === config.controlDatabase) {
     throw new Error('Tenant database name must not be the control database');
+  }
+  if (dbName === config.postgresDatabase) {
+    throw new Error('Tenant database name must not be the PostgreSQL default database');
   }
   return buildTenantDatabaseUrl(dbName);
 }
@@ -108,6 +132,7 @@ async function matchesLegacyStudentsCatalog(pool: Pick<Pool, 'query'>): Promise<
       JOIN pg_namespace pn ON pn.oid = pc.connamespace AND pn.nspname = tc.table_schema
       WHERE tc.table_schema = 'public'
         AND tc.table_name IN ('students', '_classora_tenant_migrations')
+        AND pc.contype IN ('p', 'u', 'f', 'c', 'x')
     ),
     expected_ledger_columns (column_name, ordinal_position, data_type, character_maximum_length, is_nullable, column_default) AS (
       VALUES
@@ -284,6 +309,7 @@ export async function migrateTenantDatabases(
   deploy: (dbName: string) => Promise<void> = deployTenantSchema,
 ) {
   for (const tenant of tenants) {
+    validateTenantDatabase(tenant);
     const startedAt = Date.now();
     const duration = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
     console.log(`[tenant ${tenant.slug}] migrating database "${tenant.dbName}"`);
@@ -295,25 +321,4 @@ export async function migrateTenantDatabases(
       throw new Error(`[tenant ${tenant.slug}] migration failed after ${duration()}: ${detail}`);
     }
   }
-}
-
-async function migrateAllTenantDatabases() {
-  const control = new ControlDatabaseService();
-  try {
-    const tenants = await control.tenant.findMany({
-      select: { slug: true, dbName: true },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    });
-    console.log(`Migrating ${tenants.length} tenant database(s)`);
-    await migrateTenantDatabases(tenants);
-  } finally {
-    await control.$disconnect();
-  }
-}
-
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
-  void migrateAllTenantDatabases().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
 }

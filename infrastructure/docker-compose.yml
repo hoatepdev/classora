@@ -1,5 +1,12 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   web:
+    logging: *default-logging
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
@@ -19,13 +26,22 @@ services:
     restart: unless-stopped
 
   api:
+    logging: *default-logging
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
-    env_file: ${COMPOSE_ENV_FILE:-.env}
     environment:
-      NODE_ENV: production
-      PORT: 4101
+      NODE_ENV: ${NODE_ENV:?NODE_ENV is required}
+      PORT: ${PORT:?PORT is required}
+      POSTGRES_HOST: ${POSTGRES_HOST:?POSTGRES_HOST is required}
+      POSTGRES_PORT: ${POSTGRES_PORT:?POSTGRES_PORT is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      CONTROL_DB_NAME: ${CONTROL_DB_NAME:?CONTROL_DB_NAME is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:?JWT_ACCESS_TTL is required}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:?ENABLE_SWAGGER is required}
     expose:
       - "4101"
     depends_on:
@@ -44,10 +60,22 @@ services:
     restart: unless-stopped
 
   api-migrate:
+    logging: *default-logging
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
-    env_file: ${COMPOSE_ENV_FILE:-.env}
+    environment:
+      NODE_ENV: ${NODE_ENV:?NODE_ENV is required}
+      PORT: ${PORT:?PORT is required}
+      POSTGRES_HOST: ${POSTGRES_HOST:?POSTGRES_HOST is required}
+      POSTGRES_PORT: ${POSTGRES_PORT:?POSTGRES_PORT is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      CONTROL_DB_NAME: ${CONTROL_DB_NAME:?CONTROL_DB_NAME is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:?JWT_ACCESS_TTL is required}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:?ENABLE_SWAGGER is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +83,7 @@ services:
     restart: "no"
 
   postgres:
+    logging: *default-logging
     image: postgres:18.0-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
@@ -73,6 +102,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
+    logging: *default-logging
     profiles: [production]
     image: cloudflare/cloudflared:2025.9.1
     command:
@@ -81,6 +111,12 @@ services:
       - run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required when the production profile is enabled}
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
     depends_on:
       web:
         condition: service_healthy

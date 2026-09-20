@@ -1,4 +1,5 @@
 import { applyDecorators, type INestApplication } from '@nestjs/common';
+import { runtimeEnvironment } from './config.js';
 import {
   ApiBearerAuth,
   ApiParam,
@@ -401,6 +402,9 @@ export function setupOpenApi(
   enabled = process.env.ENABLE_SWAGGER === 'true',
 ) {
   if (!enabled) return;
+  if (runtimeEnvironment() === 'production') {
+    throw new Error('ENABLE_SWAGGER must be false in production');
+  }
 
   const config = new DocumentBuilder()
     .setTitle('Classora API')

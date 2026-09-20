@@ -3,6 +3,7 @@ import {
   deployTenantSchema,
   migrateTenantDatabases,
   tenantDatabaseUrl,
+  validateTenantDatabase,
 } from '../src/database/tenant-migrations.js';
 
 const tenants = {
@@ -64,6 +65,19 @@ describe('tenant migrations', () => {
     await expect(migrateTenantDatabases([tenants.alpha], deploy)).resolves.toBeUndefined();
 
     expect(deploy).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects registry mappings that do not use the tenant database invariant', () => {
+    expect(() => validateTenantDatabase({ slug: 'alpha', dbName: 'control_db' })).toThrow(
+      'trusted tenant slug',
+    );
+    expect(() => validateTenantDatabase({ slug: 'alpha', dbName: 'classora' })).toThrow(
+      'trusted tenant slug',
+    );
+    expect(() => validateTenantDatabase({ slug: 'alpha', dbName: 'classora_tenant_beta' })).toThrow(
+      'trusted tenant slug',
+    );
+    expect(() => validateTenantDatabase(tenants.alpha)).not.toThrow();
   });
 
   it('builds a URL from trusted metadata and encodes PostgreSQL database names', () => {

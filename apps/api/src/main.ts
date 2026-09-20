@@ -4,10 +4,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { setupOpenApi } from './openapi.js';
 import { apiConfig } from './config.js';
+import { requestLoggingMiddleware } from './request-logging.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.use(requestLoggingMiddleware);
   app.enableShutdownHooks();
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),

@@ -13,7 +13,8 @@
     "dev": "pnpm run prisma:generate && nest start --watch",
     "start:dev": "pnpm run dev",
     "build": "pnpm run prisma:generate && nest build",
-    "db:migrate:all": "prisma migrate deploy && node dist/database/tenant-migrations.js",
+    "db:migrate:all": "node dist/database/migrate-all.js",
+    "test:tenant-schema": "node scripts/tenant-schema-equivalence.mjs",
     "start:prod": "node dist/main.js",
     "test": "pnpm run prisma:generate && vitest run"
   },

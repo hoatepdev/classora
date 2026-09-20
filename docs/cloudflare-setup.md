@@ -123,12 +123,23 @@ These are Cloudflare Dashboard operations; repository deployment does not perfor
 
 ## 6. Start and inspect
 
-From `infrastructure/`:
+Cloudflare does not deploy the application. GitHub Actions publishes immutable GHCR images, and an operator explicitly deploys a selected digest-qualified release with [`scripts/deploy-prod.sh`](../scripts/deploy-prod.sh). The production Compose overlay requires `WEB_IMAGE` and `API_IMAGE`; it removes application build directives, and `api` plus `api-migrate` use the same exact API image.
+
+From the repository checkout on the operator host:
 
 ```bash
-docker compose --profile production up -d --build
-docker compose ps
+export COMPOSE_ENV_FILE=/etc/classora/production.env
+export BACKUP_VERIFIED_FILE=/var/lib/classora/backups/verified/latest
+export RELEASE_VERSION=vX.Y.Z
+export RELEASE_SHA=<full-commit-sha>
+export WEB_IMAGE=ghcr.io/hoatepdev/classora-web@sha256:<64-hex-digest>
+export API_IMAGE=ghcr.io/hoatepdev/classora-api@sha256:<64-hex-digest>
+export INITIAL_TENANT_SLUG=demo
+./scripts/deploy-prod.sh
+docker compose --env-file "$COMPOSE_ENV_FILE" -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.production.yml ps
 ```
+
+The deploy script pulls exact images, runs the serialized migration once, and starts API/web only after migration succeeds. It never builds application source on the VPS.
 
 Expected services:
 
@@ -204,6 +215,10 @@ http://demo.classora.io.vn:4100
 Direct `localhost` does not carry tenant identity and fails tenant resolution by default. To intentionally use it with `pnpm --filter api dev`, set `DEV_TENANT_SLUG=demo` in the untracked `apps/api/.env`.
 
 ## 9. Database backups
+
+The production backup and restore contract is documented in [`docs/operations/backup-restore.md`](operations/backup-restore.md). It covers control plus all registered tenant databases, checksums, private R2 upload/verification, retention, scheduling, failure visibility, and disposable full restore verification.
+
+The commands below remain useful for local inspection only; they do not replace the production runbook.
 
 The backup script reads tenant database names from the trusted control-database registry and creates standard PostgreSQL custom-format archives. It also backs up the control database separately because the tenant registry, users, and memberships are required for full recovery.
 

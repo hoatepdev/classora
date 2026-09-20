@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { ControlDatabaseService } from '../src/database/control-database.service.js';
+import { requestLoggingMiddleware } from '../src/request-logging.js';
 
 const database = {
   $disconnect: vi.fn(),
@@ -18,6 +19,7 @@ describe('GET /health', () => {
       .useValue(database)
       .compile();
     app = moduleRef.createNestApplication();
+    app.use(requestLoggingMiddleware);
     await app.init();
   });
 
@@ -27,10 +29,15 @@ describe('GET /health', () => {
     await request(app.getHttpServer())
       .get('/health')
       .expect(200)
+      .expect('X-Request-Id', /^[A-Za-z0-9-]+$/)
       .expect(({ body }) => {
         expect(body.status).toBe('ok');
         expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
       });
+  });
+
+  it('reports process liveness at the explicit live endpoint', async () => {
+    await request(app.getHttpServer()).get('/health/live').expect(200).expect(({ body }) => expect(body.status).toBe('ok'));
   });
 
   it('reports control-database readiness', async () => {
@@ -42,6 +49,10 @@ describe('GET /health', () => {
 
   it('returns 503 when the control database is unavailable', async () => {
     database.$queryRaw.mockRejectedValueOnce(new Error('database unavailable'));
-    await request(app.getHttpServer()).get('/health/ready').expect(503);
+    await request(app.getHttpServer()).get('/health/ready').expect(503).expect('X-Request-Id', /^[A-Za-z0-9-]+$/);
+  });
+
+  it('reuses a bounded incoming request ID', async () => {
+    await request(app.getHttpServer()).get('/health').set('X-Request-Id', 'operator-trace-123').expect(200).expect('X-Request-Id', 'operator-trace-123');
   });
 });

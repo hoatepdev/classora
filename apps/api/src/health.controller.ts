@@ -22,6 +22,13 @@ export class HealthController {
   }
 
   @Public()
+  @Get('live')
+  @ApiOkResponse({ schema: schemaRef('Health') })
+  getLive() {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
+
+  @Public()
   @Get('ready')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ schema: schemaRef('Readiness') })

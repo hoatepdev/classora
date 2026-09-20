@@ -24,7 +24,13 @@ export function runtimeEnvironment() {
 }
 
 function accessTtl() {
-  const value = process.env.JWT_ACCESS_TTL?.trim() || '1h';
+  const value = process.env.JWT_ACCESS_TTL?.trim();
+  if (!value) {
+    if (runtimeEnvironment() === 'production') {
+      throw new Error('JWT_ACCESS_TTL is required in production');
+    }
+    return '1h';
+  }
   if (!/^\d+(ms|s|m|h|d|w|y)$/.test(value)) {
     throw new Error('JWT_ACCESS_TTL must be a duration such as 1h or 30m');
   }
@@ -38,6 +44,7 @@ export function postgresConfig() {
     user: required('POSTGRES_USER'),
     password: required('POSTGRES_PASSWORD'),
     controlDatabase: required('CONTROL_DB_NAME'),
+    postgresDatabase: process.env.POSTGRES_DB?.trim(),
   };
 }
 

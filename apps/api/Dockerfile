@@ -27,6 +27,7 @@ COPY --from=build /workspace/apps/api/package.json ./apps/api/package.json
 COPY --from=build /workspace/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY --from=build /workspace/apps/api/prisma ./apps/api/prisma
 COPY --from=build /workspace/apps/api/dist ./apps/api/dist
+COPY --from=build /workspace/apps/api/scripts ./apps/api/scripts
 # Prisma loads prisma.config.ts before the compiled application starts.
 COPY --from=build /workspace/apps/api/dist/config.js ./apps/api/src/config.js
 

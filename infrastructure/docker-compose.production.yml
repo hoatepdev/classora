@@ -1,0 +1,12 @@
+services:
+  web:
+    image: ${WEB_IMAGE:?WEB_IMAGE is required}
+    build: !reset null
+
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    build: !reset null
+
+  api-migrate:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    build: !reset null

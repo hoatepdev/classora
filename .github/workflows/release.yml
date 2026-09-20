@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web build
+      - run: pnpm --filter api build
+      - run: pnpm --filter api test
+        env:
+          NODE_ENV: test
+
+  compose-smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare smoke environment
+        run: |
+          cp infrastructure/.env.example /tmp/classora-release-smoke.env
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/classora-release-smoke.env')
+          values = {
+              'POSTGRES_PASSWORD': 'ci-postgres-password',
+              'JWT_SECRET': '01234567890123456789012345678901',
+              'INITIAL_USER_EMAIL': 'smoke@example.test',
+              'INITIAL_USER_PASSWORD': 'smoke-password-123',
+              'INITIAL_USER_NAME': 'Smoke-Owner',
+          }
+          lines = path.read_text().splitlines()
+          for key, value in values.items():
+              lines = [f'{key}={value}' if line.startswith(f'{key}=') else line for line in lines]
+          path.write_text('\\n'.join(lines) + '\\n')
+          PY
+          echo "SMOKE_ENV_FILE=/tmp/classora-release-smoke.env" >> "$GITHUB_ENV"
+          echo "COMPOSE_ENV_FILE=/tmp/classora-release-smoke.env" >> "$GITHUB_ENV"
+          echo "SMOKE_PROJECT_NAME=classora-release-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "SMOKE_BACKUP_RESTORE=1" >> "$GITHUB_ENV"
+      - run: ./scripts/smoke-prod.sh
+      - name: Tear down smoke stack
+        if: always()
+        run: docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml down --volumes --remove-orphans
+
+  publish:
+    needs: [verify, compose-smoke]
+    runs-on: ubuntu-latest
+    outputs:
+      web_digest: ${{ steps.web.outputs.digest }}
+      api_digest: ${{ steps.api.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish web image
+        id: web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/classora-web:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/classora-web:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Build and publish API image
+        id: api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/classora-api:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/classora-api:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Write immutable release manifest
+        env:
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+        run: |
+          set -eu
+          test -n "$WEB_DIGEST"
+          test -n "$API_DIGEST"
+          mkdir -p release
+          {
+            printf 'RELEASE_VERSION=%s\n' "$GITHUB_REF_NAME"
+            printf 'RELEASE_SHA=%s\n' "$GITHUB_SHA"
+            printf 'WEB_IMAGE=ghcr.io/%s/classora-web@%s\n' "$GITHUB_REPOSITORY_OWNER" "$WEB_DIGEST"
+            printf 'API_IMAGE=ghcr.io/%s/classora-api@%s\n' "$GITHUB_REPOSITORY_OWNER" "$API_DIGEST"
+            printf 'WEB_DIGEST=%s\nAPI_DIGEST=%s\n' "$WEB_DIGEST" "$API_DIGEST"
+          } | tee release/manifest.env >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.ref_name }}
+          path: release/manifest.env
+          if-no-files-found: error

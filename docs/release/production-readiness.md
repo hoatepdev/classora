@@ -1,12 +1,12 @@
 # Production readiness audit
 
 - **Audit date:** 2026-09-20
-- **Audited revision:** `a688959593d9d701c9bfcfff7a0b39abb09f569b`
-- **Audited branch:** `feat/production-readiness-audit`
-- **Release verdict:** **Not ready for production release**
-- **Implementation status:** Repository hardening slice applied on 2026-09-20; external operator prerequisites remain open.
+- **Audited revision:** current working revision after the B5/B6/B7 and final-gate changes
+- **Audited branch:** `fix/b5-tenant-schema-equivalence`
+- **Release verdict:** **Repository gate ready; live operator gate open**
+- **Implementation status:** Repository configuration, HTTP security baseline, request diagnostics, health semantics, backup/release tooling, and runbooks are implemented. Real VPS and Cloudflare verification remains required.
 
-The application builds and the automated tests pass after implementing strict configuration, login throttling, database-aware readiness, explicit migration ordering, gateway hardening, and pinned Compose images. An isolated disposable Compose smoke run passed the migration service, gateway readiness, login, membership-authorized tenant query, tenant student write/read, API restart, and read-after-restart checks. The release gate remains blocked by fresh-versus-upgraded schema comparison, off-host backup/restore operations, and Cloudflare/VPS verification.
+The repository gate covers strict production configuration, login throttling with trusted proxy handling, database-aware readiness, explicit migration ordering, schema equivalence, backup/restore verification, immutable image deployment, bounded logs, request IDs, security headers, and operator diagnostics. An isolated disposable Compose smoke run remains the end-to-end source of truth for migration, gateway readiness, login, membership-authorized tenant query, tenant write/read, restart persistence, and backup/restore. The remaining release gate is external evidence from the actual VPS and Cloudflare account.
 
 ## Current architecture
 
@@ -89,17 +89,15 @@ Prisma, runtime control access, tenant migration, provisioning, and tenant pools
 
 The remaining production check is verifying the deployed secret source provides these values and does not retain bootstrap-only credentials.
 
-### B2. Public authentication has no abuse control — addressed in repository code; edge policy remains
+### B2. Public authentication has no abuse control — repository control implemented; edge policy remains
 
-`POST /auth/login` is public and performs CPU-expensive Argon2 verification. It now has a 10 requests/minute application limit layered over a 120 requests/minute default in-memory limit, with a test asserting `429`. Because the current gateway path does not yet restore the original client IP from a trusted Cloudflare CIDR, the application limiter currently sees the gateway hop rather than each external client: [`apps/api/src/auth/auth.controller.ts:14-23`](../../apps/api/src/auth/auth.controller.ts#L14-L23), [`apps/api/src/app.module.ts:18-39`](../../apps/api/src/app.module.ts#L18-L39), [`apps/api/test/auth.e2e-spec.ts:141-153`](../../apps/api/test/auth.e2e-spec.ts#L141-L153). This limiter is single-instance only; edge enforcement and behavior behind Cloudflare remain operator verification.
+`POST /auth/login` is public and performs CPU-expensive Argon2 verification. It has a 10 requests/minute application limit layered over a 120 requests/minute default in-memory limit. Nginx now maps `CF-Connecting-IP` only across the current Tunnel-to-gateway trust boundary before forwarding it to Express, so the application limiter no longer uses one shared Tunnel connector bucket. Edge/WAF enforcement and live Cloudflare behavior remain operator verification. The limiter remains single-instance only: [`apps/web/nginx.conf`](../../apps/web/nginx.conf), [`apps/api/src/main.ts`](../../apps/api/src/main.ts), [`apps/api/src/app.module.ts`](../../apps/api/src/app.module.ts).
 
-**Exit condition:** configure trusted Cloudflare CIDR/real-IP handling and edge limits before relying on per-client behavior; replace in-memory storage before horizontal scaling.
+**Exit condition:** repository real-IP handling is implemented; configure and verify Cloudflare edge limits before relying on them, and replace in-memory storage before horizontal scaling.
 
 ### B3. Health checks can report healthy while required databases are unavailable — addressed in repository code
 
-The public `/health` route remains process liveness only. Public `/health/ready` now runs `SELECT 1` against the control database and returns `503` on failure; API and web container checks use readiness, and PostgreSQL checks `CONTROL_DB_NAME`: [`apps/api/src/health.controller.ts:17-36`](../../apps/api/src/health.controller.ts#L17-L36), [`infrastructure/docker-compose.yml:11-18`](../../infrastructure/docker-compose.yml#L11-L18), [`infrastructure/docker-compose.yml:31-69`](../../infrastructure/docker-compose.yml#L31-L69). Tests cover both readiness outcomes: [`apps/api/test/health.e2e-spec.ts:35-45`](../../apps/api/test/health.e2e-spec.ts#L35-L45).
-
-Tenant query health remains authenticated and executes `SELECT 1`; readiness does not scan every tenant database on each request.
+`/health` remains a backwards-compatible process liveness endpoint and `/health/live` is the explicit liveness path. Public `/health/ready` runs `SELECT 1` against the control database and returns `503` on failure; API and web container checks use readiness, and PostgreSQL checks `CONTROL_DB_NAME`: [`apps/api/src/health.controller.ts`](../../apps/api/src/health.controller.ts), [`infrastructure/docker-compose.yml`](../../infrastructure/docker-compose.yml). Tests cover liveness and readiness outcomes. Tenant query health remains authenticated and executes `SELECT 1`; readiness does not scan every tenant database on each request.
 
 ### B4. API availability is coupled to sequential migration of every tenant — addressed in repository deployment boundary; recovery remains operational
 
@@ -109,29 +107,35 @@ The retry test only reruns mocked orchestration; it does not prove recovery from
 
 **Exit condition:** establish one serialized release migration path, a retry/recovery runbook, partial-failure visibility, and explicit policy for whether one failed tenant blocks the whole API.
 
-### B5. New-versus-upgraded tenant schema equivalence is conditional, not proven
+### B5. New-versus-upgraded tenant schema equivalence is verified on disposable PostgreSQL
 
-Fresh empty databases receive the full tenant migration history. A legacy database is baselined only when it has the retired ledger, one `(version=1, name=students)` row, and an exact PostgreSQL catalog match for the supported students-plus-ledger baseline. The comparison checks columns, types, `CHAR(26)` lengths, nullability, defaults, table/constraint definitions, indexes, and extra public tables: [`apps/api/src/database/tenant-migrations.ts:23-218`](../../apps/api/src/database/tenant-migrations.ts#L23-L218).
+Fresh empty databases receive the full tenant migration history. The only supported legacy baseline is the retired runner's exact `(version=1, name=students)` students-plus-ledger catalog. The verifier creates disposable PostgreSQL databases, deploys a fresh database and that exact legacy fixture, compares normalized catalogs from `pg_catalog`, reruns an already-current database, and rejects missing columns, wrong types/lengths, missing indexes, extra public tables, and incorrect legacy ledger rows. It is run by `scripts/smoke-prod.sh` in the disposable Compose job using `pnpm --filter api run test:tenant-schema`; the command requires `B5_TEST_DATABASE=1`, permits only localhost/Compose PostgreSQL, uses generated database names, and cleans them up.
 
-The checked-in retired students schema and first Prisma migration are intended to match, and the runner now rejects missing or drifted legacy catalog objects instead of marking the Prisma baseline applied. No disposable-PostgreSQL test yet creates fresh and legacy databases, deploys both, and compares their complete catalogs. Existing migration tests cover the fail-closed decision with injected state fakes: [`apps/api/test/tenant-migrations.e2e-spec.ts:81-182`](../../apps/api/test/tenant-migrations.e2e-spec.ts#L81-L182).
+The normalized comparison includes public tables, ordered columns, PostgreSQL formatted types and typmods, nullability, defaults, primary/foreign/unique/check constraints, ordered index definitions and predicates, triggers, rules, policies, and row-level security. Prisma's internal migration ledger is excluded from business-schema equality and the retired ledger is removed by its migration. Existing injected-state tests remain as unit coverage for the fail-closed decision: [`apps/api/test/tenant-migrations.e2e-spec.ts:81-182`](../../apps/api/test/tenant-migrations.e2e-spec.ts#L81-L182).
 
-**Exit condition:** run and retain an actual PostgreSQL catalog comparison for a fresh database and every supported legacy baseline; reject or explicitly reconcile drift before marking the baseline applied.
+**Exit condition:** satisfied by the disposable PostgreSQL verifier and the existing CI `compose-smoke` job; arbitrary historical schemas remain unsupported and fail closed.
 
-### B6. Production backup and restore are not operationally complete
+### B6. Production backup and restore — implementation present; verification remains open
 
-The backup script safely validates registry rows, uses restrictive permissions, writes `.partial` files, includes the control database, and exits nonzero on partial failure: [`scripts/backup-tenants.sh:1-109`](../../scripts/backup-tenants.sh#L1-L109). However, backups remain only on the VPS under `infrastructure/backup`, with no scheduling, retention, pruning, encryption-at-rest policy, upload verification, alerts, or off-host copy. There is no restore script or full control-plus-all-tenants restore drill: [`docs/cloudflare-setup.md:206-271`](../cloudflare-setup.md#L206-L271).
+The backup path now includes the trusted control database and every registered tenant database, validates a stable registry roster, writes restrictive custom-format dumps atomically, creates a manifest with per-artifact size/checksum/timestamps, prevents overlapping runs, records persistent success/failure status, and supports private Cloudflare R2 upload with post-upload size/checksum-metadata verification: [`scripts/backup-tenants.sh`](../../scripts/backup-tenants.sh), [`docs/operations/environment.md`](../operations/environment.md#L1-L20).
 
-This creates both disaster-recovery and disk-exhaustion risk. R2 is documented as infrastructure direction but no R2 integration exists: [`CONTEXT.md:238-255`](../../CONTEXT.md#L238-L255).
+The disposable Compose smoke path provisions two tenants, seeds representative data, performs the real backup, verifies checksums, restores control and every tenant into generated non-production database names, verifies registry remapping/schema/data/tenant isolation, and cleans up generated databases: [`scripts/backup-restore-smoke.sh`](../../scripts/backup-restore-smoke.sh), [`scripts/restore-tenants.sh`](../../scripts/restore-tenants.sh), [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml#L24-L62). Production scheduling and the recovery runbook are provided by [`infrastructure/systemd/classora-backup.timer`](../../infrastructure/systemd/classora-backup.timer) and [`docs/operations/backup-restore.md`](../operations/backup-restore.md).
 
-**Exit condition:** establish off-host backups, retention/pruning, failure alerting, documented RPO/RTO, and a successful restore drill that includes the control database and tenant registry/database mapping.
+The consistency model is honest: separate database dumps are not one cross-database atomic snapshot. The initial operational objectives are RPO <= 24 hours and RTO <= 4 hours; the runbook requires recording observed drill duration rather than claiming either objective is guaranteed.
 
-### B7. Deployment and rollback are not reproducible or verified — partially addressed; smoke and rollback evidence remain
+**Repository exit condition:** satisfied by the Compose-backed multi-tenant backup/restore drill, checksums, restore mapping, tenant isolation checks, R2 upload verification code, retention logic, status markers, and recovery runbook. **Production operator verification required:** configure and test real R2 credentials/connectivity, private-bucket policy, timer execution, stale-success/failure alerting, disk capacity, retention observation, and a measured production-like restore drill.
 
-Deployment is manual `docker compose --profile production up -d --build`; CI includes a disposable Compose smoke job that runs the migration service, gateway, login, tenant write/read, restart, and log collection. The local disposable smoke run passed, but image publication/promotion, release pin, and rollback evidence remain open: [`.github/workflows/ci.yml:8-64`](../../.github/workflows/ci.yml#L8-L64), [`scripts/smoke-prod.sh:1-93`](../../scripts/smoke-prod.sh#L1-L93), [`docs/cloudflare-setup.md:122-169`](../cloudflare-setup.md#L122-L169).
+### B7. Deployment and rollback are not reproducible or verified — repository contract addressed; live verification remains open
 
-Cloudflare Tunnel ingress/DNS remains manual and absent from executable repository configuration. Compose now pins the PostgreSQL and Cloudflared image tags and keeps Cloudflared behind an explicit production profile: [`infrastructure/docker-compose.yml:54-83`](../../infrastructure/docker-compose.yml#L54-L83). This is not an immutable digest or a substitute for release artifact publication.
+The tag-only release workflow verifies the application, builds each web/API image once, publishes GHCR release and commit-SHA aliases, and records exact image digests. Production deployment accepts only digest-qualified `WEB_IMAGE` and `API_IMAGE` values, removes application build directives, pulls exact images, and uses the same API image for `api` and `api-migrate`: [`.github/workflows/release.yml`](../../.github/workflows/release.yml), [`infrastructure/docker-compose.production.yml`](../../infrastructure/docker-compose.production.yml), [`scripts/deploy-prod.sh`](../../scripts/deploy-prod.sh).
 
-**Exit condition:** pin deployable artifacts, record/version the effective Tunnel ingress, document and test rollback boundaries (including forward-only schema compatibility), and execute a production-like Compose/topology smoke test.
+The deployment script requires a verified backup marker, current release record, disk preflight, merged Compose validation, and a host lock. It runs the serialized migration once and starts the new API/web release only after migration succeeds. Migration failures stop the release; Prisma migrations are forward-only. Application rollback is documented as selecting the previous immutable image pair without rerunning migrations, with B6 restore/roll-forward decisions for schema incompatibility: [`docs/release/process.md`](process.md), [`docs/operations/deployment.md`](../operations/deployment.md).
+
+The existing disposable smoke remains the normal source-build CI path and now also supports explicit digest image mode and an optional read-only previous-image check. It covers migration, gateway readiness, original Host, login, membership, tenant read, representative write/read, restart, and persistence: [`scripts/smoke-prod.sh`](../../scripts/smoke-prod.sh), [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+
+Cloudflare remains a manual contract: `*.classora.io.vn -> Cloudflare Tunnel -> http://web:80`, with no origin Host override. Nginx forwards the original Host to NestJS; API `4101` and PostgreSQL `5432` remain internal. Live dashboard, DNS, TLS, firewall, secret, backup, and VPS checks still require operator evidence: [`docs/cloudflare-setup.md`](../cloudflare-setup.md).
+
+**Repository exit condition:** addressed by immutable release publication, digest-only production deployment, serialized migration, rollback policy, and image-based disposable smoke. **Live exit condition:** still open until the actual VPS and Cloudflare Tunnel satisfy the documented contract and a production-like release/rollback drill is recorded.
 
 ### B8. Critical production paths lack complete live integration evidence — repository smoke verified
 
@@ -145,10 +149,10 @@ The disposable Compose smoke run verified the combined path: tenant hostname -> 
 
 These items should be resolved before or immediately after the blockers, but repository evidence does not independently make each one a release stop:
 
-1. **Security headers and request limits.** No repository-defined HSTS, CSP, frame protection, `X-Content-Type-Options`, Referrer-Policy, Permissions-Policy, or explicit body-size limit exists: [`apps/api/src/main.ts:7-15`](../../apps/api/src/main.ts#L7-L15), [`apps/web/nginx.conf:1-24`](../../apps/web/nginx.conf#L1-L24). Confirm which headers Cloudflare supplies before adding duplicates.
+1. **Security headers and request limits.** Nginx now owns HSTS, CSP, frame protection, `X-Content-Type-Options`, Referrer-Policy, Permissions-Policy, and the 1 MiB gateway body limit. Verify Cloudflare does not conflict with HSTS ownership and complete a browser CSP check on the live VPS.
 2. **Swagger exposure.** Swagger UI and raw JSON are unauthenticated when `ENABLE_SWAGGER=true`: [`apps/api/src/openapi.ts:394-423`](../../apps/api/src/openapi.ts#L394-L423). It defaults off; production must keep it off or restrict it to trusted access.
 3. **Bearer token storage.** The access token is stored in `localStorage`, so successful same-origin XSS can exfiltrate it: [`apps/web/src/auth/LoginPage.tsx:20-24`](../../apps/web/src/auth/LoginPage.tsx#L20-L24), [`apps/web/src/lib/api.ts:3-25`](../../apps/web/src/lib/api.ts#L3-L25). This is an accepted access-token-only phase, but it raises the importance of CSP and XSS prevention.
-4. **Operational error handling.** Provisioning and migration tools propagate raw third-party errors after limited URL redaction: [`apps/api/src/database/create-tenant.ts:48-65`](../../apps/api/src/database/create-tenant.ts#L48-L65), [`apps/api/src/database/create-tenant.ts:142-152`](../../apps/api/src/database/create-tenant.ts#L142-L152), [`apps/api/src/database/tenant-migrations.ts:78-86`](../../apps/api/src/database/tenant-migrations.ts#L78-L86), [`apps/api/src/database/tenant-migrations.ts:123-147`](../../apps/api/src/database/tenant-migrations.ts#L123-L147). Establish structured redaction and log retention.
+4. **Operational diagnostics.** Request IDs, bounded access/error metadata, Docker log rotation, and operator runbooks are now repository controls. Central log retention, alerting, and uptime monitoring remain operator-owned.
 5. **Tenant pool behavior.** Runtime tenant pools have no connection timeout/TLS option, use shared PostgreSQL credentials, and fail when all ten cached pools are active: [`apps/api/src/tenant/tenant-connection-manager.service.ts:3-5`](../../apps/api/src/tenant/tenant-connection-manager.service.ts#L3-L5), [`apps/api/src/tenant/tenant-connection-manager.service.ts:29-55`](../../apps/api/src/tenant/tenant-connection-manager.service.ts#L29-L55), [`apps/api/src/tenant/tenant-connection-manager.service.ts:91-100`](../../apps/api/src/tenant/tenant-connection-manager.service.ts#L91-L100). Confirm expected tenant concurrency and network trust before changing the architecture.
 6. **Database-name defense in depth.** Runtime tenant routing trusts control metadata and rejects only an exact control DB name in the migration URL builder: [`apps/api/src/database/tenant-migrations.ts:15-23`](../../apps/api/src/database/tenant-migrations.ts#L15-L23), [`apps/api/src/tenant/tenant-connection-manager.service.ts:29-51`](../../apps/api/src/tenant/tenant-connection-manager.service.ts#L29-L51). Validate the registry's naming/ownership invariant during provisioning and migration.
 7. **Tenant-aware relational integrity.** Tenant database foreign keys reference IDs only rather than `(tenant_id, id)`: [`apps/api/prisma/tenant/migrations/20260915000000_enrollments/migration.sql:10-12`](../../apps/api/prisma/tenant/migrations/20260915000000_enrollments/migration.sql#L10-L12), [`apps/api/prisma/tenant/migrations/20260915110000_schedules/migration.sql:13-15`](../../apps/api/prisma/tenant/migrations/20260915110000_schedules/migration.sql#L13-L15), [`apps/api/prisma/tenant/migrations/20260915120000_attendance/migration.sql:13-17`](../../apps/api/prisma/tenant/migrations/20260915120000_attendance/migration.sql#L13-L17), [`apps/api/prisma/tenant/migrations/20260915120000_attendance/migration.sql:36-38`](../../apps/api/prisma/tenant/migrations/20260915120000_attendance/migration.sql#L36-L38). Database-per-tenant and tenant-filtered application queries are the current isolation boundary; composite keys would add protection against malformed direct writes.
@@ -241,7 +245,7 @@ The Prisma tenant schema matches the reviewed migration end state, including com
 
 New tenant provisioning creates an empty database, deploys the tenant schema, and only then transactionally creates the control tenant, owner, and membership: [`apps/api/src/database/create-tenant.ts:117-155`](../../apps/api/src/database/create-tenant.ts#L117-L155). This ordering prevents publishing a tenant whose initial migration failed.
 
-**Verdict:** a fresh tenant and a truly exact retired-runner tenant are expected to converge from the checked-in artifacts. Equivalence is **not verified for an arbitrary upgraded tenant** because baseline detection does not validate the actual students catalog or detect drift, and CI never compares real PostgreSQL catalogs. This is blocker B5.
+**Verdict:** a fresh tenant and the supported exact retired-runner tenant converge through the checked-in artifacts; the disposable PostgreSQL verifier rejects unsupported drift and arbitrary historical schemas fail closed. This repository-level B5 gate is closed. Real production tenant inventories still require operator evidence before release.
 
 ### Retry and partial failure
 
@@ -277,7 +281,7 @@ The primary isolation boundary is one database per tenant. Every reviewed tenant
 - Periodic restore drill with documented RPO/RTO.
 - A consistency policy across control and separately dumped tenant databases.
 
-Current state is not sufficient for production disaster recovery; see blocker B6.
+The repository recovery path is production-shaped; actual R2 credentials, timer execution, alerting, capacity, retention, and a measured VPS restore drill remain operator gates.
 
 ## Deployment assessment
 
@@ -328,9 +332,9 @@ The PostgreSQL init script creates `CONTROL_DB_NAME` and always creates `classor
 - [x] B2: application login/API abuse control is implemented; verify edge behavior and single-instance limitation.
 - [x] B3: database-aware readiness and operator health semantics are implemented.
 - [x] B4: API startup is separated from the explicit migration service; retry, partial-failure, and concurrency operations remain documented prerequisites.
-- [ ] B5: fresh and supported legacy tenant schemas are compared on real PostgreSQL and drift is handled.
-- [ ] B6: off-host backups, retention, alerts, and a successful full restore drill exist.
-- [ ] B7: effective Tunnel config, release artifact immutability, rollback, and successful production-like Compose smoke are established.
+- [x] B5: fresh and supported legacy tenant schemas are compared on real PostgreSQL and drift is handled by the disposable verifier.
+- [x] B6: repository backup/restore drill, checksums, R2 upload path, retention, scheduling, status, and recovery runbook exist; real R2/VPS restore evidence remains an operator gate.
+- [x] B7: repository release artifacts, digest-only deployment, serialized migration, rollback policy, Cloudflare contract, and image-based Compose smoke are established; live VPS/Tunnel evidence remains an operator gate.
 - [x] B8: disposable built artifacts and PostgreSQL smoke verifies gateway readiness, login, tenant query, tenant student write/read, API restart, and read-after-restart; live Cloudflare/VPS behavior remains open.
 
 ### Pre-release operator verification
@@ -344,4 +348,23 @@ The PostgreSQL init script creates `CONTROL_DB_NAME` and always creates `classor
 - [ ] Confirm logs redact secrets and have retention/alerting.
 - [ ] Confirm deploy and rollback responsibilities, commands, and decision points.
 
-**Prompt 2 gate:** blocked. The repository builds, tests run, topology is understood, and blockers are explicit, but major production paths remain unverified until B1-B8 are closed or receive explicit, documented risk acceptance backed by operator evidence.
+## Evidence boundary
+
+### Repository verified
+
+- Strict configuration and production Swagger policy tests pass.
+- Nginx security headers, body limit, original Host forwarding, and trusted client-IP mapping are checked in.
+- Request IDs and redacted access/error diagnostics are implemented with bounded Docker log rotation.
+- `/health` and `/health/live` are liveness; `/health/ready` checks control-database reachability and returns 503 on failure.
+- B5 schema equivalence, B6 backup/restore smoke, B7 immutable deployment, and the production smoke path are repository checks.
+- [environment.md](../operations/environment.md), [observability.md](../operations/observability.md), and [production-security.md](../security/production-security.md) are the operator contract.
+
+### Operator verification required on the real VPS
+
+- Root-owned secret files, bootstrap-secret removal, firewall exposure, filesystem/volume capacity, Docker restart behavior, systemd timer execution, backup freshness, R2 access/retention, alert delivery, release/rollback drill, and measured restore duration.
+
+### Operator verification required in Cloudflare
+
+- Full (strict) TLS, HTTPS-only behavior, DNS, Tunnel connector health, original Host preservation, no origin Host override, edge/WAF/rate-limit policy, Cloudflare HSTS ownership, and public browser/CSP behavior.
+
+**Completion gate:** repository-level release blockers are closed. Production release remains contingent on the explicit VPS and Cloudflare checks above; no external control is marked complete by repository tests.
