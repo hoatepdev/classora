@@ -3,10 +3,25 @@
 - **Audit date:** 2026-09-20
 - **Audited revision:** current working revision after the B5/B6/B7 and final-gate changes
 - **Audited branch:** `fix/b5-tenant-schema-equivalence`
-- **Release verdict:** **Repository gate ready; live operator gate open**
-- **Implementation status:** Repository configuration, HTTP security baseline, request diagnostics, health semantics, backup/release tooling, and runbooks are implemented. Real VPS and Cloudflare verification remains required.
+- **Release verdict:** **Repository gate pending GitHub Actions green; live operator gate open**
+- **Implementation status:** Repository configuration, HTTP security baseline, request diagnostics, health semantics, backup/release tooling, and runbooks are implemented. The current CI regression is being corrected; real VPS and Cloudflare verification remains required.
 
-The repository gate covers strict production configuration, login throttling with trusted proxy handling, database-aware readiness, explicit migration ordering, schema equivalence, backup/restore verification, immutable image deployment, bounded logs, request IDs, security headers, and operator diagnostics. An isolated disposable Compose smoke run remains the end-to-end source of truth for migration, gateway readiness, login, membership-authorized tenant query, tenant write/read, restart persistence, and backup/restore. The remaining release gate is external evidence from the actual VPS and Cloudflare account.
+The repository gate covers strict production configuration, login throttling with trusted proxy handling, database-aware readiness, explicit migration ordering, schema equivalence, backup/restore verification, immutable image deployment, bounded logs, request IDs, security headers, and operator diagnostics. An isolated disposable Compose smoke run remains the end-to-end source of truth for migration, gateway readiness, login, membership-authorized tenant query, tenant write/read, restart persistence, and backup/restore. The repository gate cannot be marked ready until the `verify` and `compose-smoke` jobs pass in GitHub Actions on `main`; the remaining release gate is external evidence from the actual VPS and Cloudflare account.
+
+### CI regression follow-up
+
+The production hardening correctly made Prisma generation use strict database configuration, but both workflow `verify` jobs lacked explicit build-time configuration. The smoke jobs also wrote the copied `.env.example` with a literal `\\n`, producing one comment line; cleanup then failed Compose interpolation because the disabled Cloudflare token was empty. The fix supplies safe test-only API values, writes real newline-delimited smoke env files from `infrastructure/.env.example`, sets `CLOUDFLARE_TUNNEL_TOKEN=smoke-disabled`, and makes workflow diagnostics/teardown best-effort without changing `scripts/smoke-prod.sh` or removing B5/B6 checks.
+
+Local verification on 2026-09-21 passed:
+
+- `pnpm install --frozen-lockfile`
+- `pnpm --filter web build`
+- `pnpm --filter api build` with explicit test-only database/JWT configuration
+- `pnpm --filter api test` — 15 files, 106 tests
+- Generated smoke env validation and `docker compose ... config --quiet`
+- `SMOKE_BACKUP_RESTORE=1 ./scripts/smoke-prod.sh` — B5 schema equivalence, migrations, gateway/readiness, login, tenant resolution, tenant write/read, restart persistence, and B6 backup/restore passed; the EXIT cleanup removed the disposable containers.
+
+The latest available GitHub Actions run on `main` is `35525697742` for `a97e915`, and remains failed: `verify` stopped at API Prisma generation and `compose-smoke` stopped before startup; the workflow changes above have not been pushed, so no corrected GitHub result exists yet. Until a successful `main` run is available, repository-ready status remains pending.
 
 ## Current architecture
 
@@ -113,7 +128,7 @@ Fresh empty databases receive the full tenant migration history. The only suppor
 
 The normalized comparison includes public tables, ordered columns, PostgreSQL formatted types and typmods, nullability, defaults, primary/foreign/unique/check constraints, ordered index definitions and predicates, triggers, rules, policies, and row-level security. Prisma's internal migration ledger is excluded from business-schema equality and the retired ledger is removed by its migration. Existing injected-state tests remain as unit coverage for the fail-closed decision: [`apps/api/test/tenant-migrations.e2e-spec.ts:81-182`](../../apps/api/test/tenant-migrations.e2e-spec.ts#L81-L182).
 
-**Exit condition:** satisfied by the disposable PostgreSQL verifier and the existing CI `compose-smoke` job; arbitrary historical schemas remain unsupported and fail closed.
+**Implementation status:** covered by the disposable PostgreSQL verifier and the existing CI `compose-smoke` job design; repository-gate completion remains pending a successful GitHub Actions `compose-smoke` run. Arbitrary historical schemas remain unsupported and fail closed.
 
 ### B6. Production backup and restore — implementation present; verification remains open
 
@@ -123,7 +138,7 @@ The disposable Compose smoke path provisions two tenants, seeds representative d
 
 The consistency model is honest: separate database dumps are not one cross-database atomic snapshot. The initial operational objectives are RPO <= 24 hours and RTO <= 4 hours; the runbook requires recording observed drill duration rather than claiming either objective is guaranteed.
 
-**Repository exit condition:** satisfied by the Compose-backed multi-tenant backup/restore drill, checksums, restore mapping, tenant isolation checks, R2 upload verification code, retention logic, status markers, and recovery runbook. **Production operator verification required:** configure and test real R2 credentials/connectivity, private-bucket policy, timer execution, stale-success/failure alerting, disk capacity, retention observation, and a measured production-like restore drill.
+**Implementation status:** covered by the Compose-backed multi-tenant backup/restore drill, checksums, restore mapping, tenant isolation checks, R2 upload verification code, retention logic, status markers, and recovery runbook; repository-gate completion remains pending a successful GitHub Actions `compose-smoke` run. **Production operator verification required:** configure and test real R2 credentials/connectivity, private-bucket policy, timer execution, stale-success/failure alerting, disk capacity, retention observation, and a measured production-like restore drill.
 
 ### B7. Deployment and rollback are not reproducible or verified — repository contract addressed; live verification remains open
 
@@ -135,7 +150,7 @@ The existing disposable smoke remains the normal source-build CI path and now al
 
 Cloudflare remains a manual contract: `*.classora.io.vn -> Cloudflare Tunnel -> http://web:80`, with no origin Host override. Nginx forwards the original Host to NestJS; API `4101` and PostgreSQL `5432` remain internal. Live dashboard, DNS, TLS, firewall, secret, backup, and VPS checks still require operator evidence: [`docs/cloudflare-setup.md`](../cloudflare-setup.md).
 
-**Repository exit condition:** addressed by immutable release publication, digest-only production deployment, serialized migration, rollback policy, and image-based disposable smoke. **Live exit condition:** still open until the actual VPS and Cloudflare Tunnel satisfy the documented contract and a production-like release/rollback drill is recorded.
+**Implementation status:** addressed by immutable release publication, digest-only production deployment, serialized migration, rollback policy, and image-based disposable smoke; repository-gate completion remains pending successful GitHub Actions verification and smoke jobs. **Live exit condition:** still open until the actual VPS and Cloudflare Tunnel satisfy the documented contract and a production-like release/rollback drill is recorded.
 
 ### B8. Critical production paths lack complete live integration evidence — repository smoke verified
 
@@ -143,7 +158,7 @@ API tests broadly cover application behavior but use an in-memory SQL fake; no t
 
 The disposable Compose smoke run verified the combined path: tenant hostname -> Nginx Host forwarding -> login -> membership -> real tenant pool -> representative domain write/read -> API restart -> read-after-restart. `scripts/smoke-prod.sh` exercises this path against built images and cleans up its isolated project and volume on exit. This closes the repository-level end-to-end evidence gap without proving live Cloudflare/VPS behavior.
 
-**Repository exit condition:** satisfied by the disposable Compose smoke. **Live deployment exit condition:** verify the same path through the actual Cloudflare Tunnel, VPS, and production secret/runtime configuration.
+**Implementation status:** covered by the disposable Compose smoke; repository-gate completion remains pending a successful GitHub Actions smoke run. **Live deployment exit condition:** verify the same path through the actual Cloudflare Tunnel, VPS, and production secret/runtime configuration.
 
 ## High priority hardening
 
@@ -245,7 +260,7 @@ The Prisma tenant schema matches the reviewed migration end state, including com
 
 New tenant provisioning creates an empty database, deploys the tenant schema, and only then transactionally creates the control tenant, owner, and membership: [`apps/api/src/database/create-tenant.ts:117-155`](../../apps/api/src/database/create-tenant.ts#L117-L155). This ordering prevents publishing a tenant whose initial migration failed.
 
-**Verdict:** a fresh tenant and the supported exact retired-runner tenant converge through the checked-in artifacts; the disposable PostgreSQL verifier rejects unsupported drift and arbitrary historical schemas fail closed. This repository-level B5 gate is closed. Real production tenant inventories still require operator evidence before release.
+**Verdict:** a fresh tenant and the supported exact retired-runner tenant converge through the checked-in artifacts; the disposable PostgreSQL verifier rejects unsupported drift and arbitrary historical schemas fail closed. The B5 implementation and local smoke evidence are present; repository-gate completion remains pending a successful GitHub Actions run. Real production tenant inventories still require operator evidence before release.
 
 ### Retry and partial failure
 
@@ -300,7 +315,7 @@ The repository recovery path is production-shaped; actual R2 credentials, timer 
 - Production secret distribution/rotation.
 - Reproducible image publication and immutable release identifiers.
 - Serialized migration release step.
-- Post-deployment readiness/smoke gate through the live Cloudflare/VPS topology (repository smoke is verified).
+- Post-deployment readiness/smoke gate through the live Cloudflare/VPS topology (repository smoke passed locally; corrected GitHub Actions evidence is pending).
 - Rollback procedure and schema compatibility policy.
 - Monitoring, alerting, log shipping, and retention.
 - Disk thresholds for PostgreSQL, Docker, and local backups.
@@ -318,13 +333,16 @@ The PostgreSQL init script creates `CONTROL_DB_NAME` and always creates `classor
 - [x] TypeScript checks pass.
 - [x] Compose configuration resolves successfully with the local environment file.
 - [x] Disposable Compose smoke execution passes migration, gateway, login, tenant write/read, API restart, and read-after-restart.
-- [x] Current API test suite passes: 15 files, 101 tests (2026-09-20 implementation run).
+- [x] Current API test suite passes: 15 files, 106 tests (2026-09-21 local verification).
 - [x] Intended production topology is understood.
 - [x] Nginx original tenant Host preservation is verified in configuration.
 - [x] Every checked-in control and tenant migration was inspected.
 - [x] Every discovered environment variable is classified.
 - [x] Release blockers are explicitly listed with file/code evidence.
+- [ ] Corrected GitHub Actions `verify` and `compose-smoke` jobs pass on `main`.
 - [ ] No major unknown production path remains.
+
+The checked items above are local repository evidence; they do not restore repository-ready status until the GitHub Actions gate is green.
 
 ### Blocker exit checklist
 
@@ -367,4 +385,4 @@ The PostgreSQL init script creates `CONTROL_DB_NAME` and always creates `classor
 
 - Full (strict) TLS, HTTPS-only behavior, DNS, Tunnel connector health, original Host preservation, no origin Host override, edge/WAF/rate-limit policy, Cloudflare HSTS ownership, and public browser/CSP behavior.
 
-**Completion gate:** repository-level release blockers are closed. Production release remains contingent on the explicit VPS and Cloudflare checks above; no external control is marked complete by repository tests.
+**Completion gate:** repository implementation and local evidence are present, but the repository-level release gate remains pending until corrected GitHub Actions `verify` and `compose-smoke` jobs pass on `main`. Production release also remains contingent on the explicit VPS and Cloudflare checks above; no external control is marked complete by repository tests.

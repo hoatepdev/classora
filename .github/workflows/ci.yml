@@ -8,6 +8,18 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      PORT: 4101
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: classora
+      POSTGRES_PASSWORD: ci-postgres-password
+      POSTGRES_DB: classora
+      CONTROL_DB_NAME: control_db
+      JWT_SECRET: 01234567890123456789012345678901
+      JWT_ACCESS_TTL: 1h
+      ENABLE_SWAGGER: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,11 +54,12 @@ jobs:
               'INITIAL_USER_EMAIL': 'smoke@example.test',
               'INITIAL_USER_PASSWORD': 'smoke-password-123',
               'INITIAL_USER_NAME': 'Smoke-Owner',
+              'CLOUDFLARE_TUNNEL_TOKEN': 'smoke-disabled',
           }
           lines = path.read_text().splitlines()
           for key, value in values.items():
               lines = [f'{key}={value}' if line.startswith(f'{key}=') else line for line in lines]
-          path.write_text('\\n'.join(lines) + '\\n')
+          path.write_text('\n'.join(lines) + '\n')
           PY
           echo "SMOKE_ENV_FILE=/tmp/classora-smoke.env" >> "$GITHUB_ENV"
           echo "COMPOSE_ENV_FILE=/tmp/classora-smoke.env" >> "$GITHUB_ENV"
@@ -56,7 +69,13 @@ jobs:
         run: ./scripts/smoke-prod.sh
       - name: Collect Compose logs
         if: failure()
-        run: docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml logs --no-color
+        run: |
+          if [ -n "${SMOKE_PROJECT_NAME:-}" ] && [ -n "${SMOKE_ENV_FILE:-}" ]; then
+            docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml logs --no-color || true
+          fi
       - name: Tear down Compose
         if: always()
-        run: docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml down --volumes --remove-orphans
+        run: |
+          if [ -n "${SMOKE_PROJECT_NAME:-}" ] && [ -n "${SMOKE_ENV_FILE:-}" ]; then
+            docker compose --project-name "$SMOKE_PROJECT_NAME" --env-file "$SMOKE_ENV_FILE" -f infrastructure/docker-compose.yml down --volumes --remove-orphans || true
+          fi
