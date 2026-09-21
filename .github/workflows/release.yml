@@ -20,7 +20,7 @@ jobs:
       POSTGRES_PASSWORD: ci-postgres-password
       POSTGRES_DB: classora
       CONTROL_DB_NAME: control_db
-      JWT_SECRET: 01234567890123456789012345678901
+      JWT_SECRET: '01234567890123456789012345678901'
       JWT_ACCESS_TTL: 1h
       ENABLE_SWAGGER: 'false'
     steps:

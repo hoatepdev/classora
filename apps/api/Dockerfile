@@ -14,7 +14,13 @@ FROM base AS build
 
 RUN pnpm install --frozen-lockfile --filter api
 COPY apps/api apps/api
-RUN pnpm --filter api build
+# prisma generate loads prisma.config.ts, which validates PostgreSQL settings at
+# import time. Placeholder values are scoped to this command only: never used to
+# connect, absent from image metadata, and the runtime image still fails closed
+# without real configuration.
+RUN POSTGRES_HOST=localhost POSTGRES_PORT=5432 POSTGRES_USER=classora \
+    POSTGRES_PASSWORD=build-only-placeholder CONTROL_DB_NAME=control_db \
+    pnpm --filter api build
 
 FROM node:22.23.2-alpine AS runtime
 
