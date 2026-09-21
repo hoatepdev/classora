@@ -12,7 +12,7 @@ This document records controls implemented in the repository and the checks that
 
 ## Tenant authorization
 
-Authorization is evaluated per request from the authenticated user's active membership in the hostname-resolved tenant. Role and permission values from the frontend or request body are never trusted. Invitation tokens are random, stored only as SHA-256 hashes, expire, and are consumed once. The last active OWNER cannot be demoted, disabled, or removed. Full mutation audit logging is deferred to LOCAL-02.
+Authorization is evaluated per request from the authenticated user's active membership in the hostname-resolved tenant. Role and permission values from the frontend or request body are never trusted. Invitation tokens are random, stored only as SHA-256 hashes, expire, and are consumed once. The last active OWNER cannot be demoted, disabled, or removed. LOCAL-02 records committed membership/invitation changes and Student create/update changes in append-only audit tables, with request correlation, trusted actor attribution, and allowlisted snapshots. Course, Class, Teacher, Enrollment, Schedule, Attendance, Billing, CRM, and other domain mutations remain outside this stage until separately integrated. Application retention and archival remain future work.
 
 ## Secrets
 

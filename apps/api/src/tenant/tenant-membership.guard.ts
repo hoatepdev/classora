@@ -22,6 +22,7 @@ export type TenantRequest = AuthenticatedRequest & {
     role: TenantRole;
     status: 'ACTIVE' | 'DISABLED';
     permissions: Permission[];
+    user?: { name: string; email: string };
   };
 };
 
@@ -50,7 +51,7 @@ export class TenantMembershipGuard implements CanActivate {
       where: {
         tenantId_userId: { tenantId: tenant.tenantId, userId: request.user.id },
       },
-      select: { id: true, userId: true, role: true, status: true },
+      select: { id: true, userId: true, role: true, status: true, user: { select: { name: true, email: true } } },
     });
     if (!membership || (membership.status !== undefined && membership.status !== 'ACTIVE')) throw new ForbiddenException();
 
@@ -59,6 +60,7 @@ export class TenantMembershipGuard implements CanActivate {
       ...membership,
       status: membership.status ?? 'ACTIVE',
       permissions: permissionsForRole(membership.role),
+      user: membership.user,
     };
     return true;
   }

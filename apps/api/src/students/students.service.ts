@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import { ulid } from 'ulid';
+import { AuditService } from '../audit/audit.service.js';
 import { TenantContextService } from '../tenant/tenant-context.service.js';
 import { type CreateStudentDto, StudentStatus } from './dto/create-student.dto.js';
 import type { UpdateStudentDto } from './dto/update-student.dto.js';
@@ -54,7 +55,7 @@ function isStudentCodeConflict(error: unknown) {
 
 @Injectable()
 export class StudentsService {
-  constructor(private readonly tenantContext: TenantContextService) {}
+  constructor(private readonly tenantContext: TenantContextService, private readonly audit: AuditService) {}
 
   async list() {
     const { tenant, pool } = this.tenantContext.get();
@@ -77,9 +78,11 @@ export class StudentsService {
   }
 
   async create(input: CreateStudentDto) {
-    const { tenant, pool } = this.tenantContext.get();
+    const { tenant, pool, actorUserId, actorMembershipId, actorName, actorEmail, requestId } = this.tenantContext.get();
+    const client = await pool.connect();
     try {
-      const result = await pool.query<StudentRow>(
+      await client.query('BEGIN');
+      const result = await client.query<StudentRow>(
         `INSERT INTO students
           (id, tenant_id, code, full_name, phone, email, date_of_birth, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -94,21 +97,22 @@ export class StudentsService {
            status,
            created_at AS "createdAt",
            updated_at AS "updatedAt"`,
-        [
-          ulid(),
-          tenant.tenantId,
-          input.code.toUpperCase(),
-          input.fullName,
-          input.phone ?? null,
-          input.email ?? null,
-          input.dateOfBirth ?? null,
-          input.status ?? StudentStatus.ACTIVE,
-        ],
+        [ulid(), tenant.tenantId, input.code.toUpperCase(), input.fullName, input.phone ?? null, input.email ?? null, input.dateOfBirth ?? null, input.status ?? StudentStatus.ACTIVE],
       );
-      return serialize(result.rows[0]);
+      const student = result.rows[0];
+      await this.audit.recordTenant(client, {
+        tenantId: tenant.tenantId, actorUserId, actorMembershipId, actorName, actorEmail, requestId,
+        action: 'student.created', entityType: 'STUDENT', entityId: student.id,
+        after: { code: student.code, fullName: student.fullName, phone: student.phone, email: student.email, dateOfBirth: student.dateOfBirth, status: student.status },
+      });
+      await client.query('COMMIT');
+      return serialize(student);
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
       if (isStudentCodeConflict(error)) throw new ConflictException('Student code already exists');
       throw error;
+    } finally {
+      client.release?.();
     }
   }
 
@@ -131,9 +135,14 @@ export class StudentsService {
     }
     if (fields.length === 0) throw new BadRequestException('At least one field is required');
 
-    const { tenant, pool } = this.tenantContext.get();
+    const { tenant, pool, actorUserId, actorMembershipId, actorName, actorEmail, requestId } = this.tenantContext.get();
+    const client = await pool.connect();
     try {
-      const result = await pool.query<StudentRow>(
+      await client.query('BEGIN');
+      const existing = await client.query<StudentRow>(`${selectStudent} WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, [tenant.tenantId, id]);
+      const beforeRow = existing.rows[0];
+      if (!beforeRow) throw new NotFoundException('Student not found');
+      const result = await client.query<StudentRow>(
         `UPDATE students
          SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = $1 AND id = $2
@@ -151,11 +160,24 @@ export class StudentsService {
         [tenant.tenantId, id, ...values],
       );
       const student = result.rows[0];
-      if (!student) throw new NotFoundException('Student not found');
+      const snapshot = (row: StudentRow) => ({ code: row.code, fullName: row.fullName, phone: row.phone, email: row.email, dateOfBirth: row.dateOfBirth, status: row.status });
+      const before = snapshot(beforeRow);
+      const after = snapshot(student);
+      const changedBefore: Record<string, unknown> = {};
+      const changedAfter: Record<string, unknown> = {};
+      for (const key of Object.keys(after) as Array<keyof typeof after>) if (before[key] !== after[key]) { changedBefore[key] = before[key]; changedAfter[key] = after[key]; }
+      await this.audit.recordTenant(client, {
+        tenantId: tenant.tenantId, actorUserId, actorMembershipId, actorName, actorEmail, requestId,
+        action: 'student.updated', entityType: 'STUDENT', entityId: student.id, before: changedBefore, after: changedAfter,
+      });
+      await client.query('COMMIT');
       return serialize(student);
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
       if (isStudentCodeConflict(error)) throw new ConflictException('Student code already exists');
       throw error;
+    } finally {
+      client.release?.();
     }
   }
 }

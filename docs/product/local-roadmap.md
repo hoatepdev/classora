@@ -5,14 +5,13 @@ verification gate; later work must not be started until its hard gates pass.
 
 | ID | Stage | Status |
 |---|---|---|
-| LOCAL-00 | Baseline & Foundation Verification | BLOCKED |
-| LOCAL-01 | Identity, Authorization & Team | BLOCKED |
-
-LOCAL-00 blocker: GitHub Actions has not been run on this final branch state, so
-Gate G (green CI) is not yet demonstrated. LOCAL-01 becomes NEXT only after
-that gate passes.
-| LOCAL-02 | Audit Log | Planned |
+| LOCAL-00 | Baseline & Foundation Verification | DONE |
+| LOCAL-01 | Identity, Authorization & Team | DONE |
+| LOCAL-02 | Audit Log | BLOCKED |
 | LOCAL-03 | Student 360 + Guardians | Planned |
+
+LOCAL-02 implementation is in progress. Keep it blocked until the audit
+integration, migrations, tests, and verification gates pass.
 | LOCAL-04 | Branch + Room + Teacher/Course completion | Planned |
 | LOCAL-05 | Enrollment Lifecycle | Planned |
 | LOCAL-06 | Scheduling + Session Engine | Planned |

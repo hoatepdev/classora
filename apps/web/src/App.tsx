@@ -17,6 +17,7 @@ import { AcceptInvitationPage } from "./features/settings/AcceptInvitationPage.j
 import { TeamPage } from "./features/settings/TeamPage.js";
 import { RolesPage } from "./features/settings/RolesPage.js";
 import { SecurityPage } from "./features/settings/SecurityPage.js";
+import { AuditPage } from "./features/audit/AuditPage.js";
 import { StudentForm } from "./features/students/StudentForm.js";
 import { StudentsPage } from "./features/students/StudentsPage.js";
 
@@ -42,6 +43,7 @@ export function App() {
         <Route path="/settings/team" element={<TeamPage />} />
         <Route path="/settings/roles" element={<RolesPage />} />
         <Route path="/settings/security" element={<SecurityPage />} />
+        <Route path="/settings/audit-log" element={<AuditPage />} />
         <Route path="/teachers" element={<TeachersPage />} />
         <Route path="/teachers/new" element={<TeacherForm />} />
         <Route path="/teachers/:id" element={<TeacherDetail />} />

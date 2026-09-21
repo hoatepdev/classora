@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   REPORT_FINANCE: 'report.finance',
   SETTINGS_READ: 'settings.read',
   SETTINGS_MANAGE: 'settings.manage',
+  AUDIT_READ: 'audit.read',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

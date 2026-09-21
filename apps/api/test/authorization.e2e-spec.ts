@@ -13,5 +13,10 @@ describe('authorization matrix', () => {
     expect(hasPermission(TenantRole.ACCOUNTANT, PERMISSIONS.STUDENT_WRITE)).toBe(false);
     expect(hasPermission(TenantRole.ACCOUNTANT, PERMISSIONS.TEAM_MANAGE)).toBe(false);
     expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.SETTINGS_MANAGE)).toBe(false);
+    expect(hasPermission(TenantRole.OWNER, PERMISSIONS.AUDIT_READ)).toBe(true);
+    expect(hasPermission(TenantRole.CENTER_ADMIN, PERMISSIONS.AUDIT_READ)).toBe(true);
+    expect(hasPermission(TenantRole.ACADEMIC_MANAGER, PERMISSIONS.AUDIT_READ)).toBe(false);
+    expect(hasPermission(TenantRole.STAFF, PERMISSIONS.AUDIT_READ)).toBe(false);
+    expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.AUDIT_READ)).toBe(false);
   });
 });

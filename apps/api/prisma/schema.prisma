@@ -41,6 +41,7 @@ model Tenant {
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   memberships    TenantMembership[]
   invitations    TenantInvitation[]
+  auditEvents    AuditEvent[]
 
   @@map("tenants")
 }
@@ -55,6 +56,7 @@ model User {
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   memberships        TenantMembership[]
   createdInvitations TenantInvitation[] @relation("InvitationCreator")
+  auditEvents       AuditEvent[]
 
   @@map("users")
 }
@@ -95,4 +97,31 @@ model TenantInvitation {
   @@index([tenantId, email, expiresAt])
   @@index([tenantId, revokedAt, acceptedAt])
   @@map("tenant_invitations")
+}
+
+model AuditEvent {
+  id                String   @id @db.Char(26)
+  tenantId          String   @map("tenant_id") @db.Char(26)
+  actorUserId       String?  @map("actor_user_id") @db.Char(26)
+  actorMembershipId String?  @map("actor_membership_id") @db.Char(26)
+  actorName         String?  @map("actor_name")
+  actorEmail        String?  @map("actor_email")
+  action            String
+  entityType        String   @map("entity_type")
+  entityId          String?  @map("entity_id") @db.Char(26)
+  before            Json?
+  after             Json?
+  reason            String?
+  requestId         String?  @map("request_id")
+  metadata          Json?
+  occurredAt        DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actorUser         User?    @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, occurredAt, id])
+  @@index([tenantId, actorUserId, occurredAt, id])
+  @@index([tenantId, action, occurredAt, id])
+  @@index([tenantId, entityType, occurredAt, id])
+  @@index([tenantId, entityId, occurredAt, id])
+  @@map("audit_events")
 }

@@ -6,6 +6,11 @@ import type { ResolvedTenant } from './tenant-resolver.service.js';
 export type TenantContext = {
   tenant: ResolvedTenant;
   pool: Pool;
+  actorUserId?: string;
+  actorMembershipId?: string;
+  actorName?: string;
+  actorEmail?: string;
+  requestId?: string;
 };
 
 @Injectable()

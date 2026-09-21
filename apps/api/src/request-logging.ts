@@ -7,7 +7,8 @@ import type { TenantRequest } from './tenant/tenant-membership.guard.js';
 const logger = new Logger('HTTP');
 const requestIdPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 
-type DiagnosticRequest = AuthenticatedRequest & TenantRequest;
+export type RequestWithId = Request & { requestId?: string };
+type DiagnosticRequest = AuthenticatedRequest & TenantRequest & RequestWithId;
 
 function requestId(request: Request) {
   const incoming = request.header('x-request-id');
@@ -16,6 +17,7 @@ function requestId(request: Request) {
 
 export function requestLoggingMiddleware(request: Request, response: Response, next: NextFunction) {
   const id = requestId(request);
+  (request as RequestWithId).requestId = id;
   const startedAt = process.hrtime.bigint();
   response.setHeader('X-Request-Id', id);
   response.on('finish', () => {

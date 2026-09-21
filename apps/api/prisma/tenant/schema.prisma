@@ -161,3 +161,28 @@ model AttendanceRecord {
   @@index([tenantId, studentId, id], map: "attendance_records_tenant_id_student_id_id_idx")
   @@map("attendance_records")
 }
+
+model AuditEvent {
+  id                String   @id @db.Char(26)
+  tenantId          String   @map("tenant_id") @db.Char(26)
+  actorUserId       String?  @map("actor_user_id") @db.Char(26)
+  actorMembershipId String?  @map("actor_membership_id") @db.Char(26)
+  actorName         String?  @map("actor_name")
+  actorEmail        String?  @map("actor_email")
+  action            String
+  entityType        String   @map("entity_type")
+  entityId          String?  @map("entity_id") @db.Char(26)
+  before            Json?
+  after             Json?
+  reason            String?
+  requestId         String?  @map("request_id")
+  metadata          Json?
+  occurredAt        DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  @@index([tenantId, occurredAt, id])
+  @@index([tenantId, actorUserId, occurredAt, id])
+  @@index([tenantId, action, occurredAt, id])
+  @@index([tenantId, entityType, occurredAt, id])
+  @@index([tenantId, entityId, occurredAt, id])
+  @@map("audit_events")
+}

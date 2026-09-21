@@ -70,6 +70,21 @@ async function execute(dbName, sql) {
   }
 }
 
+async function assertAppendOnly(dbName, label) {
+  const id = '01J00000000000000000000002';
+  const tenantId = '01J00000000000000000000001';
+  await execute(dbName, `
+    INSERT INTO audit_events (id, tenant_id, action, entity_type)
+    VALUES ('${id}', '${tenantId}', 'schema.check', 'TEST')
+    ON CONFLICT (id) DO NOTHING
+  `);
+  await assert.rejects(() => execute(dbName, `UPDATE audit_events SET action = 'mutated' WHERE id = '${id}'`), undefined, `${label}: audit UPDATE was allowed`);
+  await assert.rejects(() => execute(dbName, `DELETE FROM audit_events WHERE id = '${id}'`), undefined, `${label}: audit DELETE was allowed`);
+  await assert.rejects(() => execute(dbName, `TRUNCATE audit_events`), undefined, `${label}: audit TRUNCATE was allowed`);
+  const rows = await query(dbName, 'SELECT action FROM audit_events WHERE id = $1', [id]);
+  assert.deepEqual(rows, [{ action: 'schema.check' }], `${label}: append-only row changed`);
+}
+
 async function query(dbName, sql, values = []) {
   const pool = databasePool(dbName);
   try {
@@ -178,6 +193,8 @@ async function main() {
   assert.deepEqual(afterRetry, beforeRetry, 'Rerunning current tenant changed its catalog');
   await deployTenantSchema(legacy);
   assert.deepEqual(await query(legacy, 'SELECT code, full_name FROM students'), legacyRows);
+  await assertAppendOnly(fresh, 'fresh');
+  await assertAppendOnly(legacy, 'legacy');
 
   await verifyDrift('missing_column', (dbName) => execute(dbName, 'ALTER TABLE students DROP COLUMN email'));
   await verifyDrift('wrong_type', (dbName) =>

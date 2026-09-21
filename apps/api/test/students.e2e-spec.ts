@@ -42,6 +42,7 @@ type Student = {
 function studentPool() {
   const rows = new Map<string, Student>();
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+    if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql) || sql.includes('INSERT INTO audit_events')) return { rows: [] };
     if (sql.includes('INSERT INTO students')) {
       const now = new Date('2026-09-12T00:00:00.000Z');
       const student: Student = {
@@ -99,7 +100,8 @@ function studentPool() {
     };
   });
 
-  return { pool: { query } as unknown as Pool, query, rows };
+  const client = { query, release: vi.fn() };
+  return { pool: { query, connect: vi.fn(async () => client) } as unknown as Pool, query, rows, client };
 }
 
 describe('students', () => {
