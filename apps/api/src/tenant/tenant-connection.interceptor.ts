@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import type { Pool } from 'pg';
-import { IS_TENANT_ROUTE } from './tenant-route.js';
+import { IS_TENANT_ROUTE, TENANT_DATABASE_ROUTE } from './tenant-route.js';
 import { TenantConnectionManager } from './tenant-connection-manager.service.js';
 import { TenantContextService } from './tenant-context.service.js';
 import type { TenantRequest } from './tenant-membership.guard.js';
@@ -22,11 +22,11 @@ export class TenantConnectionInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler) {
-    const isTenantRoute = this.reflector.getAllAndOverride<boolean>(IS_TENANT_ROUTE, [
+    const isDatabaseRoute = this.reflector.getAllAndOverride<boolean>(TENANT_DATABASE_ROUTE, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!isTenantRoute) return next.handle();
+    if (!isDatabaseRoute) return next.handle();
 
     const tenant = context.switchToHttp().getRequest<TenantRequest>().tenant;
     if (!tenant) throw new UnauthorizedException();

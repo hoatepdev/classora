@@ -10,6 +10,10 @@ This document records controls implemented in the repository and the checks that
 - Nginx preserves the original tenant `Host` and `X-Forwarded-Host`; NestJS resolves the hostname against trusted control-database metadata before acquiring a tenant pool.
 - `/health/tenant/query` is an authenticated tenant database check. `/health/ready` checks only the control database and never scans all tenant databases.
 
+## Tenant authorization
+
+Authorization is evaluated per request from the authenticated user's active membership in the hostname-resolved tenant. Role and permission values from the frontend or request body are never trusted. Invitation tokens are random, stored only as SHA-256 hashes, expire, and are consumed once. The last active OWNER cannot be demoted, disabled, or removed. Full mutation audit logging is deferred to LOCAL-02.
+
 ## Secrets
 
 - Production secrets live outside Git in root-owned mode-`0600` files or an equivalent secret mechanism.

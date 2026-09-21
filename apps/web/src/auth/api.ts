@@ -1,5 +1,9 @@
 import { api } from "@/lib/api";
 
+export type Permission = string;
+export type MemberRole = "OWNER" | "CENTER_ADMIN" | "ACADEMIC_MANAGER" | "ACCOUNTANT" | "SALE" | "STAFF" | "TEACHER";
+export type MembershipStatus = "ACTIVE" | "DISABLED";
+
 export type CurrentUser = {
   id: string;
   email: string;
@@ -8,7 +12,9 @@ export type CurrentUser = {
     id: string;
     tenantId: string;
     userId: string;
-    role: "OWNER" | "ADMIN" | "STAFF";
+    role: MemberRole;
+    status: MembershipStatus;
+    permissions: Permission[];
     tenant: { id: string; name: string; slug: string };
   }>;
 };

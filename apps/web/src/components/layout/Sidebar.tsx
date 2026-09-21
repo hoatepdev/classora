@@ -1,23 +1,27 @@
-import { BookOpen, GraduationCap, LogOut, School, Users } from "lucide-react";
+import { BookOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { to: "/students", label: "Học viên", icon: GraduationCap },
+  { to: "/students", label: "Học viên", icon: GraduationCap, permission: "student.read" },
   { to: "/teachers", label: "Giáo viên", icon: Users },
   { to: "/courses", label: "Khóa học", icon: BookOpen },
   { to: "/classes", label: "Lớp học", icon: School },
 ];
 
-export function Sidebar({ centerName, hostname, user, onNavigate, onLogout }: {
+export function Sidebar({ centerName, hostname, user, activeMembership, onNavigate, onLogout }: {
   centerName?: string;
   hostname: string;
   user?: CurrentUser;
+  activeMembership?: CurrentUser["memberships"][number];
   onNavigate?: () => void;
   onLogout: () => void;
 }) {
   const { pathname } = useLocation();
+  const membership = activeMembership ?? user?.memberships.find((item) => item.tenant.slug === hostname.split('.')[0]);
+  const visibleNavigation = navigation.filter((item) => !item.permission || can(membership, item.permission));
   return <div className="flex h-full flex-col border-r border-[#e2e8f0] bg-white text-[#334155]">
     <div className="px-5 pt-5 pb-4">
       <Link to="/students" onClick={onNavigate} className="inline-flex items-center gap-2.5 text-xl font-bold tracking-[-.03em] text-[#0f172a]">
@@ -34,7 +38,7 @@ export function Sidebar({ centerName, hostname, user, onNavigate, onLogout }: {
     <nav className="flex-1 px-3 py-5" aria-label="Điều hướng chính">
       <p className="mb-2 px-3 text-[11px] font-semibold tracking-[.08em] text-[#94a3b8] uppercase">Vận hành</p>
       <div className="grid gap-1">
-        {navigation.map(({ to, label, icon: Icon }) => {
+        {visibleNavigation.map(({ to, label, icon: Icon }) => {
           const active = pathname.startsWith(to) || (to === "/classes" && pathname.startsWith("/attendance-sessions"));
           return <Link
             key={to}
@@ -50,6 +54,10 @@ export function Sidebar({ centerName, hostname, user, onNavigate, onLogout }: {
             {label}
           </Link>;
         })}
+        {membership && can(membership, "team.read") && <Link to="/settings/team" onClick={onNavigate} className={cn(
+          "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
+          pathname.startsWith("/settings") && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
+        )}><Settings size={18} aria-hidden="true" />Thiết lập</Link>}
       </div>
     </nav>
 

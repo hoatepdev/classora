@@ -18,8 +18,17 @@ enum UserStatus {
 
 enum TenantRole {
   OWNER
-  ADMIN
+  CENTER_ADMIN
+  ACADEMIC_MANAGER
+  ACCOUNTANT
+  SALE
   STAFF
+  TEACHER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  DISABLED
 }
 
 model Tenant {
@@ -31,6 +40,7 @@ model Tenant {
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   memberships    TenantMembership[]
+  invitations    TenantInvitation[]
 
   @@map("tenants")
 }
@@ -43,20 +53,46 @@ model User {
   status         UserStatus         @default(ACTIVE)
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  memberships    TenantMembership[]
+  memberships        TenantMembership[]
+  createdInvitations TenantInvitation[] @relation("InvitationCreator")
 
   @@map("users")
 }
 
 model TenantMembership {
-  id       String     @id @default(ulid()) @db.Char(26)
-  tenantId String     @map("tenant_id") @db.Char(26)
-  userId   String     @map("user_id") @db.Char(26)
-  role     TenantRole
-  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user     User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id         String           @id @default(ulid()) @db.Char(26)
+  tenantId   String           @map("tenant_id") @db.Char(26)
+  userId     String           @map("user_id") @db.Char(26)
+  role       TenantRole
+  status     MembershipStatus @default(ACTIVE)
+  disabledAt DateTime?        @map("disabled_at") @db.Timestamptz
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, userId])
   @@index([userId])
+  @@index([tenantId, status])
   @@map("tenant_memberships")
+}
+
+model TenantInvitation {
+  id          String      @id @default(ulid()) @db.Char(26)
+  tenantId    String      @map("tenant_id") @db.Char(26)
+  email       String
+  role        TenantRole
+  tokenHash   String      @unique @map("token_hash")
+  expiresAt   DateTime    @map("expires_at") @db.Timestamptz
+  acceptedAt  DateTime?   @map("accepted_at") @db.Timestamptz
+  revokedAt   DateTime?   @map("revoked_at") @db.Timestamptz
+  createdById String      @map("created_by_id") @db.Char(26)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdBy   User        @relation("InvitationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, email, expiresAt])
+  @@index([tenantId, revokedAt, acceptedAt])
+  @@map("tenant_invitations")
 }

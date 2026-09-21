@@ -25,14 +25,14 @@ export function AppShell() {
 
   return <div className="min-h-screen bg-[#f8fafc] lg:grid lg:grid-cols-[216px_minmax(0,1fr)]">
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[216px] lg:block">
-      <Sidebar centerName={membership?.tenant.name} hostname={hostname} user={user.data} onLogout={logout} />
+      <Sidebar centerName={membership?.tenant.name} hostname={hostname} user={user.data} activeMembership={membership} onLogout={logout} />
     </aside>
 
     <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}>
       <DialogContent className="inset-y-0 left-0 top-0 h-dvh w-[min(300px,88vw)] max-w-none translate-x-0 translate-y-0 border-0 p-0 [&>button]:text-[#64748b] [&>button:hover]:bg-[#f1f5f9] lg:hidden">
         <DialogTitle className="sr-only">Điều hướng</DialogTitle>
         <DialogDescription className="sr-only">Chọn khu vực làm việc trong Classora.</DialogDescription>
-        <Sidebar centerName={membership?.tenant.name} hostname={hostname} user={user.data} onNavigate={() => setNavigationOpen(false)} onLogout={logout} />
+        <Sidebar centerName={membership?.tenant.name} hostname={hostname} user={user.data} activeMembership={membership} onNavigate={() => setNavigationOpen(false)} onLogout={logout} />
       </DialogContent>
     </Dialog>
 

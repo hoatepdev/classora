@@ -58,7 +58,7 @@ describe('authentication and tenant authorization', () => {
         async ({ where }: { where: { tenantId_userId: { tenantId: string; userId: string } } }) =>
           where.tenantId_userId.tenantId === demoTenant.id &&
           where.tenantId_userId.userId === user.id
-            ? membership
+            ? { ...membership, status: 'ACTIVE', userId: user.id }
             : null,
       ),
       findMany: vi.fn(async () => [
@@ -109,18 +109,21 @@ describe('authentication and tenant authorization', () => {
       .set('Host', 'demo.classora.io.vn')
       .set('Authorization', `Bearer ${login.body.accessToken}`)
       .expect(200)
-      .expect({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        memberships: [
-          {
-            ...membership,
-            tenantId: demoTenant.id,
-            userId: user.id,
-            tenant: { id: demoTenant.id, name: demoTenant.name, slug: demoTenant.slug },
-          },
-        ],
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          memberships: [
+            {
+              ...membership,
+              tenantId: demoTenant.id,
+              userId: user.id,
+              tenant: { id: demoTenant.id, name: demoTenant.name, slug: demoTenant.slug },
+            },
+          ],
+        });
+        expect(body.memberships[0].permissions).toContain('student.read');
       });
 
     expect(connections.getConnection).not.toHaveBeenCalled();

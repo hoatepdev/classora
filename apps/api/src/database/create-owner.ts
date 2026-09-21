@@ -32,8 +32,8 @@ async function createOwner() {
       });
       await transaction.tenantMembership.upsert({
         where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } },
-        create: { tenantId: tenant.id, userId: user.id, role: TenantRole.OWNER },
-        update: { role: TenantRole.OWNER },
+        create: { tenantId: tenant.id, userId: user.id, role: TenantRole.OWNER, status: 'ACTIVE' },
+        update: { role: TenantRole.OWNER, status: 'ACTIVE', disabledAt: null },
       });
     });
 

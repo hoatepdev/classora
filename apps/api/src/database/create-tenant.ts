@@ -138,7 +138,7 @@ export async function provisionTenant(
         select: { id: true },
       });
       await transaction.tenantMembership.create({
-        data: { tenantId: tenant.id, userId: owner.id, role: TenantRole.OWNER },
+        data: { tenantId: tenant.id, userId: owner.id, role: TenantRole.OWNER, status: 'ACTIVE' },
       });
     });
   } catch (error) {

@@ -11,10 +11,18 @@ import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { IS_TENANT_ROUTE } from './tenant-route.js';
 import { ControlDatabaseService } from '../database/control-database.service.js';
 import { TenantResolverService, type ResolvedTenant } from './tenant-resolver.service.js';
+import { permissionsForRole, type Permission } from '../authorization/permissions.js';
+import type { TenantRole } from '../generated/prisma/enums.js';
 
 export type TenantRequest = AuthenticatedRequest & {
   tenant?: ResolvedTenant;
-  membership?: { id: string; role: 'OWNER' | 'ADMIN' | 'STAFF' };
+  membership?: {
+    id: string;
+    userId: string;
+    role: TenantRole;
+    status: 'ACTIVE' | 'DISABLED';
+    permissions: Permission[];
+  };
 };
 
 @Injectable()
@@ -42,12 +50,16 @@ export class TenantMembershipGuard implements CanActivate {
       where: {
         tenantId_userId: { tenantId: tenant.tenantId, userId: request.user.id },
       },
-      select: { id: true, role: true },
+      select: { id: true, userId: true, role: true, status: true },
     });
-    if (!membership) throw new ForbiddenException();
+    if (!membership || (membership.status !== undefined && membership.status !== 'ACTIVE')) throw new ForbiddenException();
 
     request.tenant = tenant;
-    request.membership = membership;
+    request.membership = {
+      ...membership,
+      status: membership.status ?? 'ACTIVE',
+      permissions: permissionsForRole(membership.role),
+    };
     return true;
   }
 }

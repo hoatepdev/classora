@@ -13,10 +13,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { listStudents, studentQueryKey } from "./api.js";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import type { Student } from "./types.js";
 
 const column = createColumnHelper<Student>();
-const columns = [
+const columns = (canWrite: boolean) => [
   column.display({
     id: "student",
     header: "Học viên",
@@ -33,9 +35,9 @@ const columns = [
   column.display({
     id: "actions",
     header: "Thao tác",
-    cell: ({ row }) => <Button variant="ghost" size="sm" asChild className="size-9 px-0">
+    cell: ({ row }) => canWrite ? <Button variant="ghost" size="sm" asChild className="size-9 px-0">
       <Link to={`/students/${row.original.id}/edit`} aria-label={`Chỉnh sửa ${row.original.fullName}`}><Pencil size={16} aria-hidden="true" /></Link>
-    </Button>,
+    </Button> : null,
   }),
 ];
 
@@ -43,8 +45,13 @@ type StatusFilter = "ALL" | Student["status"];
 
 export function StudentsPage() {
   const query = useQuery({ queryKey: studentQueryKey(), queryFn: listStudents });
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canWrite = can(membership, "student.write");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("ALL");
+  const columnsForUser = useMemo(() => columns(canWrite), [canWrite]);
   const students = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("vi-VN");
     return query.data?.filter((student) => {
@@ -59,7 +66,7 @@ export function StudentsPage() {
     <PageHeader
       title="Học viên"
       description="Quản lý hồ sơ học viên của trung tâm."
-      primaryAction={<Button asChild><Link to="/students/new"><Plus size={17} aria-hidden="true" />Thêm học viên</Link></Button>}
+      primaryAction={canWrite ? <Button asChild><Link to="/students/new"><Plus size={17} aria-hidden="true" />Thêm học viên</Link></Button> : undefined}
     />
     {query.isPending ? <LoadingState label="Đang tải danh sách học viên" />
       : query.isError ? <ErrorState title="Không thể tải học viên" message="Kiểm tra kết nối và thử lại." onRetry={() => void query.refetch()} />
@@ -83,7 +90,7 @@ export function StudentsPage() {
         <p className="mb-3 text-sm font-medium text-[#475569]">{students.length} học viên</p>
         {students.length === 0
           ? <div className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-10 text-center text-sm text-[#64748b] shadow-[0_1px_2px_rgba(15,23,42,.04)]">Không tìm thấy học viên phù hợp.</div>
-          : <DataTable columns={columns} data={students} />}
+          : <DataTable columns={columnsForUser} data={students} />}
       </section>}
   </PageContainer>;
 }

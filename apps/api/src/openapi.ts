@@ -58,7 +58,9 @@ export const openApiSchemas = {
             id: ulid,
             tenantId: ulid,
             userId: ulid,
-            role: { type: 'string', enum: ['OWNER', 'ADMIN', 'STAFF'] },
+            role: { type: 'string', enum: ['OWNER', 'CENTER_ADMIN', 'ACADEMIC_MANAGER', 'ACCOUNTANT', 'SALE', 'STAFF', 'TEACHER'] },
+            status: { type: 'string', enum: ['ACTIVE', 'DISABLED'] },
+            permissions: { type: 'array', items: { type: 'string' } },
             tenant: {
               type: 'object',
               properties: {
@@ -69,7 +71,7 @@ export const openApiSchemas = {
               required: ['id', 'name', 'slug'],
             },
           },
-          required: ['id', 'tenantId', 'userId', 'role', 'tenant'],
+          required: ['id', 'tenantId', 'userId', 'role', 'status', 'permissions', 'tenant'],
         },
       },
     },
