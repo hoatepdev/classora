@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build"
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm run typecheck && vite build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

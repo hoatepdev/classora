@@ -3,6 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.15.1",
   "scripts": {
-    "dev": "pnpm --parallel --filter web --filter api dev"
+    "dev": "pnpm --parallel --filter web --filter api dev",
+    "typecheck": "pnpm --filter api typecheck && pnpm --filter web typecheck",
+    "test": "pnpm --filter api test",
+    "build": "pnpm --filter web build && pnpm --filter api build",
+    "verify": "pnpm typecheck && pnpm test && pnpm build"
   }
 }

@@ -322,3 +322,23 @@ export async function migrateTenantDatabases(
     }
   }
 }
+
+async function main() {
+  const database = new ControlDatabaseService();
+  try {
+    const tenants = await database.tenant.findMany({
+      select: { slug: true, dbName: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    await migrateTenantDatabases(tenants);
+  } finally {
+    await database.$disconnect().catch(() => undefined);
+  }
+}
+
+if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+  void main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

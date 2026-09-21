@@ -27,11 +27,11 @@ jobs:
           node-version-file: .nvmrc
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web run build
-      - run: pnpm --filter api run build
-      - run: pnpm --filter api run test
+      - run: pnpm typecheck
+      - run: pnpm test
         env:
           NODE_ENV: test
+      - run: pnpm build
 
   compose-smoke:
     runs-on: ubuntu-latest

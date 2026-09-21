@@ -7,6 +7,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:baseline": "prisma migrate resolve --applied 0_existing_control_schema",
+    "typecheck": "pnpm run prisma:generate && tsc --noEmit",
     "auth:create-owner": "node dist/database/create-owner.js",
     "tenant:create": "node dist/database/create-tenant.js",
     "tenant:migrate": "node dist/database/tenant-migrations.js",
