@@ -7,5 +7,5 @@ export function currentMembership(user: CurrentUser | undefined, tenantId: strin
 }
 
 export function can(membership: CurrentUser["memberships"][number] | undefined, permission: Permission) {
-  return membership?.status === "ACTIVE" && membership.permissions.includes(permission);
+  return membership?.status === "ACTIVE" && (membership.permissions.includes(permission) || membership.permissions.includes("*"));
 }

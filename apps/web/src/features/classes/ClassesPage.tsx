@@ -10,11 +10,13 @@ import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import { classQueryKey, listClasses } from "./api.js";
 import type { Class } from "./types.js";
 
 const column = createColumnHelper<Class>();
-const columns = [
+const columns = (canWrite: boolean) => [
   column.display({
     id: "class",
     header: "Lớp học",
@@ -22,16 +24,20 @@ const columns = [
   }),
   column.accessor("courseName", { header: "Khóa học", cell: ({ getValue }) => getValue() || <span className="text-[#8a93a5]">Chưa gán khóa học</span> }),
   column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <StatusBadge status={getValue()}>{getValue() === "ACTIVE" ? "Đang hoạt động" : "Ngừng hoạt động"}</StatusBadge> }),
-  column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => <Button variant="ghost" size="sm" asChild><Link to={`/classes/${row.original.id}/edit`}><Pencil size={15} aria-hidden="true" />Chỉnh sửa</Link></Button> }),
+  column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => canWrite ? <Button variant="ghost" size="sm" asChild><Link to={`/classes/${row.original.id}/edit`}><Pencil size={15} aria-hidden="true" />Chỉnh sửa</Link></Button> : null }),
 ];
 
 export function ClassesPage() {
   const query = useQuery({ queryKey: classQueryKey(), queryFn: listClasses });
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canWrite = can(membership, "class.write");
   return <PageContainer>
-    <PageHeader title="Lớp học" description="Theo dõi các lớp đang vận hành tại trung tâm." primaryAction={<Button asChild><Link to="/classes/new"><Plus size={17} aria-hidden="true" />Thêm lớp học</Link></Button>} />
+    <PageHeader title="Lớp học" description="Theo dõi các lớp đang vận hành tại trung tâm." primaryAction={canWrite ? <Button asChild><Link to="/classes/new"><Plus size={17} aria-hidden="true" />Thêm lớp học</Link></Button> : undefined} />
     {query.isPending ? <LoadingState label="Đang tải danh sách lớp học" />
       : query.isError ? <ErrorState title="Không thể tải lớp học" message="Kiểm tra kết nối và thử lại." onRetry={() => void query.refetch()} />
       : query.data.length === 0 ? <EmptyState icon={School} title="Chưa có lớp học" description="Thêm lớp học đầu tiên để bắt đầu vận hành." />
-      : <section aria-label="Danh sách lớp học"><p className="mb-3 text-sm font-semibold text-[#667085]">{query.data.length} lớp học</p><DataTable columns={columns} data={query.data} /></section>}
+      : <section aria-label="Danh sách lớp học"><p className="mb-3 text-sm font-semibold text-[#667085]">{query.data.length} lớp học</p><DataTable columns={columns(canWrite)} data={query.data} /></section>}
   </PageContainer>;
 }

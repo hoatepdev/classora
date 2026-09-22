@@ -10,11 +10,13 @@ import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import { listTeachers, teacherQueryKey } from "./api.js";
 import type { Teacher } from "./types.js";
 
 const column = createColumnHelper<Teacher>();
-const columns = [
+const columns = (canWrite: boolean) => [
   column.display({
     id: "teacher",
     header: "Giáo viên",
@@ -29,16 +31,20 @@ const columns = [
     cell: ({ row }) => <div className="grid gap-0.5"><span>{row.original.phone || "—"}</span><span className="text-xs text-[#667085]">{row.original.email || "Chưa có email"}</span></div>,
   }),
   column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <StatusBadge status={getValue()}>{getValue() === "ACTIVE" ? "Đang dạy" : "Ngừng dạy"}</StatusBadge> }),
-  column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => <Button variant="ghost" size="sm" asChild><Link to={`/teachers/${row.original.id}/edit`}><Pencil size={15} aria-hidden="true" />Chỉnh sửa</Link></Button> }),
+  column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => canWrite ? <Button variant="ghost" size="sm" asChild><Link to={`/teachers/${row.original.id}/edit`}><Pencil size={15} aria-hidden="true" />Chỉnh sửa</Link></Button> : null }),
 ];
 
 export function TeachersPage() {
   const query = useQuery({ queryKey: teacherQueryKey(), queryFn: listTeachers });
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canWrite = can(membership, "teacher.write");
   return <PageContainer>
-    <PageHeader title="Giáo viên" description="Quản lý đội ngũ giảng dạy của trung tâm." primaryAction={<Button asChild><Link to="/teachers/new"><Plus size={17} aria-hidden="true" />Thêm giáo viên</Link></Button>} />
+    <PageHeader title="Giáo viên" description="Quản lý đội ngũ giảng dạy của trung tâm." primaryAction={canWrite ? <Button asChild><Link to="/teachers/new"><Plus size={17} aria-hidden="true" />Thêm giáo viên</Link></Button> : undefined} />
     {query.isPending ? <LoadingState label="Đang tải danh sách giáo viên" />
       : query.isError ? <ErrorState title="Không thể tải giáo viên" message="Kiểm tra kết nối và thử lại." onRetry={() => void query.refetch()} />
       : query.data.length === 0 ? <EmptyState icon={Users} title="Chưa có giáo viên" description="Thêm giáo viên đầu tiên để bắt đầu quản lý đội ngũ." />
-      : <section aria-label="Danh sách giáo viên"><p className="mb-3 text-sm font-semibold text-[#667085]">{query.data.length} giáo viên</p><DataTable columns={columns} data={query.data} /></section>}
+      : <section aria-label="Danh sách giáo viên"><p className="mb-3 text-sm font-semibold text-[#667085]">{query.data.length} giáo viên</p><DataTable columns={columns(canWrite)} data={query.data} /></section>}
   </PageContainer>;
 }

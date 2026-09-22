@@ -2,6 +2,12 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./auth/LoginPage.js";
 import { AppShell } from "./components/layout/AppShell.js";
 import { AttendanceSessionPage } from "./features/attendance/AttendanceSessionPage.js";
+import { BranchDetail } from "./features/branches/BranchDetail.js";
+import { BranchForm } from "./features/branches/BranchForm.js";
+import { BranchesPage } from "./features/branches/BranchesPage.js";
+import { RoomDetail } from "./features/rooms/RoomDetail.js";
+import { RoomForm } from "./features/rooms/RoomForm.js";
+import { RoomsPage } from "./features/rooms/RoomsPage.js";
 import { ClassDetail } from "./features/classes/ClassDetail.js";
 import { ClassForm } from "./features/classes/ClassForm.js";
 import { ClassesPage } from "./features/classes/ClassesPage.js";
@@ -31,23 +37,31 @@ export function App() {
         <Route path="/students/new" element={<ProtectedRoute permission="student.write"><StudentForm /></ProtectedRoute>} />
         <Route path="/students/:id" element={<StudentDetail />} />
         <Route path="/students/:id/edit" element={<ProtectedRoute permission="student.write"><StudentForm /></ProtectedRoute>} />
-        <Route path="/courses" element={<CoursesPage />} />
-        <Route path="/courses/new" element={<CourseForm />} />
-        <Route path="/courses/:id" element={<CourseDetail />} />
-        <Route path="/courses/:id/edit" element={<CourseForm />} />
-        <Route path="/classes" element={<ClassesPage />} />
-        <Route path="/classes/new" element={<ClassForm />} />
-        <Route path="/classes/:id" element={<ClassDetail />} />
-        <Route path="/classes/:id/edit" element={<ClassForm />} />
+        <Route path="/courses" element={<ProtectedRoute permission="course.read"><CoursesPage /></ProtectedRoute>} />
+        <Route path="/courses/new" element={<ProtectedRoute permission="course.write"><CourseForm /></ProtectedRoute>} />
+        <Route path="/courses/:id" element={<ProtectedRoute permission="course.read"><CourseDetail /></ProtectedRoute>} />
+        <Route path="/courses/:id/edit" element={<ProtectedRoute permission="course.write"><CourseForm /></ProtectedRoute>} />
+        <Route path="/classes" element={<ProtectedRoute permission="class.read"><ClassesPage /></ProtectedRoute>} />
+        <Route path="/classes/new" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
+        <Route path="/classes/:id" element={<ProtectedRoute permission="class.read"><ClassDetail /></ProtectedRoute>} />
+        <Route path="/classes/:id/edit" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/attendance-sessions/:id" element={<AttendanceSessionPage />} />
         <Route path="/settings/team" element={<TeamPage />} />
         <Route path="/settings/roles" element={<RolesPage />} />
         <Route path="/settings/security" element={<SecurityPage />} />
         <Route path="/settings/audit-log" element={<AuditPage />} />
-        <Route path="/teachers" element={<TeachersPage />} />
-        <Route path="/teachers/new" element={<TeacherForm />} />
-        <Route path="/teachers/:id" element={<TeacherDetail />} />
-        <Route path="/teachers/:id/edit" element={<TeacherForm />} />
+        <Route path="/teachers" element={<ProtectedRoute permission="teacher.read"><TeachersPage /></ProtectedRoute>} />
+        <Route path="/teachers/new" element={<ProtectedRoute permission="teacher.write"><TeacherForm /></ProtectedRoute>} />
+        <Route path="/teachers/:id" element={<ProtectedRoute permission="teacher.read"><TeacherDetail /></ProtectedRoute>} />
+        <Route path="/teachers/:id/edit" element={<ProtectedRoute permission="teacher.write"><TeacherForm /></ProtectedRoute>} />
+        <Route path="/branches" element={<ProtectedRoute permission="branch.read"><BranchesPage /></ProtectedRoute>} />
+        <Route path="/branches/new" element={<ProtectedRoute permission="branch.write"><BranchForm /></ProtectedRoute>} />
+        <Route path="/branches/:id" element={<ProtectedRoute permission="branch.read"><BranchDetail /></ProtectedRoute>} />
+        <Route path="/branches/:id/edit" element={<ProtectedRoute permission="branch.write"><BranchForm /></ProtectedRoute>} />
+        <Route path="/rooms" element={<ProtectedRoute permission="room.read"><RoomsPage /></ProtectedRoute>} />
+        <Route path="/rooms/new" element={<ProtectedRoute permission="room.write"><RoomForm /></ProtectedRoute>} />
+        <Route path="/rooms/:id" element={<ProtectedRoute permission="room.read"><RoomDetail /></ProtectedRoute>} />
+        <Route path="/rooms/:id/edit" element={<ProtectedRoute permission="room.write"><RoomForm /></ProtectedRoute>} />
       </Route>
     </Route>
     <Route path="*" element={<Navigate to="/students" replace />} />

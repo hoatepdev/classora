@@ -1,4 +1,4 @@
-import { BookOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
+import { BookOpen, Building2, DoorOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
@@ -8,7 +8,9 @@ const navigation = [
   { to: "/students", label: "Học viên", icon: GraduationCap, permission: "student.read" },
   { to: "/teachers", label: "Giáo viên", icon: Users },
   { to: "/courses", label: "Khóa học", icon: BookOpen },
-  { to: "/classes", label: "Lớp học", icon: School },
+  { to: "/classes", label: "Lớp học", icon: School, permission: "class.read" },
+  { to: "/branches", label: "Chi nhánh", icon: Building2, permission: "branch.read" },
+  { to: "/rooms", label: "Phòng học", icon: DoorOpen, permission: "room.read" },
 ];
 
 export function Sidebar({ centerName, hostname, user, activeMembership, onNavigate, onLogout }: {
