@@ -1,5 +1,6 @@
 import { api } from "../../lib/api.js";
 import type { Class, ClassInput } from "./types.js";
+import type { Room } from "../rooms/types.js";
 
 export const classQueryKey = () => ["classes", window.location.hostname] as const;
 
@@ -17,4 +18,8 @@ export async function createClass(input: ClassInput) {
 
 export async function updateClass(id: string, input: ClassInput) {
   return (await api.patch<Class>(`/classes/${id}`, input)).data;
+}
+
+export async function listRoomsForBranch(branchId: string) {
+  return (await api.get<Room[]>("/rooms", { params: { branchId } })).data;
 }

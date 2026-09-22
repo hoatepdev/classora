@@ -23,6 +23,11 @@ const columns = (canWrite: boolean) => [
     cell: ({ row }) => <div className="min-w-52"><Link className="font-bold text-[#0f172a] no-underline hover:text-[#2563eb]" to={`/classes/${row.original.id}`}>{row.original.name}</Link><span className="mt-0.5 block text-xs font-semibold text-[#667085]">{row.original.code}</span></div>,
   }),
   column.accessor("courseName", { header: "Khóa học", cell: ({ getValue }) => getValue() || <span className="text-[#8a93a5]">Chưa gán khóa học</span> }),
+  column.display({ id: "branch", header: "Chi nhánh", cell: ({ row }) => row.original.branchName ? `${row.original.branchCode} — ${row.original.branchName}` : "—" }),
+  column.display({ id: "level", header: "Cấp độ", cell: ({ row }) => row.original.courseLevelName || "—" }),
+  column.display({ id: "teacher", header: "Giáo viên", cell: ({ row }) => row.original.primaryTeacherName || "—" }),
+  column.accessor("capacity", { header: "Sức chứa", cell: ({ getValue }) => getValue() ? `${getValue()} người` : "—" }),
+  column.display({ id: "dates", header: "Thời gian", cell: ({ row }) => row.original.startDate || row.original.endDate ? `${row.original.startDate?.slice(0, 10) ?? "?"} – ${row.original.endDate?.slice(0, 10) ?? "?"}` : "—" }),
   column.accessor("status", { header: "Trạng thái", cell: ({ getValue }) => <StatusBadge status={getValue()}>{getValue() === "ACTIVE" ? "Đang hoạt động" : "Ngừng hoạt động"}</StatusBadge> }),
   column.display({ id: "actions", header: "Thao tác", cell: ({ row }) => canWrite ? <Button variant="ghost" size="sm" asChild><Link to={`/classes/${row.original.id}/edit`}><Pencil size={15} aria-hidden="true" />Chỉnh sửa</Link></Button> : null }),
 ];
