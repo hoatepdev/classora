@@ -322,6 +322,98 @@ async function assertLocal05Constraints(dbName, label) {
   );
 }
 
+async function assertLocal06Constraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const classId = '01J0000000000000000000000V';
+  const teacherId = '01J0000000000000000000000F';
+  const branchId = '01J0000000000000000000000G';
+  const roomId = '01J0000000000000000000000R';
+  const studentId = '01J00000000000000000000000';
+  const patternId = '01J000000000000000000000C0';
+  const sessionId = '01J000000000000000000000C1';
+  const replacementId = '01J000000000000000000000C2';
+  const recordId = '01J000000000000000000000C3';
+  const exclusionId = '01J000000000000000000000C4';
+  const branchExclusionId = '01J000000000000000000000C5';
+
+  await execute(dbName, `
+    INSERT INTO schedules
+      (id, tenant_id, class_id, teacher_id, branch_id, room_id, day_of_week, start_time, end_time, effective_from, effective_until)
+    VALUES
+      ('${patternId}', '${tenantId}', '${classId}', '${teacherId}', '${branchId}', '${roomId}', 'MONDAY', '08:00', '09:00', '2030-01-01', '2030-12-31');
+    INSERT INTO attendance_sessions
+      (id, tenant_id, class_id, schedule_pattern_id, teacher_id, room_id, branch_id, session_date, start_time, end_time, status)
+    VALUES
+      ('${sessionId}', '${tenantId}', '${classId}', '${patternId}', '${teacherId}', '${roomId}', '${branchId}', '2030-01-07', '08:00', '09:00', 'SCHEDULED');
+    INSERT INTO attendance_records (id, tenant_id, session_id, student_id, status)
+    VALUES ('${recordId}', '${tenantId}', '${sessionId}', '${studentId}', 'PRESENT');
+    INSERT INTO schedule_exclusions (id, tenant_id, date, reason)
+    VALUES ('${exclusionId}', '${tenantId}', '2030-01-14', 'Tenant holiday');
+    INSERT INTO schedule_exclusions (id, tenant_id, date, branch_id, reason)
+    VALUES ('${branchExclusionId}', '${tenantId}', '2030-01-14', '${branchId}', 'Branch closure');
+  `);
+
+  const preserved = await query(dbName, `
+    SELECT s.id AS "patternId", a.id AS "sessionId", r.session_id AS "recordSessionId"
+    FROM schedules s
+    JOIN attendance_sessions a ON a.tenant_id = s.tenant_id AND a.schedule_pattern_id = s.id
+    JOIN attendance_records r ON r.tenant_id = a.tenant_id AND r.session_id = a.id
+    WHERE s.tenant_id = $1 AND s.id = $2
+  `, [tenantId, patternId]);
+  assert.deepEqual(preserved, [{ patternId, sessionId, recordSessionId: sessionId }], `${label}: Schedule/Session/AttendanceRecord links were not preserved`);
+
+  const rejects = async (sql, message) => assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await rejects(
+    `INSERT INTO schedules (id, tenant_id, class_id, teacher_id, day_of_week, start_time, end_time) VALUES ('01J0000000000000000000C6', '${otherTenantId}', '${classId}', '${teacherId}', 'TUESDAY', '08:00', '09:00')`,
+    'cross-tenant SchedulePattern relationships were allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, session_date, start_time, end_time) VALUES ('01J000000000000000000000C7', '${otherTenantId}', '${classId}', '${patternId}', '2030-01-08', '08:00', '09:00')`,
+    'cross-tenant Session relationships were allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_records (id, tenant_id, session_id, student_id) VALUES ('01J000000000000000000000C8', '${otherTenantId}', '${sessionId}', '${studentId}')`,
+    'cross-tenant AttendanceRecord relationships were allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, session_date, start_time, end_time) VALUES ('01J000000000000000000000C9', '${tenantId}', '${classId}', '${patternId}', '2030-01-07', '08:00', '09:00')`,
+    'duplicate generated Session occurrence was allowed',
+  );
+  await rejects(
+    `INSERT INTO schedule_exclusions (id, tenant_id, date, reason) VALUES ('01J000000000000000000000CA', '${tenantId}', '2030-01-14', 'Duplicate tenant holiday')`,
+    'duplicate tenant-wide exclusion was allowed',
+  );
+  await rejects(
+    `INSERT INTO schedule_exclusions (id, tenant_id, date, branch_id, reason) VALUES ('01J000000000000000000000CB', '${tenantId}', '2030-01-14', '${branchId}', 'Duplicate branch closure')`,
+    'duplicate branch exclusion was allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, session_date, start_time, end_time, rescheduled_from_id, source_session_date, source_start_time, source_end_time) VALUES ('01J000000000000000000000CC', '${tenantId}', '${classId}', '${patternId}', '2030-01-08', '08:00', '09:00', '01J000000000000000000000CC', '2030-01-07', '08:00', '09:00')`,
+    'self-rescheduled Session was allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, session_date, start_time, end_time, rescheduled_from_id) VALUES ('01J000000000000000000000CD', '${tenantId}', '${classId}', '${patternId}', '2030-01-08', '08:00', '09:00', '${sessionId}')`,
+    'incomplete reschedule source metadata was allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, session_date, start_time, end_time) VALUES ('01J000000000000000000000CE', '${tenantId}', '${classId}', '${patternId}', '2030-01-08', '09:00', '08:00')`,
+    'invalid Session time range was allowed',
+  );
+
+  await execute(dbName, `
+    INSERT INTO attendance_sessions
+      (id, tenant_id, class_id, schedule_pattern_id, teacher_id, room_id, branch_id, session_date, start_time, end_time, manual_override, rescheduled_from_id, reschedule_reason, source_session_date, source_start_time, source_end_time)
+    VALUES
+      ('${replacementId}', '${tenantId}', '${classId}', '${patternId}', '${teacherId}', '${roomId}', '${branchId}', '2030-01-08', '08:00', '09:00', TRUE, '${sessionId}', 'Moved', '2030-01-07', '08:00', '09:00');
+    UPDATE attendance_sessions SET status = 'RESCHEDULED' WHERE tenant_id = '${tenantId}' AND id = '${sessionId}';
+  `);
+  const history = await query(dbName, `
+    SELECT status FROM attendance_sessions WHERE tenant_id = $1 AND id IN ($2, $3) ORDER BY id
+  `, [tenantId, sessionId, replacementId]);
+  assert.deepEqual(history, [{ status: 'RESCHEDULED' }, { status: 'SCHEDULED' }], `${label}: Session history status was not preserved`);
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -375,6 +467,8 @@ async function main() {
   await assertLocal04Constraints(legacy, 'legacy');
   await assertLocal05Constraints(fresh, 'fresh');
   await assertLocal05Constraints(legacy, 'legacy');
+  await assertLocal06Constraints(fresh, 'fresh');
+  await assertLocal06Constraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

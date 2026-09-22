@@ -8,7 +8,7 @@ export const scheduleSchema = z.object({
   dayOfWeek: z.enum(dayOfWeeks),
   startTime: z.string().regex(time, "Nhập giờ bắt đầu hợp lệ"),
   endTime: z.string().regex(time, "Nhập giờ kết thúc hợp lệ"),
-  room: z.string().trim().max(200, "Tối đa 200 ký tự"),
+  roomId: z.string(),
   status: z.enum(["ACTIVE", "DISABLED"]),
 }).refine((value) => value.startTime < value.endTime, {
   message: "Giờ bắt đầu phải sớm hơn giờ kết thúc",

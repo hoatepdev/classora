@@ -127,10 +127,14 @@ model Branch {
   notes     String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  rooms     Room[]
-  classes   Class[]
-  teachers  TeacherBranch[]
+  rooms      Room[]
+  classes    Class[]
+  teachers   TeacherBranch[]
+  exclusions       ScheduleExclusion[]
+  schedulePatterns SchedulePattern[]
+  sessions         Session[]
 
+  @@unique([tenantId, id], map: "branches_tenant_id_id_key")
   @@unique([tenantId, code], map: "branches_tenant_id_code_key")
   @@index([tenantId, name, id], map: "branches_tenant_id_name_id_idx")
   @@map("branches")
@@ -147,9 +151,12 @@ model Room {
   notes     String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  branch    Branch   @relation(fields: [branchId], references: [id])
-  classes   Class[]
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  classes          Class[]
+  schedulePatterns SchedulePattern[]
+  sessions         Session[]
 
+  @@unique([tenantId, id], map: "rooms_tenant_id_id_key")
   @@unique([tenantId, branchId, code], map: "rooms_tenant_id_branch_id_code_key")
   @@index([tenantId, branchId, name, id], map: "rooms_tenant_id_branch_id_name_id_idx")
   @@map("rooms")
@@ -214,9 +221,10 @@ model Class {
   defaultRoom        Room?               @relation(fields: [defaultRoomId], references: [id])
   primaryTeacher     Teacher?            @relation(fields: [primaryTeacherId], references: [id])
   enrollments        Enrollment[]
-  schedules          Schedule[]
-  attendanceSessions AttendanceSession[]
+  schedulePatterns   SchedulePattern[]
+  sessions           Session[]
 
+  @@unique([tenantId, id], map: "classes_tenant_id_id_key")
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
   @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
   @@index([tenantId, courseId, name, id], map: "classes_tenant_id_course_id_name_id_idx")
@@ -236,11 +244,12 @@ model Teacher {
   status             String              @default("ACTIVE")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  schedules          Schedule[]
-  attendanceSessions AttendanceSession[]
+  schedulePatterns   SchedulePattern[]
+  sessions           Session[]
   branches           TeacherBranch[]
   classes            Class[]
 
+  @@unique([tenantId, id], map: "teachers_tenant_id_id_key")
   @@unique([tenantId, code], map: "teachers_tenant_id_code_key")
   @@index([tenantId, name, id], map: "teachers_tenant_id_name_id_idx")
   @@map("teachers")
@@ -308,63 +317,95 @@ model EnrollmentEvent {
 }
 
 /// Active duplicates are prevented by the migration's partial unique index, which Prisma cannot model.
-model Schedule {
-  id                 String              @id @db.Char(26)
-  tenantId           String              @map("tenant_id") @db.Char(26)
-  classId            String              @map("class_id") @db.Char(26)
-  teacherId          String              @map("teacher_id") @db.Char(26)
-  dayOfWeek          String              @map("day_of_week")
-  startTime          DateTime            @map("start_time") @db.Time(0)
-  endTime            DateTime            @map("end_time") @db.Time(0)
-  room               String?
-  status             String              @default("ACTIVE")
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  class              Class               @relation(fields: [classId], references: [id])
-  teacher            Teacher             @relation(fields: [teacherId], references: [id])
-  attendanceSessions AttendanceSession[]
-
-  @@index([tenantId, classId, dayOfWeek, startTime, id], map: "schedules_tenant_id_class_id_day_of_week_start_time_id_idx")
-  @@index([tenantId, teacherId, dayOfWeek, startTime, id], map: "schedules_tenant_id_teacher_id_day_of_week_start_time_id_idx")
+model SchedulePattern {
+  id               String      @id @db.Char(26)
+  tenantId         String      @map("tenant_id") @db.Char(26)
+  classId          String      @map("class_id") @db.Char(26)
+  teacherId        String      @map("teacher_id") @db.Char(26)
+  branchId         String?     @map("branch_id") @db.Char(26)
+  roomId           String?     @map("room_id") @db.Char(26)
+  dayOfWeek        String      @map("day_of_week")
+  startTime        DateTime    @map("start_time") @db.Time(0)
+  endTime          DateTime    @map("end_time") @db.Time(0)
+  effectiveFrom    DateTime?   @map("effective_from") @db.Date
+  effectiveUntil   DateTime?   @map("effective_until") @db.Date
+  legacyRoomSource String?     @map("legacy_room_source")
+  status           String      @default("ACTIVE")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  class            Class       @relation(fields: [tenantId, classId], references: [tenantId, id])
+  teacher          Teacher     @relation(fields: [tenantId, teacherId], references: [tenantId, id])
+  branch           Branch?     @relation(fields: [tenantId, branchId], references: [tenantId, id])
+  room             Room?       @relation(fields: [tenantId, roomId], references: [tenantId, id])
+  sessions         Session[]
+  @@unique([tenantId, id], map: "schedules_tenant_id_id_key")
   @@map("schedules")
 }
 
 /// Schedule/date uniqueness is enforced by the migration's partial unique index, which Prisma cannot model.
-model AttendanceSession {
+model Session {
   id          String             @id @db.Char(26)
   tenantId    String             @map("tenant_id") @db.Char(26)
   classId     String             @map("class_id") @db.Char(26)
-  scheduleId  String?            @map("schedule_id") @db.Char(26)
-  teacherId   String?            @map("teacher_id") @db.Char(26)
+  schedulePatternId String?       @map("schedule_pattern_id") @db.Char(26)
+  roomId            String?       @map("room_id") @db.Char(26)
+  teacherId         String?       @map("teacher_id") @db.Char(26)
+  branchId          String?       @map("branch_id") @db.Char(26)
   sessionDate DateTime           @map("session_date") @db.Date
   startTime   DateTime           @map("start_time") @db.Time(0)
   endTime     DateTime           @map("end_time") @db.Time(0)
-  status      String             @default("OPEN")
+  status             String             @default("SCHEDULED")
+  manualOverride     Boolean            @default(false) @map("manual_override")
+  rescheduledFromId  String?            @map("rescheduled_from_id") @db.Char(26)
+  cancellationReason String?            @map("cancellation_reason")
+  rescheduleReason   String?            @map("reschedule_reason")
+  sourceSessionDate  DateTime?          @map("source_session_date") @db.Date
+  sourceStartTime    DateTime?          @map("source_start_time") @db.Time(0)
+  sourceEndTime      DateTime?          @map("source_end_time") @db.Time(0)
   createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  class       Class              @relation(fields: [classId], references: [id])
-  schedule    Schedule?          @relation(fields: [scheduleId], references: [id])
-  teacher     Teacher?           @relation(fields: [teacherId], references: [id])
+  class       Class             @relation(fields: [tenantId, classId], references: [tenantId, id])
+  pattern     SchedulePattern?  @relation(fields: [tenantId, schedulePatternId], references: [tenantId, id])
+  teacher     Teacher?           @relation(fields: [tenantId, teacherId], references: [tenantId, id])
+  branch      Branch?            @relation(fields: [tenantId, branchId], references: [tenantId, id])
+  room        Room?              @relation(fields: [tenantId, roomId], references: [tenantId, id])
+  rescheduledFrom Session?       @relation("SessionReschedule", fields: [tenantId, rescheduledFromId], references: [tenantId, id])
+  replacements   Session[]        @relation("SessionReschedule")
   records     AttendanceRecord[]
 
-  @@unique([tenantId, classId, sessionDate, startTime, endTime], map: "attendance_sessions_occurrence_key")
   @@index([tenantId, classId, sessionDate, id], map: "attendance_sessions_tenant_id_class_id_session_date_id_idx")
+  @@unique([tenantId, id], map: "attendance_sessions_tenant_id_id_key")
   @@map("attendance_sessions")
+}
+
+model ScheduleExclusion {
+  id        String   @id @db.Char(26)
+  tenantId String   @map("tenant_id") @db.Char(26)
+  date      DateTime @db.Date
+  branchId  String?  @map("branch_id") @db.Char(26)
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  branch    Branch?  @relation(fields: [tenantId, branchId], references: [tenantId, id])
+
+  /// Tenant-wide uniqueness uses the migration's functional COALESCE index.
+  @@index([tenantId, date, branchId], map: "schedule_exclusions_tenant_date_idx")
+  @@map("schedule_exclusions")
 }
 
 model AttendanceRecord {
   id                  String            @id @db.Char(26)
   tenantId            String            @map("tenant_id") @db.Char(26)
-  attendanceSessionId String            @map("attendance_session_id") @db.Char(26)
+  sessionId           String            @map("session_id") @db.Char(26)
   studentId           String            @map("student_id") @db.Char(26)
   status              String            @default("PRESENT")
   note                String?
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id])
-  student             Student           @relation(fields: [studentId], references: [id])
+  session             Session           @relation(fields: [tenantId, sessionId], references: [tenantId, id])
+  student             Student           @relation(fields: [tenantId, studentId], references: [tenantId, id])
 
-  @@unique([tenantId, attendanceSessionId, studentId], map: "attendance_records_session_student_key")
+  @@unique([tenantId, sessionId, studentId], map: "attendance_records_session_student_key")
   @@index([tenantId, studentId, id], map: "attendance_records_tenant_id_student_id_id_idx")
   @@map("attendance_records")
 }

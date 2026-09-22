@@ -40,7 +40,11 @@ type ScheduleRecord = {
   dayOfWeek: string;
   startTime: string;
   endTime: string;
-  room: string | null;
+  branchId: string | null;
+  roomId: string | null;
+  effectiveFrom: string | null;
+  effectiveUntil: string | null;
+  legacyRoomSource: string | null;
   status: 'ACTIVE' | 'DISABLED';
   createdAt: Date;
   updatedAt: Date;
@@ -56,11 +60,48 @@ function schedulePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof ids
     [tenantIds.teacherB, { id: tenantIds.teacherB, tenantId, code: 'T002', name: 'Tran Thi B' }],
   ]);
   const schedules = new Map<string, ScheduleRecord>();
+  const exclusions = new Map<string, { id: string; tenantId: string; date: string; branchId: string | null; reason: string; createdAt: Date; updatedAt: Date }>();
   const now = () => new Date('2026-09-15T00:00:00.000Z');
 
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
     if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.includes('pg_advisory_xact_lock')) {
       return { rows: [] };
+    }
+
+    if (sql.includes('INSERT INTO audit_events')) {
+      return { rows: [] };
+    }
+
+    if (sql.includes('SELECT status FROM branches')) {
+      return { rows: [] };
+    }
+
+    if (sql.includes('INSERT INTO schedule_exclusions')) {
+      const [id, requestedTenantId, date, branchId, reason] = values as [string, string, string, string | null, string];
+      const exclusion = { id, tenantId: requestedTenantId, date, branchId, reason, createdAt: now(), updatedAt: now() };
+      exclusions.set(id, exclusion);
+      return { rows: [] };
+    }
+
+    if (sql.includes('UPDATE schedule_exclusions')) {
+      const [requestedTenantId, id, date, branchId, reason] = values as [string, string, string, string | null, string];
+      const exclusion = exclusions.get(id);
+      if (exclusion?.tenantId !== requestedTenantId) return { rows: [] };
+      Object.assign(exclusion, { date, branchId, reason, updatedAt: now() });
+      return { rows: [] };
+    }
+
+    if (sql.includes('DELETE FROM schedule_exclusions')) {
+      const [requestedTenantId, id] = values;
+      const exclusion = exclusions.get(id);
+      if (exclusion?.tenantId === requestedTenantId) exclusions.delete(id);
+      return { rows: [] };
+    }
+
+    if (sql.includes('FROM schedule_exclusions')) {
+      const [requestedTenantId, id] = values;
+      const rows = [...exclusions.values()].filter((item) => item.tenantId === requestedTenantId && (!id || item.id === id));
+      return { rows };
     }
 
     if (sql.includes('FROM schedules') && sql.includes("status = 'ACTIVE'") && sql.includes('LIMIT 1')) {
@@ -90,7 +131,7 @@ function schedulePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof ids
     }
 
     if (sql.includes('INSERT INTO schedules')) {
-      const [id, requestedTenantId, classId, teacherId, dayOfWeek, startTime, endTime, room, status] = values as string[];
+      const [id, requestedTenantId, classId, teacherId, branchId, roomId, dayOfWeek, startTime, endTime, effectiveFrom, effectiveUntil, status] = values as Array<string | null>;
       if (!classes.has(classId)) {
         throw Object.assign(new Error('missing class'), { code: '23503', constraint: 'schedules_class_id_fkey' });
       }
@@ -105,7 +146,11 @@ function schedulePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof ids
         dayOfWeek,
         startTime,
         endTime,
-        room: room ?? null,
+        branchId: branchId ?? null,
+        roomId: roomId ?? null,
+        effectiveFrom: effectiveFrom ?? null,
+        effectiveUntil: effectiveUntil ?? null,
+        legacyRoomSource: null,
         status: status as ScheduleRecord['status'],
         createdAt: now(),
         updatedAt: now(),
@@ -115,14 +160,26 @@ function schedulePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof ids
     }
 
     if (sql.includes('UPDATE schedules')) {
-      const [requestedTenantId, id, teacherId, dayOfWeek, startTime, endTime, room, status] = values as string[];
+      const [requestedTenantId, id, teacherId, branchId, roomId, dayOfWeek, startTime, endTime, effectiveFrom, effectiveUntil, status] = values as Array<string | null>;
       const schedule = schedules.get(id);
       if (schedule?.tenantId !== requestedTenantId) return { rows: [] };
       if (!teachers.has(teacherId)) {
         throw Object.assign(new Error('missing teacher'), { code: '23503', constraint: 'schedules_teacher_id_fkey' });
       }
-      Object.assign(schedule, { teacherId, dayOfWeek, startTime, endTime, room: room ?? null, status, updatedAt: now() });
+      Object.assign(schedule, { teacherId, branchId: branchId ?? null, roomId: roomId ?? null, dayOfWeek, startTime, endTime, effectiveFrom: effectiveFrom ?? null, effectiveUntil: effectiveUntil ?? null, status, updatedAt: now() });
       return { rows: [schedule] };
+    }
+
+    if (sql.includes('SELECT branch_id AS "branchId" FROM classes')) {
+      const [requestedTenantId, id] = values;
+      const row = classes.get(id as string);
+      return { rows: row?.tenantId === requestedTenantId ? [{ branchId: null }] : [] };
+    }
+
+    if (sql.includes('start_date::text AS "startDate"')) {
+      const [requestedTenantId, id] = values;
+      const row = classes.get(id as string);
+      return { rows: row?.tenantId === requestedTenantId ? [{ startDate: null, expectedEndDate: null }] : [] };
     }
 
     if (sql.includes('SELECT 1 FROM classes')) {
@@ -207,7 +264,7 @@ describe('schedules', () => {
   afterAll(() => app.close());
   beforeEach(() => vi.clearAllMocks());
 
-  const authorized = (method: 'get' | 'post' | 'patch', path: string, tenant = 'alpha') =>
+  const authorized = (method: 'get' | 'post' | 'patch' | 'delete', path: string, tenant = 'alpha') =>
     request(app.getHttpServer())
       [method](path)
       .set('Host', `${tenant}.classora.io.vn`)
@@ -219,7 +276,7 @@ describe('schedules', () => {
     dayOfWeek: 'MONDAY',
     startTime: '18:00',
     endTime: '20:00',
-    room: ' Room 201 ',
+    roomId: null,
     ...overrides,
   });
 
@@ -232,7 +289,11 @@ describe('schedules', () => {
       dayOfWeek: 'MONDAY',
       startTime: '18:00',
       endTime: '20:00',
-      room: 'Room 201',
+      roomId: null,
+      branchId: null,
+      effectiveFrom: null,
+      effectiveUntil: null,
+      legacyRoomSource: null,
       status: 'ACTIVE',
     });
     expect(created.body.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
@@ -270,25 +331,25 @@ describe('schedules', () => {
   });
 
   it('lets disabled schedules release their slot', async () => {
-    const created = await create({ dayOfWeek: 'TUESDAY', room: ' Room 203 ' }).expect(201);
-    expect(created.body.room).toBe('Room 203');
+    const created = await create({ dayOfWeek: 'TUESDAY', roomId: null }).expect(201);
+    expect(created.body.roomId).toBeNull();
     await authorized('patch', `/schedules/${created.body.id}`)
       .send({ status: 'DISABLED' })
       .expect(200)
-      .expect(({ body }) => expect(body.room).toBe('Room 203'));
+      .expect(({ body }) => expect(body.roomId).toBeNull());
     await create({ dayOfWeek: 'TUESDAY' }).expect(201);
     await authorized('patch', `/schedules/${created.body.id}`)
       .send({ status: 'ACTIVE' })
       .expect(409);
 
-    await create({ dayOfWeek: 'WEDNESDAY', status: 'DISABLED', room: '   ' })
+    await create({ dayOfWeek: 'WEDNESDAY', status: 'DISABLED', roomId: null })
       .expect(201)
-      .expect(({ body }) => expect(body.room).toBeNull());
+      .expect(({ body }) => expect(body.roomId).toBeNull());
   });
 
   it('excludes itself on update and rejects an update into another active slot', async () => {
     const first = [...alpha.schedules.values()].find((row) => row.classId === ids.alpha.classA && row.dayOfWeek === 'MONDAY')!;
-    await authorized('patch', `/schedules/${first.id}`).send({ room: 'Room 202' }).expect(200);
+    await authorized('patch', `/schedules/${first.id}`).send({ roomId: null }).expect(200);
     const tuesday = [...alpha.schedules.values()].find((row) => row.dayOfWeek === 'TUESDAY' && row.status === 'ACTIVE')!;
     await authorized('patch', `/schedules/${tuesday.id}`).send({ dayOfWeek: 'MONDAY' }).expect(409);
   });
@@ -300,12 +361,21 @@ describe('schedules', () => {
 
     const schedule = [...alpha.schedules.values()][0];
     await authorized('get', `/schedules/${schedule.id}`, 'beta').expect(404);
-    await authorized('patch', `/schedules/${schedule.id}`, 'beta').send({ room: 'Other tenant' }).expect(404);
+    await authorized('patch', `/schedules/${schedule.id}`, 'beta').send({ roomId: null }).expect(404);
     await authorized('get', `/classes/${ids.alpha.classA}/schedules`, 'beta').expect(404);
     await authorized('get', `/teachers/${ids.alpha.teacherA}/schedules`, 'beta').expect(404);
     await create({ classId: ids.alpha.classA }, 'beta').expect(404);
     await create({ teacherId: ids.alpha.teacherA }, 'beta').expect(404);
-    expect(alpha.schedules.get(schedule.id)?.room).not.toBe('Other tenant');
+    expect(alpha.schedules.get(schedule.id)?.roomId).toBeNull();
+  });
+
+  it('supports tenant-scoped schedule exclusions', async () => {
+    await authorized('get', '/schedule-exclusions').expect(200).expect([]);
+    await authorized('post', '/schedule-exclusions').send({ date: '2026-10-01', reason: 'Holiday' }).expect(201);
+    await authorized('post', '/schedule-exclusions').send({ date: '2026-10-01', branchId: ids.alpha.classA, reason: 'Branch closure' }).expect(404);
+    await authorized('patch', '/schedule-exclusions/01JHZX3V8Q9K5M2N7R4T6W9Z9Z').send({ reason: 'Updated' }).expect(404);
+    await authorized('delete', '/schedule-exclusions/01JHZX3V8Q9K5M2N7R4T6W9Z9Z').expect(404);
+    await authorized('get', '/schedule-exclusions', 'beta').expect(200).expect([]);
   });
 
   it('rejects unauthenticated access before acquiring a tenant pool', async () => {

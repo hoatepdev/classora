@@ -17,6 +17,8 @@ export const PERMISSIONS = {
   ROOM_WRITE: 'room.write',
   ATTENDANCE_READ: 'attendance.read',
   ATTENDANCE_WRITE: 'attendance.write',
+  SCHEDULE_READ: 'schedule.read',
+  SCHEDULE_WRITE: 'schedule.write',
   ENROLLMENT_READ: 'enrollment.read',
   ENROLLMENT_WRITE: 'enrollment.write',
   BILLING_READ: 'billing.read',
@@ -52,6 +54,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.ROOM_WRITE,
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
+    PERMISSIONS.SCHEDULE_READ,
+    PERMISSIONS.SCHEDULE_WRITE,
     PERMISSIONS.ENROLLMENT_READ,
     PERMISSIONS.ENROLLMENT_WRITE,
     PERMISSIONS.SETTINGS_READ,
@@ -71,6 +75,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.BRANCH_READ,
     PERMISSIONS.ROOM_READ,
     PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.SCHEDULE_READ,
     PERMISSIONS.ENROLLMENT_READ,
   ],
   TEACHER: [
@@ -78,6 +83,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.CLASS_READ,
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
+    PERMISSIONS.SCHEDULE_READ,
   ],
 };
 

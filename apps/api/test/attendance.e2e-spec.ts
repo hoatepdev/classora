@@ -47,7 +47,7 @@ type SessionRecord = {
   sessionDate: string;
   startTime: string;
   endTime: string;
-  status: 'OPEN' | 'COMPLETED';
+  status: 'SCHEDULED' | 'COMPLETED';
   createdAt: Date;
   updatedAt: Date;
 };
@@ -84,6 +84,9 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       teacherId: tenantIds.teacher,
       startTime: '18:00',
       endTime: '20:00',
+      status: 'ACTIVE',
+      effectiveFrom: null,
+      effectiveUntil: null,
     }],
   ]);
   const enrollments = new Map([
@@ -116,7 +119,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       }
       const session: SessionRecord = {
         id: id!, tenantId: requestedTenantId!, classId: classId!, scheduleId, teacherId,
-        sessionDate: sessionDate!, startTime: startTime!, endTime: endTime!, status: 'OPEN',
+        sessionDate: sessionDate!, startTime: startTime!, endTime: endTime!, status: 'SCHEDULED',
         createdAt: now(), updatedAt: now(),
       };
       sessions.set(session.id, session);
@@ -181,7 +184,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
     if (sql.includes('UPDATE attendance_sessions')) {
       const [requestedTenantId, sessionId] = values;
       const session = sessions.get(sessionId as string);
-      if (session?.tenantId !== requestedTenantId || session.status !== 'OPEN') return { rows: [] };
+      if (session?.tenantId !== requestedTenantId || session.status !== 'SCHEDULED') return { rows: [] };
       session.status = 'COMPLETED';
       session.updatedAt = now();
       return { rows: [session] };
@@ -211,7 +214,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       return { rows: [record] };
     }
 
-    if (sql.includes('JOIN students s') && sql.includes('attendance_session_id = $2')) {
+    if (sql.includes('JOIN students s') && sql.includes('session_id = $2')) {
       const [requestedTenantId, sessionId] = values;
       return {
         rows: [...records.values()]
@@ -355,7 +358,7 @@ describe('attendance', () => {
       sessionDate: '2026-09-15',
       startTime: '18:00',
       endTime: '20:00',
-      status: 'OPEN',
+      status: 'SCHEDULED',
     });
     expect(created.body.records.map((record: AttendanceRecord) => record.studentId)).toEqual([
       ids.alpha.studentA,
@@ -427,7 +430,7 @@ describe('attendance', () => {
       .send({ status: 'EXCUSED' })
       .expect(409);
     await authorized('patch', `/attendance-sessions/${session.id}`)
-      .send({ status: 'OPEN' })
+      .send({ status: 'SCHEDULED' })
       .expect(400);
   });
 

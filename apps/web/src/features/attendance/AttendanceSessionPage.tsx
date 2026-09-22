@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage } from "@/lib/api";
@@ -21,6 +23,10 @@ const dateFormatter = new Intl.DateTimeFormat("vi-VN");
 export function AttendanceSessionPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canWrite = can(membership, "attendance.write");
   const session = useQuery({
     queryKey: attendanceSessionQueryKey(id ?? ""),
     queryFn: () => getAttendanceSession(id!),
@@ -56,11 +62,11 @@ export function AttendanceSessionPage() {
     return <main className="page"><div className="state error" role="alert"><strong>{notFound ? "Không tìm thấy buổi điểm danh" : "Không thể tải điểm danh"}</strong>Quay lại lớp học và thử lại.</div></main>;
   }
 
-  const locked = session.data.status === "COMPLETED";
+  const locked = !canWrite || ["COMPLETED", "CANCELLED", "RESCHEDULED"].includes(session.data.status);
   return <main className="page">
     <div className="page-heading">
       <div><h1>{session.data.classCode} — {session.data.className}</h1><p className="subtitle">{dateFormatter.format(new Date(`${session.data.sessionDate}T00:00:00`))} · {session.data.startTime}–{session.data.endTime}{session.data.teacherName ? ` · ${session.data.teacherName}` : ""}</p></div>
-      {!locked && <ConfirmDialog
+      {canWrite && !["COMPLETED", "CANCELLED", "RESCHEDULED"].includes(session.data.status) && <ConfirmDialog
         trigger={<Button type="button">Hoàn thành</Button>}
         title="Hoàn thành buổi điểm danh?"
         description="Sau khi hoàn thành, danh sách điểm danh sẽ bị khóa và không thể chỉnh sửa."

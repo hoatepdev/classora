@@ -6,6 +6,7 @@ const sectionNames: Record<string, string> = {
   teachers: "Giáo viên",
   courses: "Khóa học",
   classes: "Lớp học",
+  schedule: "Lịch học",
   "attendance-sessions": "Điểm danh",
 };
 

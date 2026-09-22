@@ -16,6 +16,7 @@ type SessionRow = QueryResultRow & {
   id: string;
   tenantId: string;
   classId: string;
+  // Compatibility API name; persisted as schedule_pattern_id.
   scheduleId: string | null;
   teacherId: string | null;
   sessionDate: string;
@@ -38,6 +39,7 @@ type SessionListRow = SessionDetailRow & { recordCount: number };
 type RecordRow = QueryResultRow & {
   id: string;
   tenantId: string;
+  // Compatibility API name; persisted as session_id.
   attendanceSessionId: string;
   studentId: string;
   status: AttendanceRecordStatus;
@@ -66,13 +68,16 @@ type ScheduleRow = QueryResultRow & {
   teacherId: string;
   startTime: string;
   endTime: string;
+  status: string;
+  effectiveFrom: string | null;
+  effectiveUntil: string | null;
 };
 
 const sessionColumns = `
   a.id,
   a.tenant_id AS "tenantId",
   a.class_id AS "classId",
-  a.schedule_id AS "scheduleId",
+  a.schedule_pattern_id AS "scheduleId",
   a.teacher_id AS "teacherId",
   a.session_date::text AS "sessionDate",
   a.start_time::text AS "startTime",
@@ -85,7 +90,7 @@ const sessionColumns = `
 const recordColumns = `
   r.id,
   r.tenant_id AS "tenantId",
-  r.attendance_session_id AS "attendanceSessionId",
+  r.session_id AS "attendanceSessionId",
   r.student_id AS "studentId",
   r.status,
   r.note,
@@ -129,19 +134,26 @@ function mapDatabaseError(error: unknown): never {
     if (databaseError.constraint === 'attendance_sessions_class_id_fkey') {
       throw new NotFoundException('Class not found');
     }
-    if (databaseError.constraint === 'attendance_sessions_schedule_id_fkey') {
+    if (
+      databaseError.constraint === 'attendance_sessions_schedule_id_fkey' ||
+      databaseError.constraint === 'attendance_sessions_tenant_pattern_fkey'
+    ) {
       throw new NotFoundException('Schedule not found');
     }
     if (databaseError.constraint === 'attendance_sessions_teacher_id_fkey') {
       throw new NotFoundException('Teacher not found');
     }
-    if (databaseError.constraint === 'attendance_records_student_id_fkey') {
+    if (
+      databaseError.constraint === 'attendance_records_student_id_fkey' ||
+      databaseError.constraint === 'attendance_records_tenant_student_fkey'
+    ) {
       throw new NotFoundException('Student not found');
     }
   }
   if (
     databaseError?.code === '23505' &&
     (databaseError.constraint === 'attendance_sessions_occurrence_key' ||
+      databaseError.constraint === 'attendance_sessions_generated_occurrence_key' ||
       databaseError.constraint === 'attendance_sessions_schedule_date_key')
   ) {
     throw new ConflictException('An attendance session already exists for this occurrence.');
@@ -179,7 +191,7 @@ export class AttendanceService {
       sessionId = ulid();
       await client.query<SessionRow>(
         `INSERT INTO attendance_sessions AS a
-          (id, tenant_id, class_id, schedule_id, teacher_id, session_date, start_time, end_time)
+          (id, tenant_id, class_id, schedule_pattern_id, teacher_id, session_date, start_time, end_time)
          VALUES ($1, $2, $3, $4, $5, $6::date, $7::time, $8::time)
          RETURNING ${sessionColumns}`,
         [
@@ -210,7 +222,7 @@ export class AttendanceService {
         });
         await client.query(
           `INSERT INTO attendance_records
-            (id, tenant_id, attendance_session_id, student_id)
+            (id, tenant_id, session_id, student_id)
            VALUES ${tuples.join(', ')}`,
           values,
         );
@@ -250,7 +262,7 @@ export class AttendanceService {
          s.full_name AS "studentFullName"
        FROM attendance_records r
        JOIN students s ON s.id = r.student_id AND s.tenant_id = r.tenant_id
-       WHERE r.tenant_id = $1 AND r.attendance_session_id = $2
+       WHERE r.tenant_id = $1 AND r.session_id = $2
        ORDER BY s.full_name ASC, r.id ASC`,
       [tenant.tenantId, id],
     );
@@ -265,7 +277,7 @@ export class AttendanceService {
     const result = await pool.query<SessionRow>(
       `UPDATE attendance_sessions AS a
        SET status = 'COMPLETED', updated_at = CURRENT_TIMESTAMP
-       WHERE a.tenant_id = $1 AND a.id = $2 AND a.status = 'OPEN'
+       WHERE a.tenant_id = $1 AND a.id = $2 AND a.status = 'SCHEDULED'
        RETURNING ${sessionColumns}`,
       [tenant.tenantId, id],
     );
@@ -276,7 +288,7 @@ export class AttendanceService {
       [tenant.tenantId, id],
     );
     if (!existing.rows[0]) throw new NotFoundException('Attendance session not found');
-    throw new ConflictException('Attendance session is already completed.');
+    throw new ConflictException('Attendance session is not scheduled.');
   }
 
   async updateRecord(id: string, input: UpdateAttendanceRecordDto) {
@@ -292,7 +304,7 @@ export class AttendanceService {
         `SELECT a.status AS "sessionStatus"
          FROM attendance_records r
          JOIN attendance_sessions a
-           ON a.id = r.attendance_session_id AND a.tenant_id = r.tenant_id
+           ON a.id = r.session_id AND a.tenant_id = r.tenant_id
          WHERE r.tenant_id = $1 AND r.id = $2
          FOR UPDATE OF a`,
         [tenant.tenantId, id],
@@ -348,7 +360,7 @@ export class AttendanceService {
        JOIN classes c ON c.id = a.class_id AND c.tenant_id = a.tenant_id
        LEFT JOIN teachers t ON t.id = a.teacher_id AND t.tenant_id = a.tenant_id
        LEFT JOIN attendance_records r
-         ON r.attendance_session_id = a.id AND r.tenant_id = a.tenant_id
+         ON r.session_id = a.id AND r.tenant_id = a.tenant_id
        WHERE a.tenant_id = $1 AND a.class_id = $2
        GROUP BY a.id, c.code, c.name, t.code, t.name
        ORDER BY a.session_date DESC, a.start_time DESC, a.id DESC`,
@@ -376,7 +388,7 @@ export class AttendanceService {
          a.status AS "sessionStatus"
        FROM attendance_records r
        JOIN attendance_sessions a
-         ON a.id = r.attendance_session_id AND a.tenant_id = r.tenant_id
+         ON a.id = r.session_id AND a.tenant_id = r.tenant_id
        JOIN classes c ON c.id = a.class_id AND c.tenant_id = a.tenant_id
        WHERE r.tenant_id = $1 AND r.student_id = $2
        ORDER BY a.session_date DESC, a.start_time DESC, r.id DESC`,
@@ -406,7 +418,10 @@ export class AttendanceService {
            class_id AS "classId",
            teacher_id AS "teacherId",
            start_time::text AS "startTime",
-           end_time::text AS "endTime"
+           end_time::text AS "endTime",
+           status,
+           effective_from::text AS "effectiveFrom",
+           effective_until::text AS "effectiveUntil"
          FROM schedules
          WHERE tenant_id = $1 AND id = $2`,
         [tenantId, input.scheduleId],
@@ -415,6 +430,15 @@ export class AttendanceService {
       if (!schedule) throw new NotFoundException('Schedule not found');
       if (schedule.classId !== input.classId) {
         throw new BadRequestException('Schedule does not belong to this class.');
+      }
+      if (schedule.status !== 'ACTIVE') {
+        throw new ConflictException('Schedule is disabled.');
+      }
+      if (schedule.effectiveFrom && input.sessionDate < schedule.effectiveFrom) {
+        throw new BadRequestException('Session date is before the schedule effective date.');
+      }
+      if (schedule.effectiveUntil && input.sessionDate > schedule.effectiveUntil) {
+        throw new BadRequestException('Session date is after the schedule effective date.');
       }
       return {
         teacherId: schedule.teacherId,

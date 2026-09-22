@@ -1,5 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import axios from "axios";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
@@ -23,6 +25,10 @@ const defaults: AttendanceSessionFormValues = {
 
 export function ClassAttendanceSection({ classId }: { classId: string }) {
   const queryClient = useQueryClient();
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canWrite = can(membership, "attendance.write");
   const sessions = useQuery({
     queryKey: classAttendanceQueryKey(classId),
     queryFn: () => listClassAttendanceSessions(classId),
@@ -77,7 +83,7 @@ export function ClassAttendanceSection({ classId }: { classId: string }) {
     <div className="relationship-heading">
       <div><h2 id="class-attendance-heading">Điểm danh</h2><p className="subtitle">Các buổi học thực tế và danh sách điểm danh đã lưu.</p></div>
     </div>
-    <form className="schedule-form" onSubmit={handleSubmit((values) => create.mutate(values))} noValidate>
+    {canWrite && <form className="schedule-form" onSubmit={handleSubmit((values) => create.mutate(values))} noValidate>
       {errors.root && <p className="form-error" role="alert">{errors.root.message}</p>}
       <div className="schedule-fields">
         <Field label="Ngày" error={errors.sessionDate?.message}>
@@ -107,7 +113,7 @@ export function ClassAttendanceSection({ classId }: { classId: string }) {
         </Field>
       </div>
       <div className="schedule-actions"><button className="button" disabled={create.isPending}>{create.isPending ? "Đang tạo…" : "Tạo buổi điểm danh"}</button></div>
-    </form>
+    </form>}
 
     {sessions.isPending ? <div className="state">Đang tải lịch sử điểm danh…</div> : sessions.isError ? <div className="state error" role="alert">Không thể tải lịch sử điểm danh.</div> : sessions.data.length === 0 ? <div className="state">Chưa có buổi điểm danh.</div> : <div className="register">
       <table>
@@ -117,7 +123,7 @@ export function ClassAttendanceSection({ classId }: { classId: string }) {
           <td className="code" data-label="Thời gian">{session.startTime}–{session.endTime}</td>
           <td data-label="Giáo viên">{session.teacherName ?? "—"}</td>
           <td data-label="Học viên">{session.recordCount}</td>
-          <td data-label="Trạng thái"><span className={`status ${session.status === "COMPLETED" ? "disabled" : ""}`}>{session.status === "OPEN" ? "Đang mở" : "Đã hoàn thành"}</span></td>
+          <td data-label="Trạng thái"><span className={`status ${session.status === "COMPLETED" || session.status === "CANCELLED" || session.status === "RESCHEDULED" ? "disabled" : ""}`}>{session.status === "SCHEDULED" ? "Đã lên lịch" : session.status === "COMPLETED" ? "Đã hoàn thành" : session.status === "CANCELLED" ? "Đã hủy" : "Đã dời lịch"}</span></td>
           <td data-label="Thao tác"><Link className="action-link" to={`/attendance-sessions/${session.id}`}>Mở điểm danh</Link></td>
         </tr>)}</tbody>
       </table>

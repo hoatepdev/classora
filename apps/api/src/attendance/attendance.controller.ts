@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { RequirePermissions } from '../authorization/permission.decorator.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 import { ApiConflictResponse, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { ClassIdDto } from '../classes/dto/class-id.dto.js';
 import { StudentIdDto } from '../students/dto/student-id.dto.js';
@@ -26,6 +28,7 @@ export class AttendanceController {
   constructor(private readonly attendance: AttendanceService) {}
 
   @Post('attendance-sessions')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_WRITE)
   @ApiInvalidRequest()
   @ApiCreatedResponse({ schema: schemaRef('AttendanceSessionDetail') })
   @ApiConflictResponse({ description: 'Attendance occurrence already exists', ...errorResponse })
@@ -34,6 +37,7 @@ export class AttendanceController {
   }
 
   @Get('attendance-sessions/:id')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_READ)
   @ApiUlidParam()
   @ApiOkResponse({ schema: schemaRef('AttendanceSessionDetail') })
   get(@Param() { id }: AttendanceIdDto) {
@@ -41,6 +45,7 @@ export class AttendanceController {
   }
 
   @Patch('attendance-sessions/:id')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_WRITE)
   @ApiUlidParam()
   @ApiOkResponse({ schema: schemaRef('AttendanceSession') })
   @ApiConflictResponse({ description: 'Attendance session is already completed', ...errorResponse })
@@ -49,6 +54,7 @@ export class AttendanceController {
   }
 
   @Get('classes/:id/attendance-sessions')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_READ)
   @ApiUlidParam()
   @ApiOkResponse({ schema: arraySchema('AttendanceSessionSummary') })
   listForClass(@Param() { id }: ClassIdDto) {
@@ -56,6 +62,7 @@ export class AttendanceController {
   }
 
   @Patch('attendance-records/:id')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_WRITE)
   @ApiUlidParam()
   @ApiOkResponse({ schema: schemaRef('AttendanceRecord') })
   @ApiConflictResponse({ description: 'Completed attendance cannot be edited', ...errorResponse })
@@ -64,6 +71,7 @@ export class AttendanceController {
   }
 
   @Get('students/:id/attendance')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_READ)
   @ApiUlidParam()
   @ApiOkResponse({ schema: arraySchema('StudentAttendance') })
   listForStudent(@Param() { id }: StudentIdDto) {

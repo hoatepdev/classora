@@ -19,6 +19,7 @@ import { TeacherDetail } from "./features/teachers/TeacherDetail.js";
 import { TeacherForm } from "./features/teachers/TeacherForm.js";
 import { TeachersPage } from "./features/teachers/TeachersPage.js";
 import { StudentDetail } from "./features/students/StudentDetail.js";
+import { SchedulePage } from "./features/schedules/SchedulePage.js";
 import { AcceptInvitationPage } from "./features/settings/AcceptInvitationPage.js";
 import { TeamPage } from "./features/settings/TeamPage.js";
 import { RolesPage } from "./features/settings/RolesPage.js";
@@ -45,6 +46,7 @@ export function App() {
         <Route path="/classes/new" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/classes/:id" element={<ProtectedRoute permission="class.read"><ClassDetail /></ProtectedRoute>} />
         <Route path="/classes/:id/edit" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
+        <Route path="/schedule" element={<ProtectedRoute permission="schedule.read"><SchedulePage /></ProtectedRoute>} />
         <Route path="/attendance-sessions/:id" element={<AttendanceSessionPage />} />
         <Route path="/settings/team" element={<TeamPage />} />
         <Route path="/settings/roles" element={<RolesPage />} />

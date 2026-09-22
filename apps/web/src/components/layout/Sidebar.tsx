@@ -1,4 +1,4 @@
-import { BookOpen, Building2, DoorOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, DoorOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
@@ -9,6 +9,7 @@ const navigation = [
   { to: "/teachers", label: "Giáo viên", icon: Users },
   { to: "/courses", label: "Khóa học", icon: BookOpen },
   { to: "/classes", label: "Lớp học", icon: School, permission: "class.read" },
+  { to: "/schedule", label: "Lịch học", icon: CalendarDays, permission: "schedule.read" },
   { to: "/branches", label: "Chi nhánh", icon: Building2, permission: "branch.read" },
   { to: "/rooms", label: "Phòng học", icon: DoorOpen, permission: "room.read" },
 ];

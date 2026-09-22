@@ -1,7 +1,7 @@
 export const attendanceStatuses = ["PRESENT", "ABSENT", "LATE", "EXCUSED"] as const;
 
 export type AttendanceStatus = (typeof attendanceStatuses)[number];
-export type AttendanceSessionStatus = "OPEN" | "COMPLETED";
+export type AttendanceSessionStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED" | "RESCHEDULED";
 
 export type AttendanceRecord = {
   id: string;

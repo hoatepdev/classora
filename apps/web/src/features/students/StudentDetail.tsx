@@ -15,15 +15,24 @@ import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurren
 import { can } from "@/auth/permissions";
 import { StudentAttendanceSection } from "../attendance/StudentAttendanceSection.js";
 import { listStudentEnrollments, studentEnrollmentQueryKey } from "../enrollments/api.js";
+import { listUpcomingSessions, upcomingSessionQueryKey } from "../schedules/api.js";
+import type { Session } from "../schedules/types.js";
 import { EnrollmentLifecycleActions } from "../enrollments/EnrollmentLifecycleActions.js";
 import { addStudentNote, addStudentTag, createAndLinkGuardian, getStudent, linkGuardian, listGuardians, listStudentActivity, listStudentGuardians, listStudentNotes, listStudentTags, removeStudentTag, studentQueryKey, unlinkGuardian, updateGuardianLink } from "./api.js";
 const dateFormatter = new Intl.DateTimeFormat("vi-VN");
+const sessionDateFormatter = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 const enrollmentStatusLabels: Record<import("../enrollments/types.js").EnrollmentStatus, string> = { PENDING: "Chờ bắt đầu", TRIAL: "Học thử", ACTIVE: "Đang học", PAUSED: "Tạm dừng", COMPLETED: "Đã hoàn thành", WITHDRAWN: "Đã rút", CANCELLED: "Đã hủy" };
 
 export function StudentDetail() {
   const { id } = useParams(); const queryClient = useQueryClient();
   const student = useQuery({ queryKey: [...studentQueryKey(), id], queryFn: () => getStudent(id!), enabled: Boolean(id) });
   const enrollments = useQuery({ queryKey: studentEnrollmentQueryKey(id ?? ""), queryFn: () => listStudentEnrollments(id!), enabled: Boolean(id) });
+  const upcomingRange = upcomingDateRange();
+  const upcomingSessions = useQuery({
+    queryKey: upcomingSessionQueryKey({ ...upcomingRange, studentId: id, status: "SCHEDULED" }),
+    queryFn: () => listUpcomingSessions({ ...upcomingRange, studentId: id, status: "SCHEDULED" }),
+    enabled: Boolean(id),
+  });
   const guardians = useQuery({ queryKey: ["student-guardians", window.location.hostname, id], queryFn: () => listStudentGuardians(id!), enabled: Boolean(id) });
   const notes = useQuery({ queryKey: ["student-notes", window.location.hostname, id], queryFn: () => listStudentNotes(id!), enabled: Boolean(id) });
   const tags = useQuery({ queryKey: ["student-tags", window.location.hostname, id], queryFn: () => listStudentTags(id!), enabled: Boolean(id) });
@@ -63,8 +72,24 @@ export function StudentDetail() {
     <section className="mt-7"><SectionHeader title="Hoạt động" /><AsyncBlock query={activity} empty="Chưa có hoạt động." render={(items) => <div className="space-y-2">{items.map((item) => <article className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={item.id}><p className="m-0 text-sm font-medium text-[#334155]">{item.action}</p><p className="mt-1 mb-0 text-xs text-[#64748b]">{item.actorName ?? "Hệ thống"} · {dateFormatter.format(new Date(item.occurredAt))}</p></article>)}</div>} /></section>
     <section className="mt-7"><SectionHeader title="Ghi chú nội bộ" action={canWrite ? <NoteForm pending={noteMutation.isPending} onSubmit={(content) => noteMutation.mutate(content)} /> : undefined} /><AsyncBlock query={notes} empty="Chưa có ghi chú." render={(items) => <div className="space-y-3">{items.map((note) => <article className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={note.id}><p className="m-0 whitespace-pre-wrap text-sm text-[#334155]">{note.content}</p><p className="mt-3 mb-0 text-xs text-[#64748b]">{note.authorName ?? "Nhân viên"} · {dateFormatter.format(new Date(note.createdAt))}</p></article>)}</div>} /></section>
     <section className="mt-7"><SectionHeader title="Lớp học" /><AsyncBlock query={enrollments} empty="Học viên chưa ghi danh vào lớp nào." render={(items) => <div className="overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white"><table className="w-full text-left text-sm"><thead><tr><th className="px-4 py-3">Mã lớp</th><th className="px-4 py-3">Tên lớp</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Ngày ghi danh</th><th className="px-4 py-3">Thao tác</th></tr></thead><tbody>{items.map((item) => <tr className="border-t border-[#f1f5f9]" key={item.id}><td className="px-4 py-3 font-semibold">{item.classCode}</td><td className="px-4 py-3"><Link className="text-[#2563eb] hover:underline" to={`/classes/${item.classId}`}>{item.className}</Link></td><td className="px-4 py-3"><StatusBadge status={item.status}>{enrollmentStatusLabels[item.status]}</StatusBadge></td><td className="px-4 py-3 text-[#64748b]">{dateFormatter.format(new Date(item.enrolledAt))}</td><td className="px-4 py-3"><EnrollmentLifecycleActions enrollment={item} canWrite={canEnrollmentWrite} /></td></tr>)}</tbody></table></div>} /></section>
+    <UpcomingStudentSessions query={upcomingSessions} />
     <StudentAttendanceSection studentId={student.data.id} />
   </PageContainer>;
+}
+
+function upcomingDateRange() {
+  const from = new Date();
+  const to = new Date(from);
+  to.setUTCDate(to.getUTCDate() + 30);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function UpcomingStudentSessions({ query }: { query: { isPending: boolean; isError: boolean; data?: Session[] } }) {
+  return <section className="mt-7" aria-labelledby="student-upcoming-sessions-heading">
+    <SectionHeader title="Buổi học sắp tới" />
+    <p className="subtitle">Các Session trong 30 ngày tới của học viên.</p>
+    {query.isPending ? <LoadingState label="Đang tải buổi học" /> : query.isError ? <ErrorState title="Không thể tải buổi học" message="Vui lòng thử lại." /> : !query.data?.length ? <div className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-8 text-center text-sm text-[#64748b]">Chưa có buổi học sắp tới.</div> : <div className="overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white"><table className="w-full text-left text-sm"><thead><tr><th className="px-4 py-3">Ngày</th><th className="px-4 py-3">Lớp học</th><th className="px-4 py-3">Thời gian</th><th className="px-4 py-3">Phòng học</th><th className="px-4 py-3">Trạng thái</th></tr></thead><tbody>{query.data.map((session) => <tr className="border-t border-[#f1f5f9]" key={session.id}><td className="px-4 py-3" data-label="Ngày">{sessionDateFormatter.format(new Date(`${session.sessionDate}T00:00:00Z`))}</td><td className="px-4 py-3"><Link className="text-[#2563eb] hover:underline" to={`/classes/${session.classId}`}>{session.classCode} — {session.className}</Link></td><td className="px-4 py-3 font-mono" data-label="Thời gian">{session.startTime}–{session.endTime}</td><td className="px-4 py-3">{session.roomName ?? "—"}</td><td className="px-4 py-3"><StatusBadge status={session.status}>{session.status === "SCHEDULED" ? "Đã lên lịch" : session.status === "COMPLETED" ? "Đã hoàn thành" : session.status === "CANCELLED" ? "Đã hủy" : "Đã dời lịch"}</StatusBadge></td></tr>)}</tbody></table></div>}
+  </section>;
 }
 
 function AsyncBlock<T>({ query, empty, render }: { query: { isPending: boolean; isError: boolean; data?: T[]; refetch: () => unknown }; empty: string; render: (data: T[]) => ReactNode }) { if (query.isPending) return <LoadingState label="Đang tải" />; if (query.isError) return <ErrorState title="Không thể tải dữ liệu" message="Vui lòng thử lại." onRetry={() => void query.refetch()} />; return query.data?.length ? render(query.data) : <div className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-8 text-center text-sm text-[#64748b]">{empty}</div>; }

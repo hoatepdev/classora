@@ -83,7 +83,9 @@ A Tenant is not a Branch. Branches are operational tenant records with managed R
 
 An enrollment records one Student's membership in one Class. Each Student-Class pair has one canonical enrollment: withdrawal marks it `WITHDRAWN`, and enrolling again reactivates it with a new enrollment date.
 
-An attendance session records one actual Class occurrence and snapshots its currently active enrollments as persistent Student records. Later enrollment changes do not alter that historical roster.
+Scheduling follows one authoritative chain: `Class -> SchedulePattern -> Session`. The existing `schedules` rows are the persisted weekly SchedulePatterns, preserving their IDs; the existing `attendance_sessions` rows are the persisted dated Sessions, preserving their IDs. A SchedulePattern contains the weekday, local time interval, effective dates, branch, teacher, and structured Room reference. A Session is one dated occurrence and stores historical branch/resource snapshots, lifecycle status, manual override and replacement/cancellation history. Session conflict checks use half-open intervals `[start, end)`, so adjacent sessions are valid. Generation is explicit, bounded to at most 366 days, intersects Class and pattern effective dates, skips tenant-wide or branch-specific exclusions, and is idempotent.
+
+Rescheduling creates a replacement Session linked to the original and marks the original `RESCHEDULED`; cancellation marks the original `CANCELLED` without deleting it. AttendanceRecord points to Session and snapshots the active enrollment roster when a Session is created or generated. Attendance remains compatible with the legacy API surface, while Session—not Attendance—is the authoritative dated occurrence. Scheduling reads and writes require `schedule.read` or `schedule.write`, are audited, and always resolve the trusted tenant context before querying the tenant database.
 
 ### Student 360
 

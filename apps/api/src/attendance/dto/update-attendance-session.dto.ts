@@ -2,7 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Equals } from 'class-validator';
 
 export enum AttendanceSessionStatus {
-  OPEN = 'OPEN',
+  // OPEN remains a transport compatibility alias; persisted sessions use SCHEDULED.
+  OPEN = 'SCHEDULED',
   COMPLETED = 'COMPLETED',
 }
 

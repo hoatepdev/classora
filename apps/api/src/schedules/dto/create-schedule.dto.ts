@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export enum DayOfWeek {
   MONDAY = 'MONDAY',
@@ -35,6 +35,16 @@ export class CreateScheduleDto {
   @Matches(ulidPattern)
   teacherId!: string;
 
+  @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$', nullable: true })
+  @IsOptional()
+  @Matches(ulidPattern)
+  branchId?: string | null;
+
+  @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$', nullable: true })
+  @IsOptional()
+  @Matches(ulidPattern)
+  roomId?: string | null;
+
   @ApiProperty({ enum: DayOfWeek })
   @IsEnum(DayOfWeek)
   dayOfWeek!: DayOfWeek;
@@ -47,12 +57,17 @@ export class CreateScheduleDto {
   @Matches(timePattern)
   endTime!: string;
 
-  @ApiPropertyOptional({ type: String, maxLength: 200, nullable: true })
-  @Transform(nullableText)
+  @ApiPropertyOptional({ format: 'date', nullable: true })
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  room?: string | null;
+  @IsDateString({ strict: true, strictSeparator: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  effectiveFrom?: string | null;
+
+  @ApiPropertyOptional({ format: 'date', nullable: true })
+  @IsOptional()
+  @IsDateString({ strict: true, strictSeparator: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  effectiveUntil?: string | null;
 
   @ApiPropertyOptional({ enum: ScheduleStatus, default: ScheduleStatus.ACTIVE })
   @IsOptional()
