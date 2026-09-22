@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export enum TeacherStatus {
   ACTIVE = 'ACTIVE',
@@ -51,6 +51,12 @@ export class CreateTeacherDto {
   @IsString()
   @MaxLength(1000)
   note?: string | null;
+
+  @ApiPropertyOptional({ type: [String], maxItems: 20 })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specialties?: string[];
 
   @ApiPropertyOptional({ enum: TeacherStatus, default: TeacherStatus.ACTIVE })
   @IsOptional()

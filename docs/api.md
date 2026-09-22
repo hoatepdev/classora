@@ -20,3 +20,15 @@ Tenant authorization is derived from the authenticated user's active membership 
 Team endpoints include `GET /team/members`, `POST /team/invitations`, invitation resend/accept, role/status changes, removal, and `GET /team/roles`. Invitation tokens are hashed, expire after 48 hours, and are single-use. Because no mail transport is configured, the local flow returns a copyable invitation token and does not claim an email was sent.
 
 Students require `student.read` for reads and `student.write` for creation/updates. Missing authentication returns 401; missing active membership or permission returns 403. Team operations never use a client-supplied tenant selector.
+
+## Organization and academic configuration
+
+Branch, Room, Teacher, Course, CourseLevel, and Class endpoints are tenant routes; the tenant database is selected only after hostname resolution and membership authorization. Clients never provide a tenant ID or database selector.
+
+- `GET/POST /branches`, `GET/PATCH /branches/:id` use `branch.read`/`branch.write`.
+- `GET/POST /rooms`, `GET/PATCH /rooms/:id` use `room.read`/`room.write`; `GET /rooms?branchId=` filters by trusted tenant Branch.
+- `GET/POST/PATCH /teachers` use `teacher.read`/`teacher.write`; `GET /teachers/:id/branches` and `PUT /teachers/:id/branches` read or replace TeacherBranch assignments.
+- `GET/POST/PATCH /courses` use `course.read`/`course.write`; `GET/POST /courses/:id/levels` and `PATCH /courses/:id/levels/:levelId` manage ordered CourseLevels.
+- `GET/POST/PATCH /classes` use `class.read`/`class.write`.
+
+Class relationship writes validate Course, CourseLevel, Branch, Room, Teacher, active status for new assignments, Room→Branch ownership, CourseLevel→Course ownership, TeacherBranch assignment, positive capacity, and date order. Existing legacy Classes without a Course or Branch remain readable. A Class default Room is not a scheduled occurrence assignment; the existing free-text `Schedule.room` field remains unchanged.

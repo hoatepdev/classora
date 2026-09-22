@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  IsArray,
   IsString,
   MaxLength,
   ValidateIf,
@@ -60,6 +61,12 @@ export class UpdateTeacherDto {
   @IsString()
   @MaxLength(1000)
   note?: string | null;
+
+  @ApiPropertyOptional({ type: [String], maxItems: 20 })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specialties?: string[];
 
   @ApiPropertyOptional({ enum: TeacherStatus })
   @ValidateIf((_, value) => value !== undefined)

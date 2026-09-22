@@ -7,13 +7,10 @@ verification gate; later work must not be started until its hard gates pass.
 |---|---|---|
 | LOCAL-00 | Baseline & Foundation Verification | DONE |
 | LOCAL-01 | Identity, Authorization & Team | DONE |
-| LOCAL-02 | Audit Log | BLOCKED |
-| LOCAL-03 | Student 360 + Guardians | Planned |
-
-LOCAL-02 implementation is in progress. Keep it blocked until the audit
-integration, migrations, tests, and verification gates pass.
-| LOCAL-04 | Branch + Room + Teacher/Course completion | Planned |
-| LOCAL-05 | Enrollment Lifecycle | Planned |
+| LOCAL-02 | Audit Log | DONE |
+| LOCAL-03 | Student 360 + Guardians | DONE |
+| LOCAL-04 | Branch + Room + Teacher/Course completion | DONE |
+| LOCAL-05 | Enrollment Lifecycle | NEXT |
 | LOCAL-06 | Scheduling + Session Engine | Planned |
 | LOCAL-07 | Attendance + Makeup | Planned |
 | LOCAL-08 | Billing / Tuition | Planned |
@@ -34,6 +31,18 @@ integration, migrations, tests, and verification gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-04 notes
+
+Adds operational Branch and managed Room records, Teacher specialties and
+Branch assignments, ordered CourseLevels, and relationship-aware Class fields.
+All mutations write transactional audit events on the same connection, and
+cross-tenant relationships are rejected by composite foreign keys. The
+disposable PostgreSQL gate passed (fresh/legacy equivalence, drift rejection,
+idempotent rerun, cross-tenant composite-FK rejection). Branch is now an
+operational data dimension, but branch-scoped authorization remains deferred
+to LOCAL-19. The existing free-text schedule room is unchanged; a Class
+default Room is not occurrence scheduling.
 
 ## LOCAL-00 notes
 

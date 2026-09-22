@@ -19,7 +19,7 @@ export type Class = {
   primaryTeacherName: string | null;
   capacity: number | null;
   startDate: string | null;
-  endDate: string | null;
+  expectedEndDate: string | null;
   code: string;
   name: string;
   description: string | null;
@@ -36,7 +36,7 @@ export type ClassInput = {
   primaryTeacherId?: string | null;
   capacity?: number | null;
   startDate?: string | null;
-  endDate?: string | null;
+  expectedEndDate?: string | null;
   code: string;
   name: string;
   description?: string | null;

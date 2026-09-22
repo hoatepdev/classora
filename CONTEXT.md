@@ -77,7 +77,9 @@ Potential later domains:
 
 Do not implement later domains until there is a concrete requirement.
 
-A Course represents a reusable training offering and groups its concrete running Classes. New Classes require a Course. Disabling a Course keeps it and its existing Classes readable but prevents assigning new or moved Classes to it; `classes.course_id` remains nullable only for Classes created before Courses were introduced.
+A Course represents a reusable training offering and groups its concrete running Classes. CourseLevels are optional, ordered, tenant-scoped levels within a Course. New Classes require an active Course; LOCAL-04 Classes may also reference a Branch, CourseLevel, managed default Room, primary Teacher, capacity, and dates. Disabling a Course keeps it and its existing Classes readable but prevents assigning new or moved Classes to it; `classes.course_id` remains nullable only for Classes created before Courses were introduced.
+
+A Tenant is not a Branch. Branches are operational tenant records with managed Rooms and TeacherBranch assignments; branch-scoped authorization is deferred. A Class default Room is a planning/default association, not a scheduled occurrence assignment; the existing Schedule `room` text remains unchanged for scheduling work. New relationships are validated against the trusted tenant database and disabled historical references remain readable.
 
 An enrollment records one Student's membership in one Class. Each Student-Class pair has one canonical enrollment: withdrawal marks it `WITHDRAWN`, and enrolling again reactivates it with a new enrollment date.
 

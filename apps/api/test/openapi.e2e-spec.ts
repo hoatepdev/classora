@@ -66,6 +66,8 @@ describe('OpenAPI', () => {
         'Attendance',
         'Health',
         'Student relationships',
+        'Branches',
+        'Rooms',
       ]),
     );
     expect(body.paths['/auth/login'].post.responses).toHaveProperty('200');
@@ -97,6 +99,14 @@ describe('OpenAPI', () => {
     expect(body.components.schemas.StudentNote).toBeDefined();
     expect(body.components.schemas.StudentTag).toBeDefined();
     expect(body.components.schemas.StudentActivity).toBeDefined();
+    expect(body.components.schemas.Branch).toBeDefined();
+    expect(body.components.schemas.Room).toBeDefined();
+    expect(body.components.schemas.CourseLevel).toBeDefined();
+    for (const path of ['/branches', '/branches/{id}', '/rooms', '/rooms/{id}', '/courses/{id}/levels', '/courses/{id}/levels/{levelId}', '/teachers/{id}/branches']) {
+      expect(body.paths[path]).toBeDefined();
+      const operation = body.paths[path].get ?? body.paths[path].patch ?? body.paths[path].post;
+      expect(operation.security).toEqual([{ bearer: [] }]);
+    }
   });
 
   it('rejects Swagger when production is enabled', async () => {

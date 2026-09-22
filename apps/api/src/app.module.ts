@@ -4,6 +4,8 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthorizationModule } from './authorization/authorization.module.js';
 import { PermissionGuard } from './authorization/permission.guard.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
+import { BranchesModule } from './branches/branches.module.js';
+import { RoomsModule } from './rooms/rooms.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -37,6 +39,8 @@ import { TeamModule } from './team/team.module.js';
     SchedulesModule,
     AttendanceModule,
     AuditModule,
+    BranchesModule,
+    RoomsModule,
     TeamModule,
   ],
   controllers: [HealthController],

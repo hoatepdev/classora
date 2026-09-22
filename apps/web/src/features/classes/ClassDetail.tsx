@@ -85,7 +85,7 @@ export function ClassDetail() {
     ["Phòng học mặc định", classRecord.data.defaultRoomName ? `${classRecord.data.defaultRoomCode} — ${classRecord.data.defaultRoomName}` : "—"],
     ["Giáo viên phụ trách", classRecord.data.primaryTeacherName ?? "—"],
     ["Sức chứa", classRecord.data.capacity ? `${classRecord.data.capacity} người` : "—"],
-    ["Thời gian", classRecord.data.startDate || classRecord.data.endDate ? `${classRecord.data.startDate?.slice(0, 10) ?? "?"} – ${classRecord.data.endDate?.slice(0, 10) ?? "?"}` : "—"],
+    ["Thời gian", classRecord.data.startDate || classRecord.data.expectedEndDate ? `${classRecord.data.startDate?.slice(0, 10) ?? "?"} – ${classRecord.data.expectedEndDate?.slice(0, 10) ?? "?"}` : "—"],
   ];
   const activeStudentIds = new Set(
     enrollments.data?.filter((enrollment) => enrollment.status === "ACTIVE").map((enrollment) => enrollment.studentId),

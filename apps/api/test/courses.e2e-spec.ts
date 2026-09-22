@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
+import { AuditService } from '../src/audit/audit.service.js';
 import { ControlDatabaseService } from '../src/database/control-database.service.js';
 import { TenantConnectionManager } from '../src/tenant/tenant-connection-manager.service.js';
 
@@ -49,9 +50,23 @@ type ClassRecord = {
   updatedAt: Date;
 };
 
+type LevelRecord = {
+  id: string;
+  tenantId: string;
+  courseId: string;
+  code: string;
+  name: string;
+  displayOrder: number;
+  description: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 function coursePool() {
   const rows = new Map<string, CourseRecord>();
   const classes = new Map<string, ClassRecord>();
+  const levels = new Map<string, LevelRecord>();
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
     if (sql.includes('INSERT INTO courses')) {
       const now = new Date('2026-09-15T00:00:00.000Z');
@@ -90,7 +105,77 @@ function coursePool() {
         course[propertyByColumn[assignment.split(' = ')[0]]] = updates[index] as never;
       });
       course.updatedAt = new Date('2026-09-15T01:00:00.000Z');
-      return { rows: [course] };
+      return { rows: [{ ...course }] };
+    }
+
+    if (sql.includes('INSERT INTO course_levels')) {
+      const now = new Date('2026-09-15T00:00:00.000Z');
+      const level: LevelRecord = {
+        id: values[0] as string,
+        tenantId: values[1] as string,
+        courseId: values[2] as string,
+        code: values[3] as string,
+        name: values[4] as string,
+        displayOrder: values[5] as number,
+        description: values[6] as string | null,
+        status: values[7] as LevelRecord['status'],
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (
+        [...levels.values()].some(
+          (row) => row.tenantId === level.tenantId && row.courseId === level.courseId && row.code === level.code,
+        )
+      ) {
+        throw Object.assign(new Error('duplicate'), {
+          code: '23505',
+          constraint: 'course_levels_tenant_id_course_id_code_key',
+        });
+      }
+      levels.set(level.id, level);
+      return { rows: [level] };
+    }
+
+    if (sql.includes('UPDATE course_levels')) {
+      const [tenantId, courseId, levelId, ...updates] = values as [string, string, string, ...unknown[]];
+      const level = levels.get(levelId);
+      if (!level || level.tenantId !== tenantId || level.courseId !== courseId) return { rows: [] };
+      const assignments = sql.slice(sql.indexOf('SET ') + 4, sql.indexOf(', updated_at')).split(', ');
+      const propertyByColumn: Record<string, keyof LevelRecord> = {
+        code: 'code',
+        name: 'name',
+        display_order: 'displayOrder',
+        description: 'description',
+        status: 'status',
+      };
+      const codeIndex = assignments.findIndex((assignment) => assignment.split(' = ')[0] === 'code');
+      if (codeIndex >= 0) {
+        const nextCode = updates[codeIndex] as string;
+        if ([...levels.values()].some((row) => row.id !== level.id && row.tenantId === tenantId && row.courseId === courseId && row.code === nextCode)) {
+          throw Object.assign(new Error('duplicate'), {
+            code: '23505',
+            constraint: 'course_levels_tenant_id_course_id_code_key',
+          });
+        }
+      }
+      assignments.forEach((assignment, index) => {
+        level[propertyByColumn[assignment.split(' = ')[0]]] = updates[index] as never;
+      });
+      level.updatedAt = new Date('2026-09-15T01:00:00.000Z');
+      return { rows: [{ ...level }] };
+    }
+
+    if (sql.includes('FROM course_levels')) {
+      if (sql.includes('FOR UPDATE')) {
+        const [tenantId, courseId, levelId] = values as [string, string, string];
+        const level = levels.get(levelId);
+        return { rows: level?.tenantId === tenantId && level.courseId === courseId ? [{ ...level }] : [] };
+      }
+      return {
+        rows: [...levels.values()]
+          .filter((row) => row.tenantId === values[0] && row.courseId === values[1])
+          .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+      };
     }
 
     if (sql.includes('FROM classes')) {
@@ -104,7 +189,7 @@ function coursePool() {
     if (sql.includes('AND id = $2')) {
       const [tenantId, id] = values;
       const course = rows.get(id as string);
-      return { rows: course?.tenantId === tenantId ? [course] : [] };
+      return { rows: course?.tenantId === tenantId ? [{ ...course }] : [] };
     }
 
     return {
@@ -113,7 +198,12 @@ function coursePool() {
         .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
     };
   });
-  return { pool: { query } as unknown as Pool, query, rows, classes };
+  const release = vi.fn();
+  const pool = {
+    query,
+    connect: vi.fn(async () => ({ query, release })),
+  } as unknown as Pool;
+  return { pool, query, release, rows, classes, levels };
 }
 
 describe('courses', () => {
@@ -162,8 +252,10 @@ describe('courses', () => {
     vi.clearAllMocks();
     alpha.rows.clear();
     alpha.classes.clear();
+    alpha.levels.clear();
     beta.rows.clear();
     beta.classes.clear();
+    beta.levels.clear();
   });
 
   const authorized = (method: 'get' | 'post' | 'patch', path: string, tenant = 'alpha') =>
@@ -282,5 +374,66 @@ describe('courses', () => {
 
     expect(alpha.rows.get(alphaCourse.body.id)?.name).toBe('IELTS Foundation');
     expect(connections.getConnection).toHaveBeenCalledWith(tenants.beta.dbName);
+  });
+
+  it('writes transactional audit events for Course mutations', async () => {
+    const audit = app.get(AuditService);
+    const record = vi.spyOn(audit, 'recordTenant');
+
+    const created = await createCourse().expect(201);
+    expect(record.mock.calls.some(([, event]) => event.action === 'course.created' && event.entityType === 'COURSE' && event.entityId === created.body.id)).toBe(true);
+
+    record.mockClear();
+    await authorized('patch', `/courses/${created.body.id}`)
+      .send({ name: ' Renamed ', status: 'DISABLED' })
+      .expect(200);
+    const update = record.mock.calls.find(([, event]) => event.action === 'course.updated');
+    expect(update).toBeTruthy();
+    expect((update![1].before as { status?: string }).status).toBe('ACTIVE');
+    expect((update![1].after as { status?: string }).status).toBe('DISABLED');
+  });
+
+  it('manages ordered CourseLevels per Course with audit', async () => {
+    const audit = app.get(AuditService);
+    const record = vi.spyOn(audit, 'recordTenant');
+    const course = await createCourse().expect(201);
+
+    const first = await authorized('post', `/courses/${course.body.id}/levels`)
+      .send({ code: ' lvl-b ', name: ' Level B ' })
+      .expect(201);
+    expect(first.body).toMatchObject({
+      courseId: course.body.id,
+      code: 'LVL-B',
+      name: 'Level B',
+      displayOrder: 0,
+      status: 'ACTIVE',
+    });
+    const second = await authorized('post', `/courses/${course.body.id}/levels`)
+      .send({ code: 'LVL-A', name: 'Level A', displayOrder: 1 })
+      .expect(201);
+    expect(record.mock.calls.some(([, event]) => event.action === 'course_level.created' && event.entityId === second.body.id)).toBe(true);
+
+    await authorized('post', `/courses/${course.body.id}/levels`)
+      .send({ code: ' lvl-a ', name: 'Duplicate' })
+      .expect(409);
+    await authorized('post', `/courses/${course.body.id}/levels`)
+      .send({ code: '', name: '' })
+      .expect(400);
+    await authorized('get', `/courses/01JHZX3V8Q9K5M2N7R4T6W1Y0P/levels`).expect(404);
+
+    await authorized('get', `/courses/${course.body.id}/levels`)
+      .expect(200)
+      .expect(({ body }) => expect(body.map((level: { code: string }) => level.code)).toEqual(['LVL-B', 'LVL-A']));
+
+    record.mockClear();
+    await authorized('patch', `/courses/${course.body.id}/levels/${second.body.id}`)
+      .send({ name: ' Level A2 ', displayOrder: 2, status: 'DISABLED' })
+      .expect(200)
+      .expect(({ body }) => expect(body).toMatchObject({ name: 'Level A2', displayOrder: 2, status: 'DISABLED' }));
+    expect(record.mock.calls.some(([, event]) => event.action === 'course_level.updated')).toBe(true);
+    await authorized('patch', `/courses/${course.body.id}/levels/${second.body.id}`)
+      .send({ code: 'lvl-b' })
+      .expect(409);
+    await authorized('get', `/courses/${course.body.id}/levels`, 'beta').expect(404);
   });
 });

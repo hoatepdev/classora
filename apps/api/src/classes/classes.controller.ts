@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { RequirePermissions } from '../authorization/permission.decorator.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 import { ApiConflictResponse, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import {
   ApiInvalidRequest,
@@ -23,12 +25,14 @@ export class ClassesController {
   constructor(private readonly classes: ClassesService) {}
 
   @Get()
+  @RequirePermissions(PERMISSIONS.CLASS_READ)
   @ApiOkResponse({ schema: arraySchema('Class') })
   list() {
     return this.classes.list();
   }
 
   @Get(':id')
+  @RequirePermissions(PERMISSIONS.CLASS_READ)
   @ApiUlidParam()
   @ApiOkResponse({ schema: schemaRef('Class') })
   get(@Param() { id }: ClassIdDto) {
@@ -36,6 +40,7 @@ export class ClassesController {
   }
 
   @Post()
+  @RequirePermissions(PERMISSIONS.CLASS_WRITE)
   @ApiInvalidRequest()
   @ApiCreatedResponse({ schema: schemaRef('Class') })
   @ApiConflictResponse({ description: 'Class code exists or course is disabled', ...errorResponse })
@@ -44,6 +49,7 @@ export class ClassesController {
   }
 
   @Patch(':id')
+  @RequirePermissions(PERMISSIONS.CLASS_WRITE)
   @ApiUlidParam()
   @ApiOkResponse({ schema: schemaRef('Class') })
   @ApiConflictResponse({ description: 'Class code exists or course is disabled', ...errorResponse })

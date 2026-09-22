@@ -197,6 +197,71 @@ function catalogDiff(expected, actual) {
   return diff.join('\n');
 }
 
+async function assertLocal04Constraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const courseId = '01J0000000000000000000000E';
+  const teacherId = '01J0000000000000000000000F';
+  const branchId = '01J0000000000000000000000G';
+  const otherBranchId = '01J0000000000000000000000H';
+  const otherTeacherId = '01J0000000000000000000000K';
+  const otherCourseId = '01J0000000000000000000000M';
+  const otherRoomId = '01J0000000000000000000000N';
+  const otherLevelId = '01J0000000000000000000000P';
+  await execute(dbName, `
+    INSERT INTO courses (id, tenant_id, code, name) VALUES ('${courseId}', '${tenantId}', 'SCHEMA-C1', 'Schema Course');
+    INSERT INTO teachers (id, tenant_id, code, name) VALUES ('${teacherId}', '${tenantId}', 'SCHEMA-T1', 'Schema Teacher');
+    INSERT INTO branches (id, tenant_id, code, name) VALUES ('${branchId}', '${tenantId}', 'SCHEMA-B1', 'Schema Branch');
+    INSERT INTO teacher_branches (id, tenant_id, teacher_id, branch_id) VALUES ('01J0000000000000000000000T', '${tenantId}', '${teacherId}', '${branchId}');
+    INSERT INTO rooms (id, tenant_id, branch_id, code, name) VALUES ('01J0000000000000000000000R', '${tenantId}', '${branchId}', 'SCHEMA-R1', 'Schema Room');
+    INSERT INTO course_levels (id, tenant_id, course_id, code, name) VALUES ('01J0000000000000000000000S', '${tenantId}', '${courseId}', 'SCHEMA-L1', 'Schema Level');
+    INSERT INTO classes (id, tenant_id, course_id, code, name) VALUES ('01J0000000000000000000000V', '${tenantId}', '${courseId}', 'SCHEMA-K1', 'Schema Class');
+    INSERT INTO teachers (id, tenant_id, code, name) VALUES ('${otherTeacherId}', '${otherTenantId}', 'SCHEMA-T2', 'Other Teacher');
+    INSERT INTO branches (id, tenant_id, code, name) VALUES ('${otherBranchId}', '${otherTenantId}', 'SCHEMA-B2', 'Other Branch');
+    INSERT INTO courses (id, tenant_id, code, name) VALUES ('${otherCourseId}', '${otherTenantId}', 'SCHEMA-C2', 'Other Course');
+    INSERT INTO rooms (id, tenant_id, branch_id, code, name) VALUES ('${otherRoomId}', '${otherTenantId}', '${otherBranchId}', 'SCHEMA-R2', 'Other Room');
+    INSERT INTO course_levels (id, tenant_id, course_id, code, name) VALUES ('${otherLevelId}', '${otherTenantId}', '${otherCourseId}', 'SCHEMA-L2', 'Other Level');
+  `);
+  const crossTenant = async (sql, message) =>
+    assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await crossTenant(
+    `INSERT INTO rooms (id, tenant_id, branch_id, code, name) VALUES ('01J0000000000000000000000W', '${otherTenantId}', '${branchId}', 'X', 'Cross')`,
+    'cross-tenant Room → Branch relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO course_levels (id, tenant_id, course_id, code, name) VALUES ('01J0000000000000000000000X', '${otherTenantId}', '${courseId}', 'X', 'Cross')`,
+    'cross-tenant CourseLevel → Course relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO teacher_branches (id, tenant_id, teacher_id, branch_id) VALUES ('01J0000000000000000000000Y', '${otherTenantId}', '${teacherId}', '${otherBranchId}')`,
+    'cross-tenant TeacherBranch → Teacher relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO teacher_branches (id, tenant_id, teacher_id, branch_id) VALUES ('01J0000000000000000000000Z', '${otherTenantId}', '${otherTeacherId}', '${branchId}')`,
+    'cross-tenant TeacherBranch → Branch relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO classes (id, tenant_id, course_id, code, name) VALUES ('01J000000000000000000000A0', '${otherTenantId}', '${courseId}', 'X', 'Cross')`,
+    'cross-tenant Class → Course relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO classes (id, tenant_id, course_id, branch_id, code, name) VALUES ('01J000000000000000000000A1', '${tenantId}', '${courseId}', '${otherBranchId}', 'X', 'Cross')`,
+    'cross-tenant Class → Branch relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO classes (id, tenant_id, course_id, default_room_id, code, name) VALUES ('01J000000000000000000000A2', '${tenantId}', '${courseId}', '${otherRoomId}', 'X', 'Cross')`,
+    'cross-tenant Class → Room relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO classes (id, tenant_id, course_id, primary_teacher_id, code, name) VALUES ('01J000000000000000000000A3', '${tenantId}', '${courseId}', '${otherTeacherId}', 'X', 'Cross')`,
+    'cross-tenant Class → Teacher relationship was allowed',
+  );
+  await crossTenant(
+    `INSERT INTO classes (id, tenant_id, course_id, course_level_id, code, name) VALUES ('01J000000000000000000000A4', '${tenantId}', '${courseId}', '${otherLevelId}', 'X', 'Cross')`,
+    'cross-tenant Class → CourseLevel relationship was allowed',
+  );
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -246,6 +311,8 @@ async function main() {
   assert.deepEqual(await query(legacy, 'SELECT code, full_name FROM students'), legacyRows);
   await assertStudent360Constraints(fresh, 'fresh');
   await assertStudent360Constraints(legacy, 'legacy');
+  await assertLocal04Constraints(fresh, 'fresh');
+  await assertLocal04Constraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

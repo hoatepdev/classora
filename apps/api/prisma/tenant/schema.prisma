@@ -115,26 +115,93 @@ model StudentNote {
   @@map("student_notes")
 }
 
+model Branch {
+  id        String   @id @db.Char(26)
+  tenantId  String   @map("tenant_id") @db.Char(26)
+  code      String
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  status    String   @default("ACTIVE")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  rooms     Room[]
+  classes   Class[]
+  teachers  TeacherBranch[]
+
+  @@unique([tenantId, code], map: "branches_tenant_id_code_key")
+  @@index([tenantId, name, id], map: "branches_tenant_id_name_id_idx")
+  @@map("branches")
+}
+
+model Room {
+  id        String   @id @db.Char(26)
+  tenantId  String   @map("tenant_id") @db.Char(26)
+  branchId  String   @map("branch_id") @db.Char(26)
+  code      String
+  name      String
+  capacity  Int?
+  status    String   @default("ACTIVE")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  classes   Class[]
+
+  @@unique([tenantId, branchId, code], map: "rooms_tenant_id_branch_id_code_key")
+  @@index([tenantId, branchId, name, id], map: "rooms_tenant_id_branch_id_name_id_idx")
+  @@map("rooms")
+}
+
 model Course {
-  id          String   @id @db.Char(26)
-  tenantId    String   @map("tenant_id") @db.Char(26)
+  id          String        @id @db.Char(26)
+  tenantId    String        @map("tenant_id") @db.Char(26)
   code        String
   name        String
   description String?
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  status      String        @default("ACTIVE")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamptz
   classes     Class[]
+  levels      CourseLevel[]
 
   @@unique([tenantId, code], map: "courses_tenant_id_code_key")
   @@index([tenantId, name, id], map: "courses_tenant_id_name_id_idx")
   @@map("courses")
 }
 
+model CourseLevel {
+  id           String   @id @db.Char(26)
+  tenantId     String   @map("tenant_id") @db.Char(26)
+  courseId     String   @map("course_id") @db.Char(26)
+  code         String
+  name         String
+  displayOrder Int      @default(0) @map("display_order")
+  description  String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz
+  course       Course   @relation(fields: [courseId], references: [id])
+  classes      Class[]
+
+  @@unique([tenantId, courseId, code], map: "course_levels_tenant_id_course_id_code_key")
+  @@index([tenantId, courseId, displayOrder, id], map: "course_levels_tenant_id_course_id_order_id_idx")
+  @@map("course_levels")
+}
+
 model Class {
   id                 String              @id @db.Char(26)
   tenantId           String              @map("tenant_id") @db.Char(26)
   courseId           String?             @map("course_id") @db.Char(26)
+  branchId           String?             @map("branch_id") @db.Char(26)
+  courseLevelId      String?             @map("course_level_id") @db.Char(26)
+  defaultRoomId      String?             @map("default_room_id") @db.Char(26)
+  primaryTeacherId   String?             @map("primary_teacher_id") @db.Char(26)
+  capacity           Int?
+  startDate          DateTime?           @map("start_date") @db.Date
+  expectedEndDate    DateTime?           @map("expected_end_date") @db.Date
   code               String
   name               String
   description        String?
@@ -142,6 +209,10 @@ model Class {
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   course             Course?             @relation(fields: [courseId], references: [id])
+  branch             Branch?             @relation(fields: [branchId], references: [id])
+  courseLevel       CourseLevel?        @relation(fields: [courseLevelId], references: [id])
+  defaultRoom        Room?               @relation(fields: [defaultRoomId], references: [id])
+  primaryTeacher     Teacher?            @relation(fields: [primaryTeacherId], references: [id])
   enrollments        Enrollment[]
   schedules          Schedule[]
   attendanceSessions AttendanceSession[]
@@ -149,6 +220,7 @@ model Class {
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
   @@index([tenantId, name, id], map: "classes_tenant_id_name_id_idx")
   @@index([tenantId, courseId, name, id], map: "classes_tenant_id_course_id_name_id_idx")
+  @@index([tenantId, branchId, status, name, id], map: "classes_tenant_id_branch_id_status_name_id_idx")
   @@map("classes")
 }
 
@@ -160,15 +232,32 @@ model Teacher {
   phone              String?
   email              String?
   note               String?
+  specialties        String[]            @default([])
   status             String              @default("ACTIVE")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   schedules          Schedule[]
   attendanceSessions AttendanceSession[]
+  branches           TeacherBranch[]
+  classes            Class[]
 
   @@unique([tenantId, code], map: "teachers_tenant_id_code_key")
   @@index([tenantId, name, id], map: "teachers_tenant_id_name_id_idx")
   @@map("teachers")
+}
+
+model TeacherBranch {
+  id        String   @id @db.Char(26)
+  tenantId  String   @map("tenant_id") @db.Char(26)
+  teacherId String   @map("teacher_id") @db.Char(26)
+  branchId  String   @map("branch_id") @db.Char(26)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  @@unique([tenantId, teacherId, branchId], map: "teacher_branches_tenant_teacher_branch_key")
+  @@index([tenantId, branchId, teacherId], map: "teacher_branches_tenant_branch_teacher_idx")
+  @@map("teacher_branches")
 }
 
 model Enrollment {
