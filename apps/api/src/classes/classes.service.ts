@@ -94,6 +94,7 @@ export class ClassesService {
         expectedEndDate: Object.hasOwn(input, 'expectedEndDate') ? input.expectedEndDate : old.expectedEndDate,
       } as CreateClassDto;
       await this.validateRelationships(client, context.tenant.tenantId, proposed, false, old, input);
+      if ((input.branchId !== undefined || input.courseLevelId !== undefined) && (await client.query('SELECT 1 FROM enrollments WHERE tenant_id=$1 AND class_id=$2 LIMIT 1', [context.tenant.tenantId, id])).rows[0]) throw new ConflictException('Class academic structure cannot change after enrollment history exists');
       await client.query(`UPDATE classes SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = $1 AND id = $2`, [context.tenant.tenantId, id, ...values]);
       const row = await this.lockedRow(client, context.tenant.tenantId, id);
       await this.audit.recordTenant(client, { ...actor(context), action: 'class.updated', entityType: 'CLASS', entityId: id, before: snapshot(old), after: snapshot(row) });

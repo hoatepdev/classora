@@ -262,6 +262,66 @@ async function assertLocal04Constraints(dbName, label) {
   );
 }
 
+async function assertLocal05Constraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const studentId = '01J00000000000000000000000';
+  const otherStudentId = '01J000000000000000000000B0';
+  const otherCourseId = '01J0000000000000000000000M';
+  const otherClassId = '01J000000000000000000000B1';
+  const classId = '01J0000000000000000000000V';
+  await execute(dbName, `
+    INSERT INTO students (id, tenant_id, code, full_name) VALUES ('${otherStudentId}', '${otherTenantId}', 'SCHEMA-S2', 'Other Student');
+    INSERT INTO classes (id, tenant_id, course_id, code, name) VALUES ('${otherClassId}', '${otherTenantId}', '${otherCourseId}', 'SCHEMA-K2', 'Other Class');
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B2', '${tenantId}', '${studentId}', '${classId}', 'ACTIVE');
+  `);
+  const rejects = async (sql, message) => assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await rejects(
+    `INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B3', '${tenantId}', '${studentId}', '${classId}', 'ACTIVE')`,
+    'duplicate operational Enrollment was allowed',
+  );
+  await rejects(
+    `INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B4', '${otherTenantId}', '${studentId}', '${otherClassId}', 'ACTIVE')`,
+    'cross-tenant Enrollment → Student relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B5', '${tenantId}', '${otherStudentId}', '${classId}', 'ACTIVE')`,
+    'cross-tenant Enrollment → Class relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B6', '${tenantId}', '${studentId}', '${classId}', 'SUSPENDED')`,
+    'invalid Enrollment status was allowed',
+  );
+  await execute(dbName, `
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B7', '${otherTenantId}', '${otherStudentId}', '${otherClassId}', 'WITHDRAWN');
+    UPDATE enrollments SET status = 'WITHDRAWN' WHERE id = '01J000000000000000000000B2';
+  `);
+  await execute(dbName, `
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B8', '${tenantId}', '${studentId}', '${classId}', 'ACTIVE');
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('01J000000000000000000000B9', '${tenantId}', '${studentId}', '${classId}', 'WITHDRAWN');
+  `);
+  await rejects(
+    `UPDATE enrollments SET status = 'SUSPENDED' WHERE id = '01J000000000000000000000B8'`,
+    'Enrollment status CHECK was not enforced on UPDATE',
+  );
+  await rejects(
+    `INSERT INTO enrollments (id, tenant_id, student_id, class_id, status, source_enrollment_id) VALUES ('01J000000000000000000000BA', '${otherTenantId}', '${otherStudentId}', '${otherClassId}', 'ACTIVE', '01J000000000000000000000B8')`,
+    'cross-tenant Enrollment → source Enrollment relationship was allowed',
+  );
+  await execute(dbName, `
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status, source_enrollment_id) VALUES ('01J000000000000000000000BB', '${otherTenantId}', '${otherStudentId}', '${otherClassId}', 'ACTIVE', '01J000000000000000000000B7');
+    INSERT INTO enrollment_events (id, tenant_id, enrollment_id, type, from_status, to_status) VALUES ('01J000000000000000000000BC', '${otherTenantId}', '01J000000000000000000000BB', 'ENROLLED', NULL, 'ACTIVE');
+  `);
+  await rejects(
+    `INSERT INTO enrollment_events (id, tenant_id, enrollment_id, type) VALUES ('01J000000000000000000000BD', '${tenantId}', '01J000000000000000000000BB', 'ENROLLED')`,
+    'cross-tenant EnrollmentEvent → Enrollment relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO enrollment_events (id, tenant_id, enrollment_id, type) VALUES ('01J000000000000000000000BE', '${otherTenantId}', '01J000000000000000000000BB', 'HACKED')`,
+    'invalid EnrollmentEvent type was allowed',
+  );
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -313,6 +373,8 @@ async function main() {
   await assertStudent360Constraints(legacy, 'legacy');
   await assertLocal04Constraints(fresh, 'fresh');
   await assertLocal04Constraints(legacy, 'legacy');
+  await assertLocal05Constraints(fresh, 'fresh');
+  await assertLocal05Constraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

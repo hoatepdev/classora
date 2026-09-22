@@ -265,10 +265,21 @@ export const openApiSchemas = {
       ...resourceProperties,
       studentId: ulid,
       classId: ulid,
-      status: { type: 'string', enum: ['ACTIVE', 'WITHDRAWN'] },
+      status: { type: 'string', enum: ['PENDING', 'TRIAL', 'ACTIVE', 'PAUSED', 'COMPLETED', 'WITHDRAWN', 'CANCELLED'] },
       enrolledAt: timestamp,
+      startedAt: { ...timestamp, nullable: true },
+      endedAt: { ...timestamp, nullable: true },
+      pauseStartedAt: { ...timestamp, nullable: true },
+      expectedEndDate: { type: 'string', format: 'date', nullable: true },
+      sourceEnrollmentId: { ...ulid, nullable: true },
+      notes: nullableString,
     },
-    required: [...resourceRequired, 'studentId', 'classId', 'status', 'enrolledAt'],
+    required: [...resourceRequired, 'studentId', 'classId', 'status', 'enrolledAt', 'startedAt', 'endedAt', 'pauseStartedAt', 'expectedEndDate', 'sourceEnrollmentId', 'notes'],
+  },
+  EnrollmentEvent: {
+    type: 'object',
+    properties: { id: ulid, type: { type: 'string' }, fromStatus: nullableString, toStatus: nullableString, fromClassId: { ...ulid, nullable: true }, toClassId: { ...ulid, nullable: true }, reason: nullableString, metadata: { type: 'object', nullable: true }, actorUserId: { ...ulid, nullable: true }, actorMembershipId: { ...ulid, nullable: true }, occurredAt: timestamp },
+    required: ['id', 'type', 'fromStatus', 'toStatus', 'fromClassId', 'toClassId', 'reason', 'metadata', 'actorUserId', 'actorMembershipId', 'occurredAt'],
   },
   EnrollmentStudent: {
     allOf: [

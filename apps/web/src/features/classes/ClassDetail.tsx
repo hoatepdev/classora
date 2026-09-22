@@ -9,7 +9,10 @@ import {
   studentEnrollmentQueryKey,
   withdrawEnrollment,
 } from "../enrollments/api.js";
+import { EnrollmentLifecycleActions } from "../enrollments/EnrollmentLifecycleActions.js";
 import { ClassAttendanceSection } from "../attendance/ClassAttendanceSection.js";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import { ClassSchedulesSection } from "../schedules/ClassSchedulesSection.js";
 import { listStudents, studentQueryKey } from "../students/api.js";
 import { classQueryKey, getClass } from "./api.js";
@@ -35,6 +38,10 @@ export function ClassDetail() {
     queryKey: studentQueryKey(),
     queryFn: () => listStudents(),
   });
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canEnrollmentWrite = can(membership, "enrollment.write");
   const enroll = useMutation({
     mutationFn: createEnrollment,
     onSuccess: async (enrollment) => {
@@ -54,7 +61,7 @@ export function ClassDetail() {
     },
   });
   const withdraw = useMutation({
-    mutationFn: withdrawEnrollment,
+    mutationFn: (id: string) => withdrawEnrollment(id),
     onSuccess: async (enrollment) => {
       setMutationError("");
       await Promise.all([
@@ -88,7 +95,7 @@ export function ClassDetail() {
     ["Thời gian", classRecord.data.startDate || classRecord.data.expectedEndDate ? `${classRecord.data.startDate?.slice(0, 10) ?? "?"} – ${classRecord.data.expectedEndDate?.slice(0, 10) ?? "?"}` : "—"],
   ];
   const activeStudentIds = new Set(
-    enrollments.data?.filter((enrollment) => enrollment.status === "ACTIVE").map((enrollment) => enrollment.studentId),
+    enrollments.data?.filter((enrollment) => ["PENDING", "TRIAL", "ACTIVE", "PAUSED"].includes(enrollment.status)).map((enrollment) => enrollment.studentId),
   );
   const availableStudents = students.data?.data.filter(
     (student) => student.status === "ACTIVE" && !activeStudentIds.has(student.id),
@@ -135,9 +142,9 @@ export function ClassDetail() {
           <tbody>{enrollments.data.map((enrollment) => <tr key={enrollment.id}>
             <td className="code" data-label="Mã học viên">{enrollment.studentCode}</td>
             <td className="name" data-label="Họ và tên"><Link className="action-link" to={`/students/${enrollment.studentId}`}>{enrollment.studentFullName}</Link></td>
-            <td data-label="Trạng thái"><span className={`status ${enrollment.status === "WITHDRAWN" ? "disabled" : ""}`}>{enrollment.status === "ACTIVE" ? "Đang học" : "Đã rút"}</span></td>
+            <td data-label="Trạng thái"><span className={`status ${enrollment.status === "WITHDRAWN" ? "disabled" : ""}`}>{enrollment.status === "ACTIVE" ? "Đang học" : enrollment.status === "PAUSED" ? "Tạm dừng" : enrollment.status === "PENDING" ? "Chờ bắt đầu" : enrollment.status === "TRIAL" ? "Học thử" : enrollment.status === "COMPLETED" ? "Đã hoàn thành" : enrollment.status === "CANCELLED" ? "Đã hủy" : "Đã rút"}</span></td>
             <td data-label="Ngày ghi danh">{dateFormatter.format(new Date(enrollment.enrolledAt))}</td>
-            <td data-label="Thao tác">{enrollment.status === "ACTIVE" ? <button className="action-button" type="button" disabled={withdraw.isPending} onClick={() => withdraw.mutate(enrollment.id)}>Rút khỏi lớp</button> : "—"}</td>
+            <td data-label="Thao tác"><EnrollmentLifecycleActions enrollment={enrollment} canWrite={canEnrollmentWrite} /></td>
           </tr>)}</tbody>
         </table>
       </div>}

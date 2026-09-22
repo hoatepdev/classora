@@ -41,8 +41,14 @@ type EnrollmentRecord = {
   tenantId: string;
   studentId: string;
   classId: string;
-  status: 'ACTIVE' | 'WITHDRAWN';
+  status: 'PENDING' | 'TRIAL' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'WITHDRAWN' | 'CANCELLED';
   enrolledAt: Date;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  pauseStartedAt: Date | null;
+  expectedEndDate: string | null;
+  sourceEnrollmentId: string | null;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -55,14 +61,60 @@ function enrollmentPool(
     [ids.studentId, { id: ids.studentId, tenantId, code: 'ST001', fullName: 'Nguyen Van A' }],
   ]);
   const classes = new Map([
-    [ids.classId, { id: ids.classId, tenantId, code: 'CLS001', name: 'English Beginner' }],
+    [ids.classId, { id: ids.classId, tenantId, code: 'CLS001', name: 'English Beginner', status: 'ACTIVE', capacity: null }],
   ]);
   const enrollments = new Map<string, EnrollmentRecord>();
+  const events: unknown[] = [];
+  const auditEvents: unknown[] = [];
   const now = () => new Date('2026-09-15T00:00:00.000Z');
 
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
+    if (sql.includes('SELECT status FROM students')) {
+      const [requestedTenantId, requestedStudentId] = values as string[];
+      const student = students.get(requestedStudentId);
+      return student?.tenantId === requestedTenantId ? { rows: [{ status: 'ACTIVE' }] } : { rows: [] };
+    }
+
+    if (sql.includes('SELECT status FROM classes')) {
+      const [requestedTenantId, requestedClassId] = values as string[];
+      const classRecord = classes.get(requestedClassId);
+      return classRecord?.tenantId === requestedTenantId ? { rows: [{ status: classRecord.status }] } : { rows: [] };
+    }
+
+    if (sql.includes('SELECT capacity FROM classes')) {
+      const [requestedTenantId, requestedClassId] = values as string[];
+      const classRecord = classes.get(requestedClassId);
+      return classRecord?.tenantId === requestedTenantId ? { rows: [{ capacity: classRecord.capacity }] } : { rows: [] };
+    }
+
+    if (sql.includes('SELECT COUNT(*)')) {
+      const [requestedTenantId, requestedClassId, excludedId] = values as string[];
+      const count = [...enrollments.values()].filter((row) =>
+        row.tenantId === requestedTenantId && row.classId === requestedClassId &&
+        ['PENDING', 'TRIAL', 'ACTIVE', 'PAUSED'].includes(row.status) && row.id !== excludedId,
+      ).length;
+      return { rows: [{ count: String(count) }] };
+    }
+
+    if (sql.includes('INSERT INTO enrollment_events')) {
+      events.push(values);
+      return { rows: [] };
+    }
+
+    if (sql.includes('INSERT INTO audit_events')) {
+      auditEvents.push(values);
+      return { rows: [] };
+    }
+
+    if (sql.includes('SELECT') && sql.includes('FROM enrollments e') && sql.includes('FOR UPDATE')) {
+      const [, id] = values as string[];
+      const enrollment = enrollments.get(id);
+      return { rows: enrollment ? [enrollment] : [] };
+    }
+
     if (sql.includes('INSERT INTO enrollments')) {
-      const [id, requestedTenantId, requestedStudentId, requestedClassId] = values as string[];
+      const [id, requestedTenantId, requestedStudentId, requestedClassId, requestedStatus, enrolledAt, startedAt, , sourceEnrollmentId, notes] = values as (string | Date | null)[];
       if (!students.has(requestedStudentId)) {
         throw Object.assign(new Error('missing student'), {
           code: '23503',
@@ -81,20 +133,20 @@ function enrollmentPool(
           row.studentId === requestedStudentId &&
           row.classId === requestedClassId,
       );
-      if (existing?.status === 'ACTIVE') return { rows: [] };
-      if (existing) {
-        existing.status = 'ACTIVE';
-        existing.enrolledAt = now();
-        existing.updatedAt = now();
-        return { rows: [existing] };
-      }
+      if (existing && ['PENDING', 'TRIAL', 'ACTIVE', 'PAUSED'].includes(existing.status)) return { rows: [] };
       const enrollment: EnrollmentRecord = {
-        id,
-        tenantId: requestedTenantId,
-        studentId: requestedStudentId,
-        classId: requestedClassId,
-        status: 'ACTIVE',
-        enrolledAt: now(),
+        id: id as string,
+        tenantId: requestedTenantId as string,
+        studentId: requestedStudentId as string,
+        classId: requestedClassId as string,
+        status: (requestedStatus as EnrollmentRecord['status']) ?? 'PENDING',
+        enrolledAt: enrolledAt ? new Date(enrolledAt) : now(),
+        startedAt: startedAt ? new Date(startedAt) : null,
+        endedAt: null,
+        pauseStartedAt: null,
+        expectedEndDate: null,
+        sourceEnrollmentId: sourceEnrollmentId as string | null,
+        notes: notes as string | null,
         createdAt: now(),
         updatedAt: now(),
       };
@@ -103,20 +155,29 @@ function enrollmentPool(
     }
 
     if (sql.includes('UPDATE enrollments')) {
-      const [requestedTenantId, id] = values;
+      const [requestedTenantId, id, nextStatus, effectiveAt] = values as (string | Date | null)[];
       const enrollment = enrollments.get(id as string);
-      if (enrollment?.tenantId !== requestedTenantId || enrollment.status !== 'ACTIVE') {
-        return { rows: [] };
-      }
-      enrollment.status = 'WITHDRAWN';
+      if (!enrollment || enrollment.tenantId !== requestedTenantId) return { rows: [] };
+      if (typeof nextStatus === 'string') enrollment.status = nextStatus as EnrollmentRecord['status'];
+      if (enrollment.status === 'WITHDRAWN' || enrollment.status === 'COMPLETED' || enrollment.status === 'CANCELLED') enrollment.endedAt = effectiveAt ? new Date(effectiveAt) : now();
       enrollment.updatedAt = now();
       return { rows: [enrollment] };
+    }
+
+    if (sql.includes('FROM enrollments e WHERE e.tenant_id=$1 AND e.id=$2')) {
+      const [requestedTenantId, id] = values;
+      const enrollment = enrollments.get(id as string);
+      return { rows: enrollment?.tenantId === requestedTenantId ? [enrollment] : [] };
     }
 
     if (sql.includes('SELECT 1 FROM enrollments')) {
       const [requestedTenantId, id] = values;
       const enrollment = enrollments.get(id as string);
       return { rows: enrollment?.tenantId === requestedTenantId ? [{ exists: 1 }] : [] };
+    }
+
+    if (sql.includes('FROM enrollment_events')) {
+      return { rows: [] };
     }
 
     if (sql.includes('SELECT 1 FROM classes')) {
@@ -131,7 +192,7 @@ function enrollmentPool(
       return { rows: student?.tenantId === requestedTenantId ? [{ exists: 1 }] : [] };
     }
 
-    if (sql.includes('FROM enrollments e') && sql.includes('e.class_id = $2')) {
+    if (sql.includes('FROM enrollments e') && (sql.includes('e.class_id = $2') || sql.includes('e.class_id=$2'))) {
       const [requestedTenantId, requestedClassId] = values;
       return {
         rows: [...enrollments.values()]
@@ -146,7 +207,7 @@ function enrollmentPool(
       };
     }
 
-    if (sql.includes('FROM enrollments e') && sql.includes('e.student_id = $2')) {
+    if (sql.includes('FROM enrollments e') && (sql.includes('e.student_id = $2') || sql.includes('e.student_id=$2'))) {
       const [requestedTenantId, requestedStudentId] = values;
       return {
         rows: [...enrollments.values()]
@@ -164,7 +225,8 @@ function enrollmentPool(
     throw new Error(`Unexpected query: ${sql}`);
   });
 
-  return { pool: { query } as unknown as Pool, query, enrollments };
+  const client = { query, release: vi.fn() };
+  return { pool: { query, connect: vi.fn(async () => client) } as unknown as Pool, query, client, enrollments };
 }
 
 describe('enrollments', () => {
@@ -220,7 +282,7 @@ describe('enrollments', () => {
 
   it('enrolls a Student in a Class and exposes both sides of the relationship', async () => {
     const created = await authorized('post', '/enrollments')
-      .send({ studentId, classId })
+      .send({ studentId, classId, status: 'ACTIVE' })
       .expect(201);
 
     expect(created.body).toMatchObject({
@@ -274,8 +336,8 @@ describe('enrollments', () => {
   it('withdraws and re-enrolls the canonical Student-Class enrollment', async () => {
     const enrollment = [...alpha.enrollments.values()][0];
 
-    await authorized('patch', `/enrollments/${enrollment.id}`)
-      .send({ status: 'WITHDRAWN' })
+    await authorized('post', `/enrollments/${enrollment.id}/withdraw`)
+      .send({ reason: 'Student request' })
       .expect(200)
       .expect(({ body }) => expect(body.status).toBe('WITHDRAWN'));
 
@@ -283,16 +345,17 @@ describe('enrollments', () => {
       .expect(200)
       .expect(({ body }) => expect(body[0].status).toBe('WITHDRAWN'));
 
-    await authorized('patch', `/enrollments/${enrollment.id}`)
-      .send({ status: 'WITHDRAWN' })
+    await authorized('post', `/enrollments/${enrollment.id}/withdraw`)
+      .send({ reason: 'Duplicate withdrawal' })
       .expect(409);
 
-    await authorized('post', '/enrollments')
-      .send({ studentId, classId })
+    await authorized('post', `/enrollments/${enrollment.id}/reenroll`)
+      .send({ studentId, classId, status: 'ACTIVE' })
       .expect(201)
       .expect(({ body }) => {
-        expect(body.id).toBe(enrollment.id);
+        expect(body.id).not.toBe(enrollment.id);
         expect(body.status).toBe('ACTIVE');
+        expect(body.sourceEnrollmentId).toBe(enrollment.id);
       });
   });
 
@@ -303,11 +366,11 @@ describe('enrollments', () => {
     await authorized('post', '/enrollments')
       .send({ studentId, classId, tenantId: tenants.beta.id })
       .expect(400);
-    await authorized('patch', `/enrollments/${[...alpha.enrollments.values()][0].id}`)
-      .send({ status: 'ACTIVE' })
-      .expect(400);
-    await authorized('patch', '/enrollments/not-an-id')
-      .send({ status: 'WITHDRAWN' })
+    await authorized('post', `/enrollments/${[...alpha.enrollments.values()][0].id}/activate`)
+      .send({})
+      .expect(409);
+    await authorized('post', '/enrollments/not-an-id/withdraw')
+      .send({})
       .expect(400);
     await authorized('get', '/classes/01JHZX3V8Q9K5M2N7R4T6W9Z9Z/students').expect(404);
     await authorized('get', '/students/01JHZX3V8Q9K5M2N7R4T6W9Z9Y/classes').expect(404);
@@ -324,17 +387,17 @@ describe('enrollments', () => {
       .expect(404);
     await authorized('get', `/classes/${classId}/students`, 'beta').expect(404);
     await authorized('get', `/students/${studentId}/classes`, 'beta').expect(404);
-    await authorized('patch', `/enrollments/${alphaEnrollment.id}`, 'beta')
-      .send({ status: 'WITHDRAWN' })
+    await authorized('post', `/enrollments/${alphaEnrollment.id}/withdraw`, 'beta')
+      .send({})
       .expect(404);
 
-    expect(alpha.enrollments.get(alphaEnrollment.id)?.status).toBe('ACTIVE');
+    expect(alpha.enrollments.get(alphaEnrollment.id)?.status).toBe('WITHDRAWN');
     expect(connections.getConnection).toHaveBeenCalledWith(tenants.beta.dbName);
   });
 
   it('allows matching Student and Class codes in separate tenant databases', async () => {
     await authorized('post', '/enrollments', 'beta')
-      .send(records.beta)
+      .send({ ...records.beta, status: 'ACTIVE' })
       .expect(201)
       .expect(({ body }) => {
         expect(body.tenantId).toBe(tenants.beta.id);
@@ -343,7 +406,7 @@ describe('enrollments', () => {
       });
 
     expect(beta.enrollments).toHaveLength(1);
-    expect(alpha.enrollments).toHaveLength(1);
+    expect(alpha.enrollments).toHaveLength(2);
     expect(connections.releaseConnection).toHaveBeenCalledWith(tenants.beta.dbName, beta.pool);
   });
 });

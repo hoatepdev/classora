@@ -261,20 +261,50 @@ model TeacherBranch {
 }
 
 model Enrollment {
-  id         String   @id @db.Char(26)
-  tenantId   String   @map("tenant_id") @db.Char(26)
-  studentId  String   @map("student_id") @db.Char(26)
-  classId    String   @map("class_id") @db.Char(26)
-  status     String   @default("ACTIVE")
-  enrolledAt DateTime @default(now()) @map("enrolled_at") @db.Timestamptz
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  student    Student  @relation(fields: [studentId], references: [id])
-  class      Class    @relation(fields: [classId], references: [id])
+  id                 String            @id @db.Char(26)
+  tenantId           String            @map("tenant_id") @db.Char(26)
+  studentId          String            @map("student_id") @db.Char(26)
+  classId            String            @map("class_id") @db.Char(26)
+  status             String            @default("PENDING")
+  enrolledAt         DateTime          @default(now()) @map("enrolled_at") @db.Timestamptz
+  startedAt          DateTime?         @map("started_at") @db.Timestamptz
+  endedAt            DateTime?         @map("ended_at") @db.Timestamptz
+  pauseStartedAt     DateTime?         @map("pause_started_at") @db.Timestamptz
+  expectedEndDate    DateTime?         @map("expected_end_date") @db.Date
+  sourceEnrollmentId String?           @map("source_enrollment_id") @db.Char(26)
+  notes              String?
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  student            Student           @relation(fields: [studentId], references: [id])
+  class              Class             @relation(fields: [classId], references: [id])
+  sourceEnrollment   Enrollment?       @relation("EnrollmentSource", fields: [sourceEnrollmentId], references: [id])
+  derivedEnrollments Enrollment[]      @relation("EnrollmentSource")
+  events             EnrollmentEvent[]
 
-  @@unique([tenantId, studentId, classId], map: "enrollments_tenant_id_student_id_class_id_key")
   @@index([tenantId, classId, enrolledAt, id], map: "enrollments_tenant_id_class_id_enrolled_at_id_idx")
+  @@index([tenantId, studentId, enrolledAt, id], map: "enrollments_tenant_student_dates_idx")
   @@map("enrollments")
+}
+
+model EnrollmentEvent {
+  id               String     @id @db.Char(26)
+  tenantId         String     @map("tenant_id") @db.Char(26)
+  enrollmentId     String     @map("enrollment_id") @db.Char(26)
+  type             String
+  fromStatus       String?    @map("from_status")
+  toStatus         String?    @map("to_status")
+  fromClassId      String?    @map("from_class_id") @db.Char(26)
+  toClassId        String?    @map("to_class_id") @db.Char(26)
+  reason           String?
+  metadata         Json?
+  actorUserId      String?    @map("actor_user_id") @db.Char(26)
+  actorMembershipId String?   @map("actor_membership_id") @db.Char(26)
+  occurredAt       DateTime   @default(now()) @map("occurred_at") @db.Timestamptz
+  enrollment       Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  @@index([tenantId, enrollmentId, occurredAt, id])
+  @@index([tenantId, occurredAt, id])
+  @@map("enrollment_events")
 }
 
 /// Active duplicates are prevented by the migration's partial unique index, which Prisma cannot model.

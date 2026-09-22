@@ -99,10 +99,11 @@ describe('OpenAPI', () => {
     expect(body.components.schemas.StudentNote).toBeDefined();
     expect(body.components.schemas.StudentTag).toBeDefined();
     expect(body.components.schemas.StudentActivity).toBeDefined();
+    expect(body.components.schemas.EnrollmentEvent).toBeDefined();
     expect(body.components.schemas.Branch).toBeDefined();
     expect(body.components.schemas.Room).toBeDefined();
     expect(body.components.schemas.CourseLevel).toBeDefined();
-    for (const path of ['/branches', '/branches/{id}', '/rooms', '/rooms/{id}', '/courses/{id}/levels', '/courses/{id}/levels/{levelId}', '/teachers/{id}/branches']) {
+    for (const path of ['/branches', '/branches/{id}', '/rooms', '/rooms/{id}', '/courses/{id}/levels', '/courses/{id}/levels/{levelId}', '/teachers/{id}/branches', '/enrollments/{id}', '/enrollments/{id}/history']) {
       expect(body.paths[path]).toBeDefined();
       const operation = body.paths[path].get ?? body.paths[path].patch ?? body.paths[path].post;
       expect(operation.security).toEqual([{ bearer: [] }]);

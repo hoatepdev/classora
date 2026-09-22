@@ -1,7 +1,7 @@
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import type { VariantProps } from "class-variance-authority";
 
-type Status = "ACTIVE" | "DISABLED" | "WITHDRAWN" | "OPEN" | "COMPLETED" | "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
+type Status = "ACTIVE" | "DISABLED" | "WITHDRAWN" | "OPEN" | "COMPLETED" | "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | "PENDING" | "TRIAL" | "PAUSED" | "CANCELLED";
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
 
 const variants: Record<Status, BadgeVariant> = {
@@ -14,6 +14,10 @@ const variants: Record<Status, BadgeVariant> = {
   DISABLED: "inactive",
   WITHDRAWN: "inactive",
   COMPLETED: "inactive",
+  PENDING: "info",
+  TRIAL: "warning",
+  PAUSED: "warning",
+  CANCELLED: "inactive",
 };
 
 export function StatusBadge({ status, children }: { status: Status; children: React.ReactNode }) {

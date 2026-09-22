@@ -10,7 +10,7 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-02 | Audit Log | DONE |
 | LOCAL-03 | Student 360 + Guardians | DONE |
 | LOCAL-04 | Branch + Room + Teacher/Course completion | DONE |
-| LOCAL-05 | Enrollment Lifecycle | NEXT |
+| LOCAL-05 | Enrollment Lifecycle | DONE |
 | LOCAL-06 | Scheduling + Session Engine | Planned |
 | LOCAL-07 | Attendance + Makeup | Planned |
 | LOCAL-08 | Billing / Tuition | Planned |
@@ -43,6 +43,21 @@ idempotent rerun, cross-tenant composite-FK rejection). Branch is now an
 operational data dimension, but branch-scoped authorization remains deferred
 to LOCAL-19. The existing free-text schedule room is unchanged; a Class
 default Room is not occurrence scheduling.
+
+## LOCAL-05 notes
+
+Adds an explicit enrollment lifecycle: PENDING/TRIAL/ACTIVE/PAUSED operational
+statuses and COMPLETED/WITHDRAWN/CANCELLED terminal statuses, driven by
+dedicated command routes with an allowed-transition map instead of arbitrary
+status writes. Each command writes the enrollment, an EnrollmentEvent history
+record, and an audit event in one transaction with row locks and capacity
+checks. A partial unique index allows one operational enrollment per
+student+class while preserving full history, and composite foreign keys keep
+enrollments, source-enrollment links, and events tenant-bound. The disposable
+PostgreSQL gate passed for both a fresh tenant and a supported legacy upgrade
+(fresh/legacy catalog equivalence, LOCAL-05 constraint assertions, drift
+rejection, idempotent rerun). Re-enrollment always creates a new enrollment
+linked via source_enrollment_id; terminal rows are never reopened.
 
 ## LOCAL-00 notes
 
