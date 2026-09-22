@@ -28,9 +28,9 @@ export function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppShell />}>
         <Route path="/students" element={<StudentsPage />} />
-        <Route path="/students/new" element={<StudentForm />} />
+        <Route path="/students/new" element={<ProtectedRoute permission="student.write"><StudentForm /></ProtectedRoute>} />
         <Route path="/students/:id" element={<StudentDetail />} />
-        <Route path="/students/:id/edit" element={<StudentForm />} />
+        <Route path="/students/:id/edit" element={<ProtectedRoute permission="student.write"><StudentForm /></ProtectedRoute>} />
         <Route path="/courses" element={<CoursesPage />} />
         <Route path="/courses/new" element={<CourseForm />} />
         <Route path="/courses/:id" element={<CourseDetail />} />

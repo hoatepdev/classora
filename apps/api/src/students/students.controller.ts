@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiConflictResponse, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import {
   ApiInvalidRequest,
@@ -15,6 +15,7 @@ import { PERMISSIONS } from '../authorization/permissions.js';
 import { CreateStudentDto } from './dto/create-student.dto.js';
 import { StudentIdDto } from './dto/student-id.dto.js';
 import { UpdateStudentDto } from './dto/update-student.dto.js';
+import { StudentQueryDto } from './dto/student-query.dto.js';
 import { StudentsService } from './students.service.js';
 
 @ApiTenantDomain('Students')
@@ -26,9 +27,9 @@ export class StudentsController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.STUDENT_READ)
-  @ApiOkResponse({ schema: arraySchema('Student') })
-  list() {
-    return this.students.list();
+  @ApiOkResponse({ schema: { type: 'object', properties: { data: arraySchema('Student'), nextCursor: { type: 'string', nullable: true } }, required: ['data', 'nextCursor'] } })
+  list(@Query() query: StudentQueryDto) {
+    return this.students.list(query);
   }
 
   @Get(':id')

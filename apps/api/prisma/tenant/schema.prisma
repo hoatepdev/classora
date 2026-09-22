@@ -9,22 +9,110 @@ datasource db {
 }
 
 model Student {
-  id          String       @id @db.Char(26)
-  tenantId    String       @map("tenant_id") @db.Char(26)
-  code        String
-  fullName    String       @map("full_name")
-  phone       String?
-  email       String?
-  dateOfBirth DateTime?    @map("date_of_birth") @db.Date
-  status      String       @default("ACTIVE")
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                String                 @id @db.Char(26)
+  tenantId          String                 @map("tenant_id") @db.Char(26)
+  code              String
+  fullName          String                 @map("full_name")
+  phone             String?
+  email             String?
+  dateOfBirth       DateTime?              @map("date_of_birth") @db.Date
+  status            String                 @default("ACTIVE")
+  gender            String?
+  address           String?
+  school            String?
+  source            String?
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   enrollments       Enrollment[]
+  guardians         StudentGuardian[]
+  tagAssignments    StudentTagAssignment[]
+  notes             StudentNote[]
   attendanceRecords AttendanceRecord[]
 
+  @@unique([tenantId, id], map: "students_tenant_id_id_key")
   @@unique([tenantId, code], map: "students_tenant_id_code_key")
   @@index([tenantId, fullName, id], map: "students_tenant_id_full_name_id_idx")
   @@map("students")
+}
+
+model Guardian {
+  id        String            @id @db.Char(26)
+  tenantId  String            @map("tenant_id") @db.Char(26)
+  fullName  String            @map("full_name")
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  students  StudentGuardian[]
+
+  @@unique([tenantId, id], map: "guardians_tenant_id_id_key")
+  @@index([tenantId, fullName, id], map: "guardians_tenant_id_full_name_id_idx")
+  @@index([tenantId, phone, id], map: "guardians_tenant_id_phone_id_idx")
+  @@index([tenantId, email, id], map: "guardians_tenant_id_email_id_idx")
+  @@map("guardians")
+}
+
+model StudentGuardian {
+  id               String   @id @db.Char(26)
+  tenantId         String   @map("tenant_id") @db.Char(26)
+  studentId        String   @map("student_id") @db.Char(26)
+  guardianId       String   @map("guardian_id") @db.Char(26)
+  relationship     String
+  isPrimaryContact Boolean  @default(false) @map("is_primary_contact")
+  isBillingContact Boolean  @default(false) @map("is_billing_contact")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  student          Student  @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  guardian         Guardian @relation(fields: [tenantId, guardianId], references: [tenantId, id])
+
+  @@unique([tenantId, studentId, guardianId], map: "student_guardians_tenant_student_guardian_key")
+  @@index([tenantId, studentId, isPrimaryContact, id], map: "student_guardians_tenant_student_primary_idx")
+  @@index([tenantId, guardianId, id], map: "student_guardians_tenant_guardian_id_idx")
+  @@map("student_guardians")
+}
+
+model StudentTag {
+  id        String                 @id @db.Char(26)
+  tenantId  String                 @map("tenant_id") @db.Char(26)
+  name      String
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  students  StudentTagAssignment[]
+
+  @@unique([tenantId, id], map: "student_tags_tenant_id_id_key")
+  @@unique([tenantId, name], map: "student_tags_tenant_id_name_key")
+  @@index([tenantId, name, id], map: "student_tags_tenant_id_name_id_idx")
+  @@map("student_tags")
+}
+
+model StudentTagAssignment {
+  id        String     @id @db.Char(26)
+  tenantId  String     @map("tenant_id") @db.Char(26)
+  studentId String     @map("student_id") @db.Char(26)
+  tagId     String     @map("tag_id") @db.Char(26)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  student   Student    @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  tag       StudentTag @relation(fields: [tenantId, tagId], references: [tenantId, id])
+
+  @@unique([tenantId, studentId, tagId], map: "student_tag_assignments_tenant_student_tag_key")
+  @@index([tenantId, studentId, tagId], map: "student_tag_assignments_tenant_student_tag_idx")
+  @@map("student_tag_assignments")
+}
+
+model StudentNote {
+  id         String   @id @db.Char(26)
+  tenantId   String   @map("tenant_id") @db.Char(26)
+  studentId  String   @map("student_id") @db.Char(26)
+  content    String
+  authorId   String?  @map("author_id") @db.Char(26)
+  authorName String?  @map("author_name")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  student    Student  @relation(fields: [tenantId, studentId], references: [tenantId, id])
+
+  @@index([tenantId, studentId, createdAt, id], map: "student_notes_tenant_student_created_id_idx")
+  @@map("student_notes")
 }
 
 model Course {
@@ -44,18 +132,18 @@ model Course {
 }
 
 model Class {
-  id          String       @id @db.Char(26)
-  tenantId    String       @map("tenant_id") @db.Char(26)
-  courseId    String?      @map("course_id") @db.Char(26)
-  code        String
-  name        String
-  description String?
-  status      String       @default("ACTIVE")
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  course            Course?             @relation(fields: [courseId], references: [id])
-  enrollments       Enrollment[]
-  schedules         Schedule[]
+  id                 String              @id @db.Char(26)
+  tenantId           String              @map("tenant_id") @db.Char(26)
+  courseId           String?             @map("course_id") @db.Char(26)
+  code               String
+  name               String
+  description        String?
+  status             String              @default("ACTIVE")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  course             Course?             @relation(fields: [courseId], references: [id])
+  enrollments        Enrollment[]
+  schedules          Schedule[]
   attendanceSessions AttendanceSession[]
 
   @@unique([tenantId, code], map: "classes_tenant_id_code_key")
@@ -65,16 +153,16 @@ model Class {
 }
 
 model Teacher {
-  id        String   @id @db.Char(26)
-  tenantId  String   @map("tenant_id") @db.Char(26)
-  code      String
-  name      String
-  phone     String?
-  email     String?
-  note      String?
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                 String              @id @db.Char(26)
+  tenantId           String              @map("tenant_id") @db.Char(26)
+  code               String
+  name               String
+  phone              String?
+  email              String?
+  note               String?
+  status             String              @default("ACTIVE")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   schedules          Schedule[]
   attendanceSessions AttendanceSession[]
 
@@ -102,17 +190,17 @@ model Enrollment {
 
 /// Active duplicates are prevented by the migration's partial unique index, which Prisma cannot model.
 model Schedule {
-  id        String   @id @db.Char(26)
-  tenantId  String   @map("tenant_id") @db.Char(26)
-  classId   String   @map("class_id") @db.Char(26)
-  teacherId String   @map("teacher_id") @db.Char(26)
-  dayOfWeek String   @map("day_of_week")
-  startTime DateTime @map("start_time") @db.Time(0)
-  endTime   DateTime @map("end_time") @db.Time(0)
-  room      String?
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                 String              @id @db.Char(26)
+  tenantId           String              @map("tenant_id") @db.Char(26)
+  classId            String              @map("class_id") @db.Char(26)
+  teacherId          String              @map("teacher_id") @db.Char(26)
+  dayOfWeek          String              @map("day_of_week")
+  startTime          DateTime            @map("start_time") @db.Time(0)
+  endTime            DateTime            @map("end_time") @db.Time(0)
+  room               String?
+  status             String              @default("ACTIVE")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   class              Class               @relation(fields: [classId], references: [id])
   teacher            Teacher             @relation(fields: [teacherId], references: [id])
   attendanceSessions AttendanceSession[]
@@ -124,20 +212,20 @@ model Schedule {
 
 /// Schedule/date uniqueness is enforced by the migration's partial unique index, which Prisma cannot model.
 model AttendanceSession {
-  id          String   @id @db.Char(26)
-  tenantId    String   @map("tenant_id") @db.Char(26)
-  classId     String   @map("class_id") @db.Char(26)
-  scheduleId  String?  @map("schedule_id") @db.Char(26)
-  teacherId   String?  @map("teacher_id") @db.Char(26)
-  sessionDate DateTime @map("session_date") @db.Date
-  startTime   DateTime @map("start_time") @db.Time(0)
-  endTime     DateTime @map("end_time") @db.Time(0)
-  status      String   @default("OPEN")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  class       Class    @relation(fields: [classId], references: [id])
-  schedule    Schedule? @relation(fields: [scheduleId], references: [id])
-  teacher     Teacher? @relation(fields: [teacherId], references: [id])
+  id          String             @id @db.Char(26)
+  tenantId    String             @map("tenant_id") @db.Char(26)
+  classId     String             @map("class_id") @db.Char(26)
+  scheduleId  String?            @map("schedule_id") @db.Char(26)
+  teacherId   String?            @map("teacher_id") @db.Char(26)
+  sessionDate DateTime           @map("session_date") @db.Date
+  startTime   DateTime           @map("start_time") @db.Time(0)
+  endTime     DateTime           @map("end_time") @db.Time(0)
+  status      String             @default("OPEN")
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  class       Class              @relation(fields: [classId], references: [id])
+  schedule    Schedule?          @relation(fields: [scheduleId], references: [id])
+  teacher     Teacher?           @relation(fields: [teacherId], references: [id])
   records     AttendanceRecord[]
 
   @@unique([tenantId, classId, sessionDate, startTime, endTime], map: "attendance_sessions_occurrence_key")

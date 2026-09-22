@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsEmail,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -56,6 +57,34 @@ export class CreateStudentDto {
   @IsDateString({ strict: true, strictSeparator: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   dateOfBirth?: string | null;
+
+  @ApiPropertyOptional({ enum: ['UNSPECIFIED', 'FEMALE', 'MALE', 'OTHER'], default: 'UNSPECIFIED' })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @IsIn(['UNSPECIFIED', 'FEMALE', 'MALE', 'OTHER'])
+  gender?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 500, nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 200, nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  school?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 100, nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  source?: string | null;
 
   @ApiPropertyOptional({ enum: StudentStatus, default: StudentStatus.ACTIVE })
   @IsOptional()

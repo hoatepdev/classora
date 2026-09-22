@@ -111,8 +111,42 @@ export const openApiSchemas = {
       email: { type: 'string', format: 'email', nullable: true },
       dateOfBirth: { type: 'string', format: 'date', nullable: true },
       status: { type: 'string', enum: ['ACTIVE', 'DISABLED'] },
+      gender: nullableString,
+      address: nullableString,
+      school: nullableString,
+      source: nullableString,
     },
-    required: [...resourceRequired, 'code', 'fullName', 'phone', 'email', 'dateOfBirth', 'status'],
+    required: [...resourceRequired, 'code', 'fullName', 'phone', 'email', 'dateOfBirth', 'status', 'gender', 'address', 'school', 'source'],
+  },
+  Guardian: {
+    type: 'object',
+    properties: { ...resourceProperties, fullName: { type: 'string' }, phone: nullableString, email: { type: 'string', format: 'email', nullable: true }, address: nullableString, notes: nullableString },
+    required: [...resourceRequired, 'fullName', 'phone', 'email', 'address', 'notes'],
+  },
+  StudentGuardian: {
+    allOf: [
+      { $ref: '#/components/schemas/Guardian' },
+      {
+        type: 'object',
+        properties: { relationship: { type: 'string' }, isPrimaryContact: { type: 'boolean' }, isBillingContact: { type: 'boolean' } },
+        required: ['relationship', 'isPrimaryContact', 'isBillingContact'],
+      },
+    ],
+  },
+  StudentNote: {
+    type: 'object',
+    properties: { id: ulid, studentId: ulid, content: { type: 'string' }, authorId: { ...ulid, nullable: true }, authorName: nullableString, createdAt: timestamp },
+    required: ['id', 'studentId', 'content', 'authorId', 'authorName', 'createdAt'],
+  },
+  StudentTag: {
+    type: 'object',
+    properties: { id: ulid, name: { type: 'string' } },
+    required: ['id', 'name'],
+  },
+  StudentActivity: {
+    type: 'object',
+    properties: { id: ulid, action: { type: 'string' }, entityType: { type: 'string' }, entityId: { ...ulid, nullable: true }, before: { type: 'object', nullable: true }, after: { type: 'object', nullable: true }, actorName: nullableString, occurredAt: timestamp },
+    required: ['id', 'action', 'entityType', 'entityId', 'before', 'after', 'actorName', 'occurredAt'],
   },
   Teacher: {
     type: 'object',

@@ -4,6 +4,8 @@ import { ulid } from 'ulid';
 import { AuditService } from '../audit/audit.service.js';
 import { TenantContextService } from '../tenant/tenant-context.service.js';
 import { type CreateStudentDto, StudentStatus } from './dto/create-student.dto.js';
+import type { StudentQueryDto } from './dto/student-query.dto.js';
+import type { CreateGuardianDto, CreateNoteDto, CreateTagDto, LinkGuardianDto, UpdateGuardianDto } from './dto/guardian.dto.js';
 import type { UpdateStudentDto } from './dto/update-student.dto.js';
 
 type StudentRow = QueryResultRow & {
@@ -15,6 +17,10 @@ type StudentRow = QueryResultRow & {
   email: string | null;
   dateOfBirth: string | null;
   status: StudentStatus;
+  gender: string | null;
+  address: string | null;
+  school: string | null;
+  source: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -29,6 +35,10 @@ const selectStudent = `
     email,
     date_of_birth::text AS "dateOfBirth",
     status,
+    gender,
+    address,
+    school,
+    source,
     created_at AS "createdAt",
     updated_at AS "updatedAt"
   FROM students
@@ -53,17 +63,55 @@ function isStudentCodeConflict(error: unknown) {
   );
 }
 
+type StudentCursor = { fullName: string; id: string };
+
+function decodeCursor(value: string | undefined): StudentCursor | undefined {
+  if (!value) return undefined;
+  try {
+    const cursor = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as StudentCursor;
+    if (!cursor || typeof cursor.fullName !== 'string' || typeof cursor.id !== 'string') throw new Error();
+    return cursor;
+  } catch {
+    throw new BadRequestException('Invalid student cursor');
+  }
+}
+
+function encodeCursor(cursor: StudentCursor) {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+}
+
 @Injectable()
 export class StudentsService {
   constructor(private readonly tenantContext: TenantContextService, private readonly audit: AuditService) {}
 
-  async list() {
+  async list(query: StudentQueryDto) {
     const { tenant, pool } = this.tenantContext.get();
+    const values: unknown[] = [tenant.tenantId];
+    const conditions = ['tenant_id = $1'];
+    if (query.status) {
+      values.push(query.status);
+      conditions.push(`status = $${values.length}`);
+    }
+    if (query.search) {
+      values.push(`%${query.search}%`);
+      conditions.push(`(full_name ILIKE $${values.length} OR code ILIKE $${values.length} OR phone ILIKE $${values.length} OR email ILIKE $${values.length})`);
+    }
+    const cursor = decodeCursor(query.cursor);
+    if (cursor) {
+      values.push(cursor.fullName, cursor.id);
+      conditions.push(`(full_name, id) > ($${values.length - 1}, $${values.length})`);
+    }
+    const limit = query.limit ?? 50;
     const result = await pool.query<StudentRow>(
-      `${selectStudent} WHERE tenant_id = $1 ORDER BY full_name ASC, id ASC`,
-      [tenant.tenantId],
+      `${selectStudent} WHERE ${conditions.join(' AND ')} ORDER BY full_name ASC, id ASC LIMIT ${limit + 1}`,
+      values,
     );
-    return result.rows.map(serialize);
+    const rows = result.rows.slice(0, limit);
+    const last = rows.at(-1);
+    return {
+      data: rows.map(serialize),
+      nextCursor: result.rows.length > limit && last ? encodeCursor({ fullName: last.fullName, id: last.id }) : null,
+    };
   }
 
   async get(id: string) {
@@ -84,8 +132,8 @@ export class StudentsService {
       await client.query('BEGIN');
       const result = await client.query<StudentRow>(
         `INSERT INTO students
-          (id, tenant_id, code, full_name, phone, email, date_of_birth, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          (id, tenant_id, code, full_name, phone, email, date_of_birth, status, gender, address, school, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING
            id,
            tenant_id AS "tenantId",
@@ -95,15 +143,20 @@ export class StudentsService {
            email,
            date_of_birth::text AS "dateOfBirth",
            status,
+           gender,
+           address,
+           school,
+           source,
            created_at AS "createdAt",
            updated_at AS "updatedAt"`,
-        [ulid(), tenant.tenantId, input.code.toUpperCase(), input.fullName, input.phone ?? null, input.email ?? null, input.dateOfBirth ?? null, input.status ?? StudentStatus.ACTIVE],
+        [ulid(), tenant.tenantId, input.code.toUpperCase(), input.fullName, input.phone ?? null, input.email?.toLowerCase() ?? null, input.dateOfBirth ?? null, input.status ?? StudentStatus.ACTIVE, input.gender ?? null, input.address ?? null, input.school ?? null, input.source ?? null],
       );
       const student = result.rows[0];
+      const snapshot = (row: StudentRow) => ({ code: row.code, fullName: row.fullName, phone: row.phone, email: row.email, dateOfBirth: row.dateOfBirth, status: row.status, gender: row.gender, address: row.address, school: row.school, source: row.source });
       await this.audit.recordTenant(client, {
         tenantId: tenant.tenantId, actorUserId, actorMembershipId, actorName, actorEmail, requestId,
         action: 'student.created', entityType: 'STUDENT', entityId: student.id,
-        after: { code: student.code, fullName: student.fullName, phone: student.phone, email: student.email, dateOfBirth: student.dateOfBirth, status: student.status },
+        after: snapshot(student),
       });
       await client.query('COMMIT');
       return serialize(student);
@@ -123,9 +176,13 @@ export class StudentsService {
       ['code', 'code', (value: string) => value.toUpperCase()],
       ['fullName', 'full_name', (value: string) => value],
       ['phone', 'phone', (value: string | null) => value],
-      ['email', 'email', (value: string | null) => value],
+      ['email', 'email', (value: string | null) => value?.toLowerCase() ?? null],
       ['dateOfBirth', 'date_of_birth', (value: string | null) => value],
       ['status', 'status', (value: StudentStatus) => value],
+      ['gender', 'gender', (value: string | null) => value],
+      ['address', 'address', (value: string | null) => value],
+      ['school', 'school', (value: string | null) => value],
+      ['source', 'source', (value: string | null) => value],
     ];
 
     for (const [property, column, transform] of columns) {
@@ -155,12 +212,16 @@ export class StudentsService {
            email,
            date_of_birth::text AS "dateOfBirth",
            status,
+           gender,
+           address,
+           school,
+           source,
            created_at AS "createdAt",
            updated_at AS "updatedAt"`,
         [tenant.tenantId, id, ...values],
       );
       const student = result.rows[0];
-      const snapshot = (row: StudentRow) => ({ code: row.code, fullName: row.fullName, phone: row.phone, email: row.email, dateOfBirth: row.dateOfBirth, status: row.status });
+      const snapshot = (row: StudentRow) => ({ code: row.code, fullName: row.fullName, phone: row.phone, email: row.email, dateOfBirth: row.dateOfBirth, status: row.status, gender: row.gender, address: row.address, school: row.school, source: row.source });
       const before = snapshot(beforeRow);
       const after = snapshot(student);
       const changedBefore: Record<string, unknown> = {};

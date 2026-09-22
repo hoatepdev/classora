@@ -1,86 +1,71 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import axios from "axios";
-import { ChevronLeft, Pencil } from "lucide-react";
+import { ChevronLeft, Pencil, Plus } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageContainer } from "@/components/page-container";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
 import { StudentAttendanceSection } from "../attendance/StudentAttendanceSection.js";
 import { listStudentEnrollments, studentEnrollmentQueryKey } from "../enrollments/api.js";
-import { getStudent, studentQueryKey } from "./api.js";
-
+import { addStudentNote, addStudentTag, createAndLinkGuardian, getStudent, linkGuardian, listGuardians, listStudentActivity, listStudentGuardians, listStudentNotes, listStudentTags, removeStudentTag, studentQueryKey, unlinkGuardian, updateGuardianLink } from "./api.js";
 const dateFormatter = new Intl.DateTimeFormat("vi-VN");
 
 export function StudentDetail() {
-  const { id } = useParams();
+  const { id } = useParams(); const queryClient = useQueryClient();
   const student = useQuery({ queryKey: [...studentQueryKey(), id], queryFn: () => getStudent(id!), enabled: Boolean(id) });
   const enrollments = useQuery({ queryKey: studentEnrollmentQueryKey(id ?? ""), queryFn: () => listStudentEnrollments(id!), enabled: Boolean(id) });
+  const guardians = useQuery({ queryKey: ["student-guardians", window.location.hostname, id], queryFn: () => listStudentGuardians(id!), enabled: Boolean(id) });
+  const notes = useQuery({ queryKey: ["student-notes", window.location.hostname, id], queryFn: () => listStudentNotes(id!), enabled: Boolean(id) });
+  const tags = useQuery({ queryKey: ["student-tags", window.location.hostname, id], queryFn: () => listStudentTags(id!), enabled: Boolean(id) });
+  const activity = useQuery({ queryKey: ["student-activity", window.location.hostname, id], queryFn: () => listStudentActivity(id!), enabled: Boolean(id) });
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId); const canWrite = can(membership, "student.write");
+  const [guardianDialogOpen, setGuardianDialogOpen] = useState(false);
+  const [guardianSearch, setGuardianSearch] = useState("");
+  const [selectedGuardianId, setSelectedGuardianId] = useState("");
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianPhone, setGuardianPhone] = useState("");
+  const [guardianEmail, setGuardianEmail] = useState("");
+  const [relationship, setRelationship] = useState("Other");
+  const [isPrimaryContact, setIsPrimaryContact] = useState(false);
+  const [isBillingContact, setIsBillingContact] = useState(false);
+  const [editingGuardianId, setEditingGuardianId] = useState<string | null>(null);
+  const guardianDirectory = useQuery({ queryKey: ["guardians", window.location.hostname, guardianSearch], queryFn: () => listGuardians(guardianSearch), enabled: guardianDialogOpen && !editingGuardianId });
+  const noteMutation = useMutation({ mutationFn: (content: string) => addStudentNote(id!, content), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-notes", window.location.hostname, id] }); toast.success("Đã thêm ghi chú."); } });
+  const tagMutation = useMutation({ mutationFn: (name: string) => addStudentTag(id!, name), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-tags", window.location.hostname, id] }); toast.success("Đã thêm nhãn."); } });
+  const removeTagMutation = useMutation({ mutationFn: (tagId: string) => removeStudentTag(id!, tagId), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-tags", window.location.hostname, id] }); toast.success("Đã gỡ nhãn."); } });
+  const linkGuardianMutation = useMutation({ mutationFn: () => linkGuardian(id!, selectedGuardianId, { relationship, isPrimaryContact, isBillingContact }), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-guardians", window.location.hostname, id] }); setGuardianDialogOpen(false); toast.success("Đã liên kết người giám hộ."); } });
+  const createAndLinkGuardianMutation = useMutation({ mutationFn: () => createAndLinkGuardian(id!, { fullName: guardianName, phone: guardianPhone || null, email: guardianEmail || null, relationship, isPrimaryContact, isBillingContact }), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-guardians", window.location.hostname, id] }); setGuardianDialogOpen(false); toast.success("Đã tạo và liên kết người giám hộ."); } });
+  const updateLinkMutation = useMutation({ mutationFn: () => updateGuardianLink(id!, editingGuardianId!, { relationship, isPrimaryContact, isBillingContact }), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-guardians", window.location.hostname, id] }); setGuardianDialogOpen(false); toast.success("Đã cập nhật quan hệ."); } });
+  const unlinkGuardianMutation = useMutation({ mutationFn: (guardianId: string) => unlinkGuardian(id!, guardianId), onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["student-guardians", window.location.hostname, id] }); toast.success("Đã bỏ liên kết."); } });
 
   if (student.isPending) return <PageContainer><LoadingState label="Đang tải thông tin học viên" /></PageContainer>;
-  if (student.isError) {
-    const notFound = axios.isAxiosError(student.error) && student.error.response?.status === 404;
-    return <PageContainer><ErrorState title={notFound ? "Không tìm thấy học viên" : "Không thể tải học viên"} message="Quay lại danh sách và thử lại." onRetry={() => void student.refetch()} /></PageContainer>;
-  }
-
+  if (student.isError) { const notFound = axios.isAxiosError(student.error) && student.error.response?.status === 404; return <PageContainer><ErrorState title={notFound ? "Không tìm thấy học viên" : "Không thể tải học viên"} message="Quay lại danh sách và thử lại." onRetry={() => void student.refetch()} /></PageContainer>; }
   const initials = student.data.fullName.split(" ").filter(Boolean).slice(-2).map((part) => part[0]).join("").toUpperCase();
-
   return <PageContainer>
     <Button variant="ghost" size="sm" asChild className="mb-4 -ml-3"><Link to="/students"><ChevronLeft size={16} aria-hidden="true" />Học viên</Link></Button>
-    <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-center gap-4">
-        <div className="grid size-13 shrink-0 place-items-center rounded-full bg-[#eff6ff] text-sm font-bold text-[#2563eb]" aria-hidden="true">{initials}</div>
-        <div className="min-w-0">
-          <h1 className="m-0 truncate text-[1.75rem] leading-tight font-bold tracking-[-.025em] text-[#0f172a] md:text-[2rem]">{student.data.fullName}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#64748b]"><span>{student.data.code}</span><span aria-hidden="true">·</span><StatusBadge status={student.data.status}>{student.data.status === "ACTIVE" ? "Đang học" : "Ngừng học"}</StatusBadge></div>
-        </div>
-      </div>
-      <Button variant="secondary" asChild><Link to={`/students/${student.data.id}/edit`}><Pencil size={16} aria-hidden="true" />Chỉnh sửa</Link></Button>
-    </header>
-
-    <div className="grid gap-5 lg:grid-cols-2">
-      <DetailSection title="Thông tin cá nhân" fields={[
-        ["Họ và tên", student.data.fullName],
-        ["Mã học viên", student.data.code],
-        ["Ngày sinh", student.data.dateOfBirth ? dateFormatter.format(new Date(`${student.data.dateOfBirth}T00:00:00`)) : "—"],
-        ["Trạng thái", student.data.status === "ACTIVE" ? "Đang học" : "Ngừng học"],
-      ]} />
-      <DetailSection title="Thông tin liên hệ" fields={[
-        ["Điện thoại", student.data.phone ?? "—"],
-        ["Email", student.data.email ?? "—"],
-      ]} />
-    </div>
-
-    <section className="mt-7" aria-labelledby="student-classes-heading">
-      <div className="mb-3">
-        <h2 id="student-classes-heading" className="text-lg font-semibold text-[#0f172a]">Lớp học</h2>
-        <p className="mt-1 mb-0 text-sm text-[#64748b]">Các lớp học viên đã ghi danh.</p>
-      </div>
-      {enrollments.isPending ? <LoadingState label="Đang tải lớp học" />
-        : enrollments.isError ? <ErrorState title="Không thể tải lớp học" message="Vui lòng thử lại." onRetry={() => void enrollments.refetch()} />
-        : enrollments.data.length === 0 ? <div className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-10 text-center text-sm text-[#64748b] shadow-[0_1px_2px_rgba(15,23,42,.04)]">Học viên chưa ghi danh vào lớp nào.</div>
-        : <Table>
-          <TableHeader><TableRow><TableHead>Mã lớp</TableHead><TableHead>Tên lớp</TableHead><TableHead>Trạng thái</TableHead><TableHead>Ngày ghi danh</TableHead></TableRow></TableHeader>
-          <TableBody>{enrollments.data.map((enrollment) => <TableRow key={enrollment.id}>
-            <TableCell className="font-semibold text-[#334155]">{enrollment.classCode}</TableCell>
-            <TableCell><Link className="font-medium text-[#2563eb] underline-offset-3 hover:underline" to={`/classes/${enrollment.classId}`}>{enrollment.className}</Link></TableCell>
-            <TableCell><StatusBadge status={enrollment.status}>{enrollment.status === "ACTIVE" ? "Đang học" : "Đã rút"}</StatusBadge></TableCell>
-            <TableCell>{dateFormatter.format(new Date(enrollment.enrolledAt))}</TableCell>
-          </TableRow>)}</TableBody>
-        </Table>}
-    </section>
-
+    <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-4"><div className="grid size-13 shrink-0 place-items-center rounded-full bg-[#eff6ff] text-sm font-bold text-[#2563eb]" aria-hidden="true">{initials}</div><div className="min-w-0"><h1 className="m-0 truncate text-[1.75rem] leading-tight font-bold tracking-tight text-[#0f172a] md:text-[2rem]">{student.data.fullName}</h1><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#64748b]"><span>{student.data.code}</span><span aria-hidden="true">·</span><StatusBadge status={student.data.status}>{student.data.status === "ACTIVE" ? "Đang học" : "Ngừng học"}</StatusBadge></div></div></div>{canWrite && <Button variant="secondary" asChild><Link to={`/students/${student.data.id}/edit`}><Pencil size={16} aria-hidden="true" />Chỉnh sửa</Link></Button>}</header>
+    <div className="grid gap-5 lg:grid-cols-2"><DetailSection title="Thông tin cá nhân" fields={[["Họ và tên", student.data.fullName],["Mã học viên", student.data.code],["Ngày sinh", student.data.dateOfBirth ? dateFormatter.format(new Date(`${student.data.dateOfBirth}T00:00:00`)) : "—"],["Giới tính", student.data.gender ?? "Chưa xác định"],["Trạng thái", student.data.status === "ACTIVE" ? "Đang học" : "Ngừng học"]]} /><DetailSection title="Liên hệ & thông tin bổ sung" fields={[["Điện thoại", student.data.phone ?? "—"],["Email", student.data.email ?? "—"],["Địa chỉ", student.data.address ?? "—"],["Trường học", student.data.school ?? "—"],["Nguồn", student.data.source ?? "—"]]} /></div>
+    <section className="mt-7"><SectionHeader title="Người giám hộ" action={canWrite ? <Button variant="secondary" size="sm" onClick={() => { setEditingGuardianId(null); setSelectedGuardianId(""); setGuardianName(""); setGuardianPhone(""); setGuardianEmail(""); setRelationship("Other"); setIsPrimaryContact(false); setIsBillingContact(false); setGuardianDialogOpen(true); }}><Plus size={16} aria-hidden="true" />Thêm người giám hộ</Button> : undefined} /><AsyncBlock query={guardians} empty="Chưa có người giám hộ được liên kết." render={(items) => <div className="grid gap-3 md:grid-cols-2">{items.map((guardian) => <div className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={guardian.id}><div className="flex items-start justify-between gap-3"><div><p className="m-0 font-semibold text-[#0f172a]">{guardian.fullName}</p><p className="mt-1 mb-0 text-sm text-[#64748b]">{guardian.phone ?? guardian.email ?? "Chưa có liên hệ"}</p></div>{canWrite && <Button variant="ghost" size="sm" onClick={() => { setEditingGuardianId(guardian.id); setRelationship(guardian.relationship ?? "Other"); setIsPrimaryContact(Boolean(guardian.isPrimaryContact)); setIsBillingContact(Boolean(guardian.isBillingContact)); setGuardianDialogOpen(true); }}>Sửa</Button>}</div><div className="mt-3 flex flex-wrap gap-2 text-xs text-[#475569]">{guardian.relationship && <span className="rounded-full bg-[#f1f5f9] px-2 py-1">{guardian.relationship}</span>}{guardian.isPrimaryContact && <span className="rounded-full bg-[#eff6ff] px-2 py-1 text-[#2563eb]">Liên hệ chính</span>}{guardian.isBillingContact && <span className="rounded-full bg-[#fef3c7] px-2 py-1 text-[#92400e]">Liên hệ học phí</span>}</div>{canWrite && <Button variant="ghost" size="sm" className="mt-2 px-0 text-[#b42318]" onClick={() => unlinkGuardianMutation.mutate(guardian.id)}>Bỏ liên kết</Button>}</div>)}</div>} /></section>
+    <Dialog open={guardianDialogOpen} onOpenChange={setGuardianDialogOpen}><DialogContent><DialogHeader><DialogTitle>{editingGuardianId ? "Cập nhật quan hệ" : "Liên kết người giám hộ"}</DialogTitle><DialogDescription>{editingGuardianId ? "Cập nhật vai trò và thông tin liên hệ của học viên." : "Chọn người đã có trong trung tâm hoặc tạo người giám hộ mới."}</DialogDescription></DialogHeader>{editingGuardianId ? null : <><Input aria-label="Tìm người giám hộ" placeholder="Tìm theo tên, điện thoại, email" value={guardianSearch} onChange={(event) => setGuardianSearch(event.target.value)} />{guardianDirectory.data?.map((guardian) => <button key={guardian.id} type="button" className={`w-full rounded-lg border p-3 text-left ${selectedGuardianId === guardian.id ? "border-[#2563eb] bg-[#eff6ff]" : "border-[#e2e8f0]"}`} onClick={() => setSelectedGuardianId(guardian.id)}><span className="font-medium">{guardian.fullName}</span><span className="ml-2 text-sm text-[#64748b]">{guardian.phone ?? guardian.email ?? ""}</span></button>)}<p className="mb-0 text-sm font-semibold text-[#475569]">Hoặc tạo mới</p><Input aria-label="Tên người giám hộ mới" placeholder="Họ và tên" value={guardianName} onChange={(event) => setGuardianName(event.target.value)} /><Input aria-label="Điện thoại người giám hộ mới" placeholder="Điện thoại" value={guardianPhone} onChange={(event) => setGuardianPhone(event.target.value)} /><Input aria-label="Email người giám hộ mới" placeholder="Email" value={guardianEmail} onChange={(event) => setGuardianEmail(event.target.value)} /></>}<Input aria-label="Mối quan hệ" placeholder="Mối quan hệ" value={relationship} onChange={(event) => setRelationship(event.target.value)} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isPrimaryContact} onChange={(event) => setIsPrimaryContact(event.target.checked)} />Liên hệ chính</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isBillingContact} onChange={(event) => setIsBillingContact(event.target.checked)} />Liên hệ học phí</label><DialogFooter><Button variant="secondary" onClick={() => setGuardianDialogOpen(false)}>Hủy</Button><Button disabled={Boolean(editingGuardianId ? updateLinkMutation.isPending : linkGuardianMutation.isPending || createAndLinkGuardianMutation.isPending) || (!editingGuardianId && !selectedGuardianId && !guardianName.trim())} onClick={() => editingGuardianId ? updateLinkMutation.mutate() : selectedGuardianId ? linkGuardianMutation.mutate() : createAndLinkGuardianMutation.mutate()}>{editingGuardianId ? "Lưu" : "Liên kết"}</Button></DialogFooter></DialogContent></Dialog>
+    <section className="mt-7"><SectionHeader title="Nhãn" action={canWrite ? <Button variant="secondary" size="sm" onClick={() => { const name = window.prompt("Tên nhãn"); if (name?.trim()) tagMutation.mutate(name.trim()); }}><Plus size={16} aria-hidden="true" />Thêm nhãn</Button> : undefined} /><AsyncBlock query={tags} empty="Chưa có nhãn." render={(items) => <div className="flex flex-wrap gap-2">{items.map((tag) => <span className="inline-flex items-center gap-2 rounded-full bg-[#eff6ff] px-3 py-1 text-sm font-medium text-[#2563eb]" key={tag.id}>{tag.name}{canWrite && <button type="button" className="text-[#64748b] hover:text-[#0f172a]" aria-label={`Gỡ nhãn ${tag.name}`} disabled={removeTagMutation.isPending} onClick={() => removeTagMutation.mutate(tag.id)}>×</button>}</span>)}</div>} /></section>
+    <section className="mt-7"><SectionHeader title="Hoạt động" /><AsyncBlock query={activity} empty="Chưa có hoạt động." render={(items) => <div className="space-y-2">{items.map((item) => <article className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={item.id}><p className="m-0 text-sm font-medium text-[#334155]">{item.action}</p><p className="mt-1 mb-0 text-xs text-[#64748b]">{item.actorName ?? "Hệ thống"} · {dateFormatter.format(new Date(item.occurredAt))}</p></article>)}</div>} /></section>
+    <section className="mt-7"><SectionHeader title="Ghi chú nội bộ" action={canWrite ? <NoteForm pending={noteMutation.isPending} onSubmit={(content) => noteMutation.mutate(content)} /> : undefined} /><AsyncBlock query={notes} empty="Chưa có ghi chú." render={(items) => <div className="space-y-3">{items.map((note) => <article className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={note.id}><p className="m-0 whitespace-pre-wrap text-sm text-[#334155]">{note.content}</p><p className="mt-3 mb-0 text-xs text-[#64748b]">{note.authorName ?? "Nhân viên"} · {dateFormatter.format(new Date(note.createdAt))}</p></article>)}</div>} /></section>
+    <section className="mt-7"><SectionHeader title="Lớp học" /><AsyncBlock query={enrollments} empty="Học viên chưa ghi danh vào lớp nào." render={(items) => <div className="overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white"><table className="w-full text-left text-sm"><thead><tr><th className="px-4 py-3">Mã lớp</th><th className="px-4 py-3">Tên lớp</th><th className="px-4 py-3">Trạng thái</th></tr></thead><tbody>{items.map((item) => <tr className="border-t border-[#f1f5f9]" key={item.id}><td className="px-4 py-3 font-semibold">{item.classCode}</td><td className="px-4 py-3"><Link className="text-[#2563eb] hover:underline" to={`/classes/${item.classId}`}>{item.className}</Link></td><td className="px-4 py-3"><StatusBadge status={item.status}>{item.status === "ACTIVE" ? "Đang học" : "Đã rút"}</StatusBadge></td></tr>)}</tbody></table></div>} /></section>
     <StudentAttendanceSection studentId={student.data.id} />
   </PageContainer>;
 }
 
-function DetailSection({ title, fields }: { title: string; fields: string[][] }) {
-  return <section className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,.04)] md:p-6">
-    <h2 className="border-b border-[#f1f5f9] pb-4 text-lg font-semibold text-[#0f172a]">{title}</h2>
-    <dl className="m-0 divide-y divide-[#f1f5f9]">
-      {fields.map(([label, value]) => <div className="grid gap-1 py-3.5 sm:grid-cols-[140px_1fr] sm:gap-5" key={label}><dt className="text-[13px] font-medium text-[#64748b]">{label}</dt><dd className="m-0 text-sm font-medium text-[#0f172a]">{value}</dd></div>)}
-    </dl>
-  </section>;
-}
+function AsyncBlock<T>({ query, empty, render }: { query: { isPending: boolean; isError: boolean; data?: T[]; refetch: () => unknown }; empty: string; render: (data: T[]) => ReactNode }) { if (query.isPending) return <LoadingState label="Đang tải" />; if (query.isError) return <ErrorState title="Không thể tải dữ liệu" message="Vui lòng thử lại." onRetry={() => void query.refetch()} />; return query.data?.length ? render(query.data) : <div className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-8 text-center text-sm text-[#64748b]">{empty}</div>; }
+function SectionHeader({ title, action }: { title: string; action?: ReactNode }) { return <div className="mb-3 flex items-center justify-between gap-3"><h2 className="m-0 text-lg font-semibold text-[#0f172a]">{title}</h2>{action}</div>; }
+function NoteForm({ pending, onSubmit }: { pending: boolean; onSubmit: (value: string) => void }) { const [value, setValue] = useState(""); return <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (value.trim()) { onSubmit(value.trim()); setValue(""); } }}><Input aria-label="Ghi chú mới" value={value} onChange={(event) => setValue(event.target.value)} placeholder="Thêm ghi chú..." /><Button disabled={pending}>{pending ? "Đang lưu…" : "Thêm"}</Button></form>; }
+function DetailSection({ title, fields }: { title: string; fields: string[][] }) { return <section className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,.04)] md:p-6"><h2 className="border-b border-[#f1f5f9] pb-4 text-lg font-semibold text-[#0f172a]">{title}</h2><dl className="m-0 divide-y divide-[#f1f5f9]">{fields.map(([label, value]) => <div className="grid gap-1 py-3.5 sm:grid-cols-[140px_1fr] sm:gap-5" key={label}><dt className="text-[13px] font-medium text-[#64748b]">{label}</dt><dd className="m-0 text-sm font-medium text-[#0f172a]">{value}</dd></div>)}</dl></section>; }

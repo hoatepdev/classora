@@ -9,6 +9,10 @@ export type Student = {
   email: string | null;
   dateOfBirth: string | null;
   status: StudentStatus;
+  gender: string | null;
+  address: string | null;
+  school: string | null;
+  source: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -20,4 +24,8 @@ export type StudentInput = {
   email?: string | null;
   dateOfBirth?: string | null;
   status: StudentStatus;
+  gender?: string | null;
+  address?: string | null;
+  school?: string | null;
+  source?: string | null;
 };

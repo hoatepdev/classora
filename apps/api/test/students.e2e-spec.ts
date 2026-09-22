@@ -185,8 +185,9 @@ describe('students', () => {
     expect(created.body.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
     await authorized('get', '/students').expect(200).expect(({ body }) => {
-      expect(body).toHaveLength(1);
-      expect(body[0].id).toBe(created.body.id);
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].id).toBe(created.body.id);
+      expect(body.nextCursor).toBeNull();
     });
 
     await authorized('patch', `/students/${created.body.id}`)

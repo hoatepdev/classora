@@ -12,6 +12,10 @@ export const studentSchema = z.object({
   phone: z.string().trim().max(50, "Tối đa 50 ký tự"),
   email: z.union([z.literal(""), z.email("Email không hợp lệ")]),
   dateOfBirth: optionalDate,
+  gender: z.enum(["UNSPECIFIED", "FEMALE", "MALE", "OTHER"]),
+  address: z.string().trim().max(500, "Tối đa 500 ký tự"),
+  school: z.string().trim().max(200, "Tối đa 200 ký tự"),
+  source: z.string().trim().max(100, "Tối đa 100 ký tự"),
   status: z.enum(["ACTIVE", "DISABLED"]),
 });
 

@@ -70,6 +70,57 @@ async function execute(dbName, sql) {
   }
 }
 
+async function assertStudent360Constraints(dbName, label) {
+  const tables = await query(dbName, `
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name IN ('guardians', 'student_guardians', 'student_tags', 'student_tag_assignments', 'student_notes')
+    ORDER BY table_name
+  `);
+  assert.deepEqual(tables.map(({ table_name }) => table_name), [
+    'guardians', 'student_guardians', 'student_notes', 'student_tag_assignments', 'student_tags',
+  ], `${label}: Student 360 tables are incomplete`);
+
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const studentId = '01J00000000000000000000003';
+  const guardianId = '01J00000000000000000000004';
+  const otherGuardianId = '01J00000000000000000000005';
+  const tagId = '01J00000000000000000000006';
+  const studentRows = await query(dbName, 'SELECT id FROM students WHERE id = $1', ['01J00000000000000000000000']);
+  if (studentRows.length === 0) {
+    await execute(dbName, `INSERT INTO students (id, tenant_id, code, full_name) VALUES ('01J00000000000000000000000', '${tenantId}', 'SCHEMA-1', 'Schema Student')`);
+  }
+  await execute(dbName, `
+    INSERT INTO students (id, tenant_id, code, full_name) VALUES ('${studentId}', '${tenantId}', 'SCHEMA-2', 'Schema Student 2');
+    INSERT INTO guardians (id, tenant_id, full_name) VALUES ('${guardianId}', '${tenantId}', 'Schema Guardian');
+    INSERT INTO guardians (id, tenant_id, full_name) VALUES ('${otherGuardianId}', '${otherTenantId}', 'Other Guardian');
+    INSERT INTO student_tags (id, tenant_id, name) VALUES ('${tagId}', '${tenantId}', 'Schema Tag');
+  `);
+  await assert.rejects(
+    () => execute(dbName, `INSERT INTO student_guardians (id, tenant_id, student_id, guardian_id, relationship) VALUES ('01J00000000000000000000007', '${tenantId}', '${studentId}', '${otherGuardianId}', 'Parent')`),
+    undefined,
+    `${label}: cross-tenant Guardian relationship was allowed`,
+  );
+  await execute(dbName, `INSERT INTO student_guardians (id, tenant_id, student_id, guardian_id, relationship, is_primary_contact) VALUES ('01J00000000000000000000008', '${tenantId}', '${studentId}', '${guardianId}', 'Parent', TRUE)`);
+  await assert.rejects(
+    () => execute(dbName, `INSERT INTO student_guardians (id, tenant_id, student_id, guardian_id, relationship, is_primary_contact) VALUES ('01J00000000000000000000009', '${tenantId}', '${studentId}', '${guardianId}', 'Sibling', FALSE)`),
+    undefined,
+    `${label}: duplicate Guardian relationship was allowed`,
+  );
+  await execute(dbName, `INSERT INTO guardians (id, tenant_id, full_name) VALUES ('01J0000000000000000000000A', '${tenantId}', 'Second Guardian')`);
+  await assert.rejects(
+    () => execute(dbName, `INSERT INTO student_guardians (id, tenant_id, student_id, guardian_id, relationship, is_primary_contact) VALUES ('01J0000000000000000000000B', '${tenantId}', '${studentId}', '01J0000000000000000000000A', 'Parent', TRUE)`),
+    undefined,
+    `${label}: multiple primary contacts were allowed`,
+  );
+  await execute(dbName, `INSERT INTO student_tag_assignments (id, tenant_id, student_id, tag_id) VALUES ('01J0000000000000000000000C', '${tenantId}', '${studentId}', '${tagId}')`);
+  await assert.rejects(
+    () => execute(dbName, `INSERT INTO student_tag_assignments (id, tenant_id, student_id, tag_id) VALUES ('01J0000000000000000000000D', '${tenantId}', '${studentId}', '${tagId}')`),
+    undefined,
+    `${label}: duplicate tag assignment was allowed`,
+  );
+}
+
 async function assertAppendOnly(dbName, label) {
   const id = '01J00000000000000000000002';
   const tenantId = '01J00000000000000000000001';
@@ -193,6 +244,8 @@ async function main() {
   assert.deepEqual(afterRetry, beforeRetry, 'Rerunning current tenant changed its catalog');
   await deployTenantSchema(legacy);
   assert.deepEqual(await query(legacy, 'SELECT code, full_name FROM students'), legacyRows);
+  await assertStudent360Constraints(fresh, 'fresh');
+  await assertStudent360Constraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

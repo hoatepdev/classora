@@ -17,7 +17,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { createStudent, getStudent, studentQueryKey, updateStudent } from "./api.js";
 import { studentSchema, type StudentFormValues } from "./schema.js";
 
-const defaults: StudentFormValues = { code: "", fullName: "", phone: "", email: "", dateOfBirth: "", status: "ACTIVE" };
+const defaults: StudentFormValues = { code: "", fullName: "", phone: "", email: "", dateOfBirth: "", gender: "UNSPECIFIED", address: "", school: "", source: "", status: "ACTIVE" };
 
 export function StudentForm() {
   const { id } = useParams();
@@ -35,17 +35,21 @@ export function StudentForm() {
       phone: student.data.phone ?? "",
       email: student.data.email ?? "",
       dateOfBirth: student.data.dateOfBirth ?? "",
+      gender: (student.data.gender as StudentFormValues["gender"] | null) ?? "UNSPECIFIED",
+      address: student.data.address ?? "",
+      school: student.data.school ?? "",
+      source: student.data.source ?? "",
       status: student.data.status,
     });
   }, [student.data, reset]);
 
   const mutation = useMutation({
     mutationFn: (values: StudentFormValues) => {
-      const input = { ...values, phone: values.phone || null, email: values.email || null, dateOfBirth: values.dateOfBirth || null };
+      const input = { ...values, phone: values.phone || null, email: values.email || null, dateOfBirth: values.dateOfBirth || null, gender: values.gender || null, address: values.address || null, school: values.school || null, source: values.source || null };
       return editing ? updateStudent(id!, input) : createStudent(input);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: studentQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: ["students", window.location.hostname] });
       toast.success(editing ? "Đã cập nhật học viên." : "Đã thêm học viên.");
       navigate("/students");
     },
@@ -65,6 +69,10 @@ export function StudentForm() {
   const phone = register("phone");
   const email = register("email");
   const dateOfBirth = register("dateOfBirth");
+  const gender = register("gender");
+  const address = register("address");
+  const school = register("school");
+  const source = register("source");
 
   return <PageContainer className="max-w-[900px]">
     <Button variant="ghost" size="sm" asChild className="mb-4 -ml-3">
@@ -112,6 +120,15 @@ export function StudentForm() {
             <FormField id="student-birth-date" label="Ngày sinh" error={errors.dateOfBirth?.message}>
               <Input id="student-birth-date" type="date" aria-invalid={Boolean(errors.dateOfBirth)} aria-describedby={errors.dateOfBirth ? "student-birth-date-error" : undefined} {...dateOfBirth} />
             </FormField>
+          </div>
+        </section>
+        <section className="rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,.04)] md:p-6" aria-labelledby="additional-information-heading">
+          <div className="mb-5 border-b border-[#f1f5f9] pb-4"><h2 id="additional-information-heading" className="text-lg font-semibold text-[#0f172a]">Thông tin bổ sung</h2><p className="mt-1 mb-0 text-sm text-[#64748b]">Thông tin nền giúp chăm sóc hồ sơ học viên.</p></div>
+          <div className="grid gap-5 md:grid-cols-2">
+            <FormField id="student-gender" label="Giới tính"><select id="student-gender" className="input" {...gender}><option value="UNSPECIFIED">Chưa xác định</option><option value="FEMALE">Nữ</option><option value="MALE">Nam</option><option value="OTHER">Khác</option></select></FormField>
+            <FormField id="student-school" label="Trường học" error={errors.school?.message}><Input id="student-school" {...school} /></FormField>
+            <FormField id="student-source" label="Nguồn học viên" error={errors.source?.message}><Input id="student-source" placeholder="Giới thiệu, Facebook, Walk-in..." {...source} /></FormField>
+            <FormField id="student-address" label="Địa chỉ" error={errors.address?.message} full><Input id="student-address" autoComplete="street-address" {...address} /></FormField>
           </div>
         </section>
       </div>

@@ -65,13 +65,17 @@ describe('OpenAPI', () => {
         'Schedules',
         'Attendance',
         'Health',
+        'Student relationships',
       ]),
     );
     expect(body.paths['/auth/login'].post.responses).toHaveProperty('200');
     expect(body.paths['/students'].post.responses).toHaveProperty('201');
-    expect(body.paths['/students'].get.responses['200'].content['application/json'].schema).toEqual({
-      type: 'array',
-      items: { $ref: '#/components/schemas/Student' },
+    expect(body.paths['/students'].get.responses['200'].content['application/json'].schema).toMatchObject({
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { $ref: '#/components/schemas/Student' } },
+        nextCursor: { type: 'string', nullable: true },
+      },
     });
     expect(body.components.schemas.CreateStudentDto).toMatchObject({
       required: ['code', 'fullName'],
@@ -84,6 +88,15 @@ describe('OpenAPI', () => {
     expect(body.paths['/health'].get.security).toBeUndefined();
     expect(body.paths['/auth/me'].get.security).toEqual([{ bearer: [] }]);
     expect(body.paths['/students'].get.security).toEqual([{ bearer: [] }]);
+    for (const path of ['/guardians', '/students/{id}/guardians', '/students/{id}/notes', '/students/{id}/tags', '/students/{id}/activity']) {
+      expect(body.paths[path]).toBeDefined();
+      expect(body.paths[path].get.security ?? body.paths[path].post?.security).toEqual([{ bearer: [] }]);
+    }
+    expect(body.components.schemas.Guardian).toBeDefined();
+    expect(body.components.schemas.StudentGuardian).toBeDefined();
+    expect(body.components.schemas.StudentNote).toBeDefined();
+    expect(body.components.schemas.StudentTag).toBeDefined();
+    expect(body.components.schemas.StudentActivity).toBeDefined();
   });
 
   it('rejects Swagger when production is enabled', async () => {

@@ -33,7 +33,7 @@ export function ClassDetail() {
   });
   const students = useQuery({
     queryKey: studentQueryKey(),
-    queryFn: listStudents,
+    queryFn: () => listStudents(),
   });
   const enroll = useMutation({
     mutationFn: createEnrollment,
@@ -84,7 +84,7 @@ export function ClassDetail() {
   const activeStudentIds = new Set(
     enrollments.data?.filter((enrollment) => enrollment.status === "ACTIVE").map((enrollment) => enrollment.studentId),
   );
-  const availableStudents = students.data?.filter(
+  const availableStudents = students.data?.data.filter(
     (student) => student.status === "ACTIVE" && !activeStudentIds.has(student.id),
   ) ?? [];
 

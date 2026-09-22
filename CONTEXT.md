@@ -83,6 +83,34 @@ An enrollment records one Student's membership in one Class. Each Student-Class 
 
 An attendance session records one actual Class occurrence and snapshots its currently active enrollments as persistent Student records. Later enrollment changes do not alter that historical roster.
 
+### Student 360
+
+A Student is the tenant-scoped operational learner profile. `status` is the
+current profile status (`ACTIVE` or `DISABLED`) and is independent of future
+enrollment lifecycle states. Optional profile fields include gender, address,
+school, and source; blank optional text is stored as null.
+
+Guardians are first-class tenant records and may be reused across multiple
+Students. `StudentGuardian` stores the relationship, primary-contact flag, and
+billing-contact flag. A Student may have zero or one primary contact, enforced
+by a database constraint; billing contacts are not limited to one. Unlinking a
+relationship never deletes the shared Guardian.
+
+Student tags are tenant-scoped reusable labels assigned through
+`StudentTagAssignment`. Internal notes are append-only `StudentNote` records
+with author and timestamp snapshots. Student activity is a Student-scoped view
+of tenant audit events, including linked Guardian events; the global audit log
+continues to require `audit.read`.
+
+Student and Guardian reads use `student.read`. Student profile writes,
+Guardian writes, relationship changes, tag changes, and note creation use
+`student.write`. Every query resolves the tenant from trusted request context;
+client-supplied tenant or database selectors are not accepted.
+
+Future domains should attach through their own tenant-scoped relations rather
+than adding enrollment, scheduling, billing, communication, or portal state to
+Student or Guardian prematurely.
+
 ## Multi-Tenancy
 
 Classora uses database-per-tenant isolation.

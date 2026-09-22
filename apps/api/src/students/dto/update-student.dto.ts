@@ -5,6 +5,7 @@ import {
   IsDefined,
   IsEmail,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -58,6 +59,33 @@ export class UpdateStudentDto {
   @IsDateString({ strict: true, strictSeparator: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   dateOfBirth?: string | null;
+
+  @ApiPropertyOptional({ enum: ['UNSPECIFIED', 'FEMALE', 'MALE', 'OTHER'], nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsIn(['UNSPECIFIED', 'FEMALE', 'MALE', 'OTHER'])
+  gender?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 500, nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 200, nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  school?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 100, nullable: true })
+  @Transform(nullableText)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  source?: string | null;
 
   @ApiPropertyOptional({ enum: StudentStatus })
   @ValidateIf((_, value) => value !== undefined)
