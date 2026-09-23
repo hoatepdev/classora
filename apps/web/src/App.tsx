@@ -27,6 +27,7 @@ import { SecurityPage } from "./features/settings/SecurityPage.js";
 import { AuditPage } from "./features/audit/AuditPage.js";
 import { StudentForm } from "./features/students/StudentForm.js";
 import { StudentsPage } from "./features/students/StudentsPage.js";
+import { BillingPage } from "./features/billing/BillingPage.js";
 
 export function App() {
   return <Routes>
@@ -35,6 +36,8 @@ export function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppShell />}>
         <Route path="/students" element={<StudentsPage />} />
+        <Route path="/billing" element={<ProtectedRoute permission="billing.read"><BillingPage /></ProtectedRoute>} />
+        <Route path="/billing/:section" element={<ProtectedRoute permission="billing.read"><BillingPage /></ProtectedRoute>} />
         <Route path="/students/new" element={<ProtectedRoute permission="student.write"><StudentForm /></ProtectedRoute>} />
         <Route path="/students/:id" element={<StudentDetail />} />
         <Route path="/students/:id/edit" element={<ProtectedRoute permission="student.write"><StudentForm /></ProtectedRoute>} />
