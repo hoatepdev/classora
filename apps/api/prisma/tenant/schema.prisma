@@ -28,6 +28,8 @@ model Student {
   tagAssignments    StudentTagAssignment[]
   notes             StudentNote[]
   attendanceRecords AttendanceRecord[]
+  makeupEntitlements MakeupEntitlement[]
+  makeupBookings MakeupBooking[]
 
   @@unique([tenantId, id], map: "students_tenant_id_id_key")
   @@unique([tenantId, code], map: "students_tenant_id_code_key")
@@ -289,7 +291,10 @@ model Enrollment {
   sourceEnrollment   Enrollment?       @relation("EnrollmentSource", fields: [sourceEnrollmentId], references: [id])
   derivedEnrollments Enrollment[]      @relation("EnrollmentSource")
   events             EnrollmentEvent[]
+  attendanceRecords  AttendanceRecord[]
+  makeupEntitlements MakeupEntitlement[]
 
+  @@unique([tenantId, id], map: "enrollments_tenant_id_id_key")
   @@index([tenantId, classId, enrolledAt, id], map: "enrollments_tenant_id_class_id_enrolled_at_id_idx")
   @@index([tenantId, studentId, enrolledAt, id], map: "enrollments_tenant_student_dates_idx")
   @@map("enrollments")
@@ -372,6 +377,9 @@ model Session {
   rescheduledFrom Session?       @relation("SessionReschedule", fields: [tenantId, rescheduledFromId], references: [tenantId, id])
   replacements   Session[]        @relation("SessionReschedule")
   records     AttendanceRecord[]
+  attendanceSheet AttendanceSheet?
+  sourceMakeupEntitlements MakeupEntitlement[] @relation("MakeupSourceSession")
+  destinationMakeupBookings MakeupBooking[] @relation("MakeupDestinationSession")
 
   @@index([tenantId, classId, sessionDate, id], map: "attendance_sessions_tenant_id_class_id_session_date_id_idx")
   @@unique([tenantId, id], map: "attendance_sessions_tenant_id_id_key")
@@ -393,21 +401,111 @@ model ScheduleExclusion {
   @@map("schedule_exclusions")
 }
 
+model AttendanceSheet {
+  id             String   @id @db.Char(26)
+  tenantId       String   @map("tenant_id") @db.Char(26)
+  sessionId      String   @map("session_id") @db.Char(26)
+  status         String   @default("OPEN")
+  initializedAt  DateTime @default(now()) @map("initialized_at") @db.Timestamptz
+  lockedAt       DateTime? @map("locked_at") @db.Timestamptz
+  lockedByUserId String? @map("locked_by_user_id") @db.Char(26)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  session        Session  @relation(fields: [tenantId, sessionId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "attendance_sheets_tenant_id_id_key")
+  @@unique([tenantId, sessionId], map: "attendance_sheets_tenant_session_key")
+  @@map("attendance_sheets")
+}
+
 model AttendanceRecord {
   id                  String            @id @db.Char(26)
   tenantId            String            @map("tenant_id") @db.Char(26)
   sessionId           String            @map("session_id") @db.Char(26)
   studentId           String            @map("student_id") @db.Char(26)
-  status              String            @default("PRESENT")
+  enrollmentId        String?           @map("enrollment_id") @db.Char(26)
+  status              String            @default("UNMARKED")
   note                String?
+  source              String            @default("REGULAR")
+  makeupBookingId     String?           @map("makeup_booking_id") @db.Char(26)
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   session             Session           @relation(fields: [tenantId, sessionId], references: [tenantId, id])
   student             Student           @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  enrollment          Enrollment?       @relation(fields: [tenantId, enrollmentId], references: [tenantId, id])
+  makeupBooking       MakeupBooking?    @relation(fields: [tenantId, makeupBookingId], references: [tenantId, id])
+  corrections         AttendanceCorrection[]
+  makeupEntitlement   MakeupEntitlement? @relation("MakeupSourceRecord")
 
   @@unique([tenantId, sessionId, studentId], map: "attendance_records_session_student_key")
   @@index([tenantId, studentId, id], map: "attendance_records_tenant_id_student_id_id_idx")
   @@map("attendance_records")
+}
+
+model AttendanceCorrection {
+  id                 String @id @db.Char(26)
+  tenantId           String @map("tenant_id") @db.Char(26)
+  attendanceRecordId String @map("attendance_record_id") @db.Char(26)
+  beforeStatus       String @map("before_status")
+  afterStatus        String @map("after_status")
+  beforeNote         String? @map("before_note")
+  afterNote          String? @map("after_note")
+  reason             String
+  actorUserId        String? @map("actor_user_id") @db.Char(26)
+  actorMembershipId  String? @map("actor_membership_id") @db.Char(26)
+  requestId          String? @map("request_id")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  record             AttendanceRecord @relation(fields: [tenantId, attendanceRecordId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "attendance_corrections_tenant_id_id_key")
+  @@index([tenantId, attendanceRecordId, createdAt, id])
+  @@map("attendance_corrections")
+}
+
+model MakeupEntitlement {
+  id                     String @id @db.Char(26)
+  tenantId               String @map("tenant_id") @db.Char(26)
+  studentId              String @map("student_id") @db.Char(26)
+  sourceAttendanceRecordId String @map("source_attendance_record_id") @db.Char(26)
+  sourceSessionId        String @map("source_session_id") @db.Char(26)
+  sourceEnrollmentId     String? @map("source_enrollment_id") @db.Char(26)
+  status                 String @default("AVAILABLE")
+  expiresAt              DateTime @map("expires_at") @db.Date
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  student                Student @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  sourceRecord           AttendanceRecord @relation("MakeupSourceRecord", fields: [tenantId, sourceAttendanceRecordId], references: [tenantId, id])
+  sourceSession          Session @relation("MakeupSourceSession", fields: [tenantId, sourceSessionId], references: [tenantId, id])
+  sourceEnrollment       Enrollment? @relation(fields: [tenantId, sourceEnrollmentId], references: [tenantId, id])
+  bookings               MakeupBooking[]
+
+  @@unique([tenantId, id], map: "makeup_entitlements_tenant_id_id_key")
+  @@unique([tenantId, sourceAttendanceRecordId], map: "makeup_entitlements_source_key")
+  @@index([tenantId, studentId, status, expiresAt, id])
+  @@map("makeup_entitlements")
+}
+
+model MakeupBooking {
+  id                   String @id @db.Char(26)
+  tenantId             String @map("tenant_id") @db.Char(26)
+  entitlementId        String @map("entitlement_id") @db.Char(26)
+  studentId            String @map("student_id") @db.Char(26)
+  destinationSessionId String @map("destination_session_id") @db.Char(26)
+  status               String @default("BOOKED")
+  bookedAt             DateTime @default(now()) @map("booked_at") @db.Timestamptz
+  cancelledAt          DateTime? @map("cancelled_at") @db.Timestamptz
+  usedAt               DateTime? @map("used_at") @db.Timestamptz
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  entitlement          MakeupEntitlement @relation(fields: [tenantId, entitlementId], references: [tenantId, id])
+  student              Student @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  destinationSession   Session @relation("MakeupDestinationSession", fields: [tenantId, destinationSessionId], references: [tenantId, id])
+  attendanceRecord     AttendanceRecord?
+
+  @@unique([tenantId, id], map: "makeup_bookings_tenant_id_id_key")
+  @@index([tenantId, destinationSessionId, status, id])
+  @@index([tenantId, studentId, status, bookedAt, id])
+  @@map("makeup_bookings")
 }
 
 model AuditEvent {

@@ -11,8 +11,8 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-03 | Student 360 + Guardians | DONE |
 | LOCAL-04 | Branch + Room + Teacher/Course completion | DONE |
 | LOCAL-05 | Enrollment Lifecycle | DONE |
-| LOCAL-06 | Scheduling + Session Engine | Planned |
-| LOCAL-07 | Attendance + Makeup | Planned |
+| LOCAL-06 | Scheduling + Session Engine | DONE |
+| LOCAL-07 | Attendance + Makeup | DONE |
 | LOCAL-08 | Billing / Tuition | Planned |
 | LOCAL-09 | Teacher Compensation | Planned |
 | LOCAL-10 | CRM | Planned |
@@ -43,6 +43,47 @@ idempotent rerun, cross-tenant composite-FK rejection). Branch is now an
 operational data dimension, but branch-scoped authorization remains deferred
 to LOCAL-19. The existing free-text schedule room is unchanged; a Class
 default Room is not occurrence scheduling.
+
+## LOCAL-07 notes
+
+Adds attendance sheets with OPEN/LOCKED finalization over the authoritative Session
+occurrence model. Rosters snapshot TRIAL/ACTIVE enrollments idempotently, ordinary
+writes stop after lock, and corrections require attendance.correct permission plus
+an append-only reasoned history and audit event. Excused absences create expiring
+makeup entitlements; bookings, cancellation, rebooking, use, no-show reconciliation,
+academic compatibility, unique-student capacity, destination cancellation, and
+rescheduling preserve tenant-qualified history under transactional row locks. The
+Student 360 attendance section exposes history and the makeup entitlement workflow,
+using the existing Session calendar endpoint for destination selection. API and web
+typechecks, builds, and the full API suite passed (19 files, 140 tests). The disposable
+PostgreSQL gate passed (fresh/legacy catalog equivalence, LOCAL-07 constraint
+assertions — cross-tenant sheet/entitlement rejection, booking composite-FK integrity,
+makeup status CHECK, duplicate-active-booking index — drift rejection, idempotent
+rerun). Makeup concurrency is guaranteed by transactional FOR UPDATE row locks plus
+those B5-verified partial unique indexes and composite foreign keys; the real-database
+integration suite already covers two-client scheduling races.
+
+## LOCAL-06 notes
+
+Replaces the legacy weekly schedule and attendance-session rows with one
+authoritative Class -> SchedulePattern -> Session occurrence path, evolving the
+existing tables in place while preserving every legacy ID and AttendanceRecord
+link. Generation is deterministic, bounded, intersects class lifecycle dates
+and pattern effective ranges, and is idempotent through a partial
+generated-occurrence uniqueness constraint. Conflicts use half-open intervals
+across class, teacher, and room for operational sessions only; adjacent
+sessions are allowed. Manual overrides preserve the source slot and survive
+regeneration; cancellation and rescheduling keep history rows (a replacement
+copies the roster and links back to its origin). All writes run in one
+transaction under a per-tenant advisory lock; exclusions are tenant-wide or
+branch-scoped with unique dates. schedule.read/schedule.write gate every
+endpoint, sensitive actions write audit events, and calendar and detail
+integrations use bounded filtered queries. The disposable PostgreSQL gate
+passed (fresh/legacy catalog equivalence, LOCAL-06 constraint assertions,
+drift rejection, idempotent rerun), and a real-database integration suite
+covers generation, exclusions, overrides, lifecycle, conflicts, cross-tenant
+isolation, and two-client races asserting one valid outcome or a domain
+conflict with no partial state.
 
 ## LOCAL-05 notes
 

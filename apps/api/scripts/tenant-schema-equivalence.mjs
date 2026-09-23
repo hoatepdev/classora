@@ -414,6 +414,78 @@ async function assertLocal06Constraints(dbName, label) {
   assert.deepEqual(history, [{ status: 'RESCHEDULED' }, { status: 'SCHEDULED' }], `${label}: Session history status was not preserved`);
 }
 
+async function assertLocal07Constraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const classId = '01J0000000000000000000000V';
+  const otherClassId = '01J000000000000000000000B1';
+  const studentId = '01J00000000000000000000000';
+  const otherStudentId = '01J00000000000000000000006';
+  const sessionId = '01J000000000000000000000D0';
+  const destinationId = '01J000000000000000000000D1';
+  const recordId = '01J000000000000000000000D2';
+  const entitlementId = '01J000000000000000000000D3';
+  const bookingId = '01J000000000000000000000D4';
+  const otherSessionId = '01J000000000000000000000D5';
+
+  await execute(dbName, `
+    INSERT INTO students (id, tenant_id, code, full_name)
+    VALUES ('${otherStudentId}', '${otherTenantId}', 'SCHEMA-S3', 'Other Student');
+    INSERT INTO attendance_sessions (id, tenant_id, class_id, session_date, start_time, end_time, status)
+    VALUES
+      ('${sessionId}', '${tenantId}', '${classId}', '2030-02-01', '08:00', '09:00', 'COMPLETED'),
+      ('${destinationId}', '${tenantId}', '${classId}', '2030-02-02', '08:00', '09:00', 'SCHEDULED'),
+      ('${otherSessionId}', '${otherTenantId}', '${otherClassId}', '2030-02-02', '08:00', '09:00', 'SCHEDULED');
+    INSERT INTO attendance_sheets (id, tenant_id, session_id, status, locked_at)
+    VALUES ('01J000000000000000000000D6', '${tenantId}', '${sessionId}', 'LOCKED', CURRENT_TIMESTAMP);
+    INSERT INTO attendance_records (id, tenant_id, session_id, student_id, status, source)
+    VALUES ('${recordId}', '${tenantId}', '${sessionId}', '${studentId}', 'ABSENT_EXCUSED', 'REGULAR');
+    INSERT INTO makeup_entitlements (id, tenant_id, student_id, source_attendance_record_id, source_session_id, expires_at)
+    VALUES ('${entitlementId}', '${tenantId}', '${studentId}', '${recordId}', '${sessionId}', '2030-03-01');
+    INSERT INTO makeup_bookings (id, tenant_id, entitlement_id, student_id, destination_session_id)
+    VALUES ('${bookingId}', '${tenantId}', '${entitlementId}', '${studentId}', '${destinationId}');
+    INSERT INTO attendance_sheets (id, tenant_id, session_id)
+    VALUES ('01J000000000000000000000D7', '${tenantId}', '${destinationId}');
+    INSERT INTO attendance_records (id, tenant_id, session_id, student_id, makeup_booking_id, status, source)
+    VALUES ('01J000000000000000000000D8', '${tenantId}', '${destinationId}', '${studentId}', '${bookingId}', 'MAKEUP', 'MAKEUP');
+  `);
+
+  const rows = await query(dbName, `
+    SELECT e.status AS "entitlementStatus", b.status AS "bookingStatus", r.status AS "attendanceStatus"
+    FROM makeup_entitlements e
+    JOIN makeup_bookings b ON b.tenant_id = e.tenant_id AND b.entitlement_id = e.id
+    JOIN attendance_records r ON r.tenant_id = b.tenant_id AND r.makeup_booking_id = b.id
+    WHERE e.tenant_id = $1 AND e.id = $2
+  `, [tenantId, entitlementId]);
+  assert.deepEqual(rows, [{ entitlementStatus: 'AVAILABLE', bookingStatus: 'BOOKED', attendanceStatus: 'MAKEUP' }], `${label}: makeup rows were not preserved`);
+
+  const rejects = async (sql, message) => assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await rejects(
+    `INSERT INTO attendance_sheets (id, tenant_id, session_id) VALUES ('01J000000000000000000000D9', '${otherTenantId}', '${sessionId}')`,
+    'cross-tenant AttendanceSheet relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO makeup_entitlements (id, tenant_id, student_id, source_attendance_record_id, source_session_id, expires_at) VALUES ('01J000000000000000000000DA', '${otherTenantId}', '${otherStudentId}', '${recordId}', '${sessionId}', '2030-03-01')`,
+    'cross-tenant MakeupEntitlement relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO makeup_bookings (id, tenant_id, entitlement_id, student_id, destination_session_id) VALUES ('01J000000000000000000000DB', '${tenantId}', '${entitlementId}', '${otherStudentId}', '${destinationId}')`,
+    'booking student/entitlement integrity was not enforced',
+  );
+  await rejects(
+    `INSERT INTO attendance_records (id, tenant_id, session_id, student_id, makeup_booking_id, status, source) VALUES ('01J000000000000000000000DC', '${tenantId}', '${destinationId}', '${studentId}', '${bookingId}', 'PRESENT', 'MAKEUP')`,
+    'invalid MAKEUP attendance status was allowed',
+  );
+  await rejects(
+    `INSERT INTO attendance_records (id, tenant_id, session_id, student_id, makeup_booking_id, status, source) VALUES ('01J000000000000000000000DD', '${tenantId}', '${otherSessionId}', '${studentId}', '${bookingId}', 'MAKEUP', 'MAKEUP')`,
+    'booking destination/session integrity was not enforced',
+  );
+  await rejects(
+    `INSERT INTO makeup_bookings (id, tenant_id, entitlement_id, student_id, destination_session_id) VALUES ('01J000000000000000000000DE', '${tenantId}', '${entitlementId}', '${studentId}', '${destinationId}')`,
+    'duplicate active entitlement booking was allowed',
+  );
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -469,6 +541,8 @@ async function main() {
   await assertLocal05Constraints(legacy, 'legacy');
   await assertLocal06Constraints(fresh, 'fresh');
   await assertLocal06Constraints(legacy, 'legacy');
+  await assertLocal07Constraints(fresh, 'fresh');
+  await assertLocal07Constraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

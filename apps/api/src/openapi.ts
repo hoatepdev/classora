@@ -404,7 +404,7 @@ export const openApiSchemas = {
       attendanceSessionId: { ...ulid, description: 'Compatibility name for the authoritative Session ID.' },
       sessionId: { ...ulid, deprecated: true, description: 'Use attendanceSessionId in the attendance compatibility API.' },
       studentId: ulid,
-      status: { type: 'string', enum: ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] },
+      status: { type: 'string', enum: ['UNMARKED', 'PRESENT', 'LATE', 'ABSENT_EXCUSED', 'ABSENT_UNEXCUSED', 'ONLINE', 'MAKEUP'] },
       note: nullableString,
     },
     required: [
@@ -414,6 +414,11 @@ export const openApiSchemas = {
       'status',
       'note',
     ],
+  },
+  AttendanceCorrection: {
+    type: 'object',
+    properties: { id: ulid, attendanceRecordId: ulid, beforeStatus: { type: 'string' }, afterStatus: { type: 'string' }, beforeNote: nullableString, afterNote: nullableString, reason: { type: 'string' }, actorUserId: { ...ulid, nullable: true }, actorMembershipId: { ...ulid, nullable: true }, requestId: nullableString, createdAt: timestamp },
+    required: ['id', 'attendanceRecordId', 'beforeStatus', 'afterStatus', 'beforeNote', 'afterNote', 'reason', 'actorUserId', 'actorMembershipId', 'requestId', 'createdAt'],
   },
   AttendanceSession: {
     type: 'object',
@@ -439,6 +444,21 @@ export const openApiSchemas = {
       'endTime',
       'status',
     ],
+  },
+  AttendanceSheet: {
+    type: 'object',
+    properties: { id: ulid, tenantId: ulid, sessionId: ulid, status: { type: 'string', enum: ['OPEN', 'LOCKED'] }, initializedAt: timestamp, lockedAt: { ...timestamp, nullable: true }, lockedByUserId: { ...ulid, nullable: true }, createdAt: timestamp, updatedAt: timestamp },
+    required: ['id', 'tenantId', 'sessionId', 'status', 'initializedAt', 'lockedAt', 'lockedByUserId', 'createdAt', 'updatedAt'],
+  },
+  MakeupEntitlement: {
+    type: 'object',
+    properties: { id: ulid, tenantId: ulid, studentId: ulid, sourceAttendanceRecordId: ulid, sourceSessionId: ulid, sourceEnrollmentId: { ...ulid, nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'BOOKED', 'USED', 'EXPIRED', 'REVOKED'] }, expiresAt: { type: 'string', format: 'date' }, createdAt: timestamp, updatedAt: timestamp },
+    required: ['id', 'tenantId', 'studentId', 'sourceAttendanceRecordId', 'sourceSessionId', 'sourceEnrollmentId', 'status', 'expiresAt', 'createdAt', 'updatedAt'],
+  },
+  MakeupBooking: {
+    type: 'object',
+    properties: { id: ulid, tenantId: ulid, entitlementId: ulid, studentId: ulid, destinationSessionId: ulid, status: { type: 'string', enum: ['BOOKED', 'USED', 'CANCELLED'] }, bookedAt: timestamp, cancelledAt: { ...timestamp, nullable: true }, usedAt: { ...timestamp, nullable: true }, createdAt: timestamp, updatedAt: timestamp },
+    required: ['id', 'tenantId', 'entitlementId', 'studentId', 'destinationSessionId', 'status', 'bookedAt', 'cancelledAt', 'usedAt', 'createdAt', 'updatedAt'],
   },
   AttendanceSessionSummary: {
     allOf: [

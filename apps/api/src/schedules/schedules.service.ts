@@ -134,6 +134,8 @@ function serializeSession(row: SessionRow) {
     ...row,
     startTime: row.startTime.slice(0, 5),
     endTime: row.endTime.slice(0, 5),
+    sourceStartTime: row.sourceStartTime?.slice(0, 5),
+    sourceEndTime: row.sourceEndTime?.slice(0, 5),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -639,10 +641,10 @@ export class SchedulesService {
       );
       const classRow = classResult.rows[0];
       if (!classRow) throw new NotFoundException('Class not found');
-      const eligibleStudents = await client.query<{ studentId: string }>(
-        `SELECT student_id AS "studentId"
+      const eligibleStudents = await client.query<{ studentId: string; enrollmentId: string }>(
+        `SELECT id AS "enrollmentId", student_id AS "studentId"
          FROM enrollments
-         WHERE tenant_id = $1 AND class_id = $2 AND status = 'ACTIVE'
+         WHERE tenant_id = $1 AND class_id = $2 AND status IN ('TRIAL', 'ACTIVE')
          ORDER BY student_id`,
         [tenant.tenantId, classId],
       );
@@ -708,15 +710,19 @@ export class SchedulesService {
           );
           if (result.rowCount) {
             inserted += result.rowCount;
+            await client.query(
+              'INSERT INTO attendance_sheets (id, tenant_id, session_id) VALUES ($1, $2, $3)',
+              [ulid(), tenant.tenantId, sessionId],
+            );
             if (eligibleStudents.rows.length > 0) {
               const values: unknown[] = [];
-              const tuples = eligibleStudents.rows.map(({ studentId }, index) => {
-                const offset = index * 4;
-                values.push(ulid(), tenant.tenantId, sessionId, studentId);
-                return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
+              const tuples = eligibleStudents.rows.map(({ studentId, enrollmentId }, index) => {
+                const offset = index * 6;
+                values.push(ulid(), tenant.tenantId, sessionId, studentId, enrollmentId, 'UNMARKED');
+                return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, 'REGULAR')`;
               });
               await client.query(
-                `INSERT INTO attendance_records (id, tenant_id, session_id, student_id)
+                `INSERT INTO attendance_records (id, tenant_id, session_id, student_id, enrollment_id, status, source)
                  VALUES ${tuples.join(', ')}`,
                 values,
               );
@@ -825,7 +831,7 @@ export class SchedulesService {
       const conflict = await this.sessionConflict(client, tenant.tenantId, { ...effective, classId: session.classId }, id);
       if (conflict) throw new ConflictException(conflict);
       const result = await client.query<SessionRow>(
-        `UPDATE attendance_sessions SET teacher_id = $3, room_id = $4, session_date = $5::date,
+        `UPDATE attendance_sessions AS a SET teacher_id = $3, room_id = $4, session_date = $5::date,
           start_time = $6::time, end_time = $7::time, manual_override = TRUE,
           source_session_date = COALESCE(source_session_date, session_date),
           source_start_time = COALESCE(source_start_time, start_time),
@@ -865,37 +871,68 @@ export class SchedulesService {
         endTime: input.endTime,
       }, id);
       if (conflict) throw new ConflictException(conflict);
-      const roster = await client.query<{ studentId: string; status: string; note: string | null }>(
-        `SELECT student_id AS "studentId", status, note
+      const roster = await client.query<{
+        studentId: string;
+        enrollmentId: string | null;
+        status: string;
+        note: string | null;
+        source: 'REGULAR' | 'MAKEUP';
+        makeupBookingId: string | null;
+      }>(
+        `SELECT student_id AS "studentId", enrollment_id AS "enrollmentId", status, note, source, makeup_booking_id AS "makeupBookingId"
          FROM attendance_records
          WHERE tenant_id = $1 AND session_id = $2
          ORDER BY student_id`,
         [tenant.tenantId, original.id],
       );
+      const makeupBookings = await client.query<{ id: string; entitlementId: string; studentId: string }>(
+        `SELECT id, entitlement_id AS "entitlementId", student_id AS "studentId" FROM makeup_bookings
+         WHERE tenant_id = $1 AND destination_session_id = $2 AND status = 'BOOKED'
+         FOR UPDATE`,
+        [tenant.tenantId, original.id],
+      );
       const replacementId = ulid();
       const replacement = await client.query<SessionRow>(
-        `INSERT INTO attendance_sessions
+        `INSERT INTO attendance_sessions AS a
           (id, tenant_id, class_id, schedule_pattern_id, room_id, teacher_id, branch_id, session_date, start_time, end_time, manual_override, rescheduled_from_id, reschedule_reason, source_session_date, source_start_time, source_end_time)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9::time, $10::time, TRUE, $11, $12, $13::date, $14::time, $15::time)
          RETURNING ${sessionColumns}`,
         [replacementId, tenant.tenantId, original.classId, original.schedulePatternId, original.roomId, original.teacherId, original.branchId, input.sessionDate, input.startTime, input.endTime, original.id, input.reason ?? null, original.sessionDate, original.startTime, original.endTime],
       );
+      await client.query(
+        'INSERT INTO attendance_sheets (id, tenant_id, session_id) VALUES ($1, $2, $3)',
+        [ulid(), tenant.tenantId, replacementId],
+      );
+      for (const booking of makeupBookings.rows) {
+        // Move the dependent attendance rows before changing the booking destination;
+        // the composite foreign key requires both values to agree at every statement.
+        await client.query(
+          `DELETE FROM attendance_records
+           WHERE tenant_id = $1 AND makeup_booking_id = $2 AND session_id = $3`,
+          [tenant.tenantId, booking.id, id],
+        );
+        await client.query(
+          `UPDATE makeup_bookings SET destination_session_id = $3, updated_at = CURRENT_TIMESTAMP
+           WHERE tenant_id = $1 AND id = $2 AND status = 'BOOKED'`,
+          [tenant.tenantId, booking.id, replacementId],
+        );
+      }
       if (roster.rows.length > 0) {
         const values: unknown[] = [];
-        const tuples = roster.rows.map(({ studentId, status, note }, index) => {
-          const offset = index * 6;
-          values.push(ulid(), tenant.tenantId, replacementId, studentId, status, note);
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`;
+        const tuples = roster.rows.map(({ studentId, enrollmentId, status, note, source, makeupBookingId }, index) => {
+          const offset = index * 9;
+          values.push(ulid(), tenant.tenantId, replacementId, studentId, enrollmentId, status, note, source, makeupBookingId);
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9})`;
         });
         await client.query(
-          `INSERT INTO attendance_records (id, tenant_id, session_id, student_id, status, note)
+          `INSERT INTO attendance_records (id, tenant_id, session_id, student_id, enrollment_id, status, note, source, makeup_booking_id)
            VALUES ${tuples.join(', ')}`,
           values,
         );
       }
       const updated = await client.query<SessionRow>(
-        `UPDATE attendance_sessions SET status = 'RESCHEDULED', reschedule_reason = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE tenant_id = $1 AND id = $2 RETURNING ${sessionColumns}`,
+        `UPDATE attendance_sessions AS a SET status = 'RESCHEDULED', reschedule_reason = $3, updated_at = CURRENT_TIMESTAMP
+         WHERE a.tenant_id = $1 AND a.id = $2 RETURNING ${sessionColumns}`,
         [tenant.tenantId, id, input.reason ?? null],
       );
       await this.auditSession(client, 'schedule.session.rescheduled', replacement.rows[0], updated.rows[0], input.reason);
@@ -927,11 +964,36 @@ export class SchedulesService {
       const session = current.rows[0];
       if (!session) throw new NotFoundException('Session not found');
       if (session.status !== SessionStatus.SCHEDULED) throw new ConflictException('Session is not scheduled.');
+      if (status === SessionStatus.COMPLETED) {
+        const attendance = await client.query<{ status: string }>(
+          'SELECT status FROM attendance_sheets WHERE tenant_id = $1 AND session_id = $2 FOR UPDATE',
+          [tenant.tenantId, id],
+        );
+        if (attendance.rows[0]?.status !== 'LOCKED') {
+          throw new ConflictException('Attendance must be finalized before completing the session.');
+        }
+      }
       const result = await client.query<SessionRow>(
-        `UPDATE attendance_sessions SET status = $3, cancellation_reason = $4, updated_at = CURRENT_TIMESTAMP
-         WHERE tenant_id = $1 AND id = $2 RETURNING ${sessionColumns}`,
+        `UPDATE attendance_sessions AS a SET status = $3, cancellation_reason = $4, updated_at = CURRENT_TIMESTAMP
+         WHERE a.tenant_id = $1 AND a.id = $2 RETURNING ${sessionColumns}`,
         [tenant.tenantId, id, status, status === SessionStatus.CANCELLED ? reason ?? null : null],
       );
+      if (status === SessionStatus.CANCELLED) {
+        await client.query(
+          `UPDATE makeup_bookings b
+           SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+           WHERE b.tenant_id = $1 AND b.destination_session_id = $2 AND b.status = 'BOOKED'`,
+          [tenant.tenantId, id],
+        );
+        await client.query(
+          `UPDATE makeup_entitlements e
+           SET status = CASE WHEN CURRENT_DATE > e.expires_at THEN 'EXPIRED' ELSE 'AVAILABLE' END, updated_at = CURRENT_TIMESTAMP
+           WHERE e.tenant_id = $1 AND e.status = 'BOOKED'
+             AND EXISTS (SELECT 1 FROM makeup_bookings b WHERE b.tenant_id = e.tenant_id AND b.entitlement_id = e.id AND b.destination_session_id = $2 AND b.status = 'CANCELLED')`,
+          [tenant.tenantId, id],
+        );
+        await client.query('DELETE FROM attendance_records WHERE tenant_id = $1 AND session_id = $2 AND source = \'MAKEUP\'', [tenant.tenantId, id]);
+      }
       await this.auditSession(client, action, result.rows[0], session, reason);
       await client.query('COMMIT');
       return serializeSession(result.rows[0]);

@@ -3,18 +3,17 @@ import { Transform } from 'class-transformer';
 import { IsDefined, IsEnum, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 
 export enum AttendanceRecordStatus {
+  UNMARKED = 'UNMARKED',
   PRESENT = 'PRESENT',
-  ABSENT = 'ABSENT',
   LATE = 'LATE',
-  EXCUSED = 'EXCUSED',
+  ABSENT_EXCUSED = 'ABSENT_EXCUSED',
+  ABSENT_UNEXCUSED = 'ABSENT_UNEXCUSED',
+  ONLINE = 'ONLINE',
+  MAKEUP = 'MAKEUP',
 }
 
 const nullableText = ({ value }: { value: unknown }) =>
-  typeof value === 'string' && value.trim() === ''
-    ? null
-    : typeof value === 'string'
-      ? value.trim()
-      : value;
+  typeof value === 'string' && value.trim() === '' ? null : typeof value === 'string' ? value.trim() : value;
 
 export class UpdateAttendanceRecordDto {
   @ApiPropertyOptional({ enum: AttendanceRecordStatus })

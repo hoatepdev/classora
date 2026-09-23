@@ -1,8 +1,11 @@
 import type { AttendanceStatus } from "./types.js";
 
 export const attendanceStatusLabels: Record<AttendanceStatus, string> = {
+  UNMARKED: "Chưa điểm danh",
   PRESENT: "Có mặt",
-  ABSENT: "Vắng",
   LATE: "Đi trễ",
-  EXCUSED: "Có phép",
+  ABSENT_EXCUSED: "Vắng có phép",
+  ABSENT_UNEXCUSED: "Vắng không phép",
+  ONLINE: "Học trực tuyến",
+  MAKEUP: "Học bù",
 };

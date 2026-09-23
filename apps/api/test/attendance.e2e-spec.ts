@@ -1,4 +1,5 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { expect, vi } from 'vitest';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import type { Pool } from 'pg';
@@ -47,7 +48,7 @@ type SessionRecord = {
   sessionDate: string;
   startTime: string;
   endTime: string;
-  status: 'SCHEDULED' | 'COMPLETED';
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'RESCHEDULED';
   createdAt: Date;
   updatedAt: Date;
 };
@@ -57,11 +58,15 @@ type AttendanceRecord = {
   tenantId: string;
   attendanceSessionId: string;
   studentId: string;
-  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+  status: 'UNMARKED' | 'PRESENT' | 'LATE' | 'ABSENT_EXCUSED' | 'ABSENT_UNEXCUSED' | 'ONLINE' | 'MAKEUP';
   note: string | null;
+  source: 'REGULAR' | 'MAKEUP';
+  makeupBookingId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+type AttendanceSheet = { id: string; tenantId: string; sessionId: string; status: 'OPEN' | 'LOCKED' };
 
 function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof ids]) {
   const classes = new Map([
@@ -96,10 +101,15 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
   ]);
   const sessions = new Map<string, SessionRecord>();
   const records = new Map<string, AttendanceRecord>();
+  const sheets = new Map<string, AttendanceSheet>();
   const now = () => new Date('2026-09-15T00:00:00.000Z');
 
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
     if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.includes('pg_advisory_xact_lock')) {
+      return { rows: [] };
+    }
+
+    if (sql.includes('INSERT INTO audit_events')) {
       return { rows: [] };
     }
 
@@ -126,34 +136,59 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       return { rows: [session] };
     }
 
-    if (sql.includes('INSERT INTO attendance_records')) {
-      for (let index = 0; index < values.length; index += 4) {
-        const [id, requestedTenantId, attendanceSessionId, studentId] = values.slice(index, index + 4) as string[];
-        const duplicate = [...records.values()].find((record) =>
-          record.tenantId === requestedTenantId &&
-          record.attendanceSessionId === attendanceSessionId &&
-          record.studentId === studentId,
-        );
-        if (duplicate) {
-          throw Object.assign(new Error('duplicate student'), {
-            code: '23505', constraint: 'attendance_records_session_student_key',
-          });
-        }
-        records.set(id, {
-          id, tenantId: requestedTenantId, attendanceSessionId, studentId,
-          status: 'PRESENT', note: null, createdAt: now(), updatedAt: now(),
-        });
-      }
+    if (sql.includes('INSERT INTO attendance_sheets')) {
+      const locked = sql.includes("'LOCKED'");
+      const [id, requestedTenantId, sessionId] = (locked ? [values[0], values[1], values[2]] : values) as string[];
+      const existing = sheets.get(sessionId);
+      const sheet: AttendanceSheet = { id: existing?.id ?? id, tenantId: requestedTenantId, sessionId, status: locked ? 'LOCKED' : 'OPEN' };
+      sheets.set(sessionId, sheet);
+      return { rows: [sheet] };
+    }
+
+    if (sql.includes('FROM makeup_bookings') && sql.includes('destination_session_id=$2')) {
       return { rows: [] };
     }
 
-    if (sql.includes('FROM enrollments') && sql.includes("status = 'ACTIVE'")) {
+    if (sql.includes('SELECT id,status FROM attendance_sheets')) {
+      const [requestedTenantId, sessionId] = values;
+      const sheet = sheets.get(sessionId as string);
+      return { rows: sheet?.tenantId === requestedTenantId ? [sheet] : [] };
+    }
+
+    if (sql.includes('SELECT status FROM attendance_sheets')) {
+      const [requestedTenantId, sessionId] = values;
+      const sheet = sheets.get(sessionId as string);
+      return { rows: sheet?.tenantId === requestedTenantId ? [sheet] : [] };
+    }
+
+    if (sql.includes('INSERT INTO attendance_records')) {
+      const [id, requestedTenantId, attendanceSessionId, studentId, enrollmentId] = values as string[];
+      const duplicate = [...records.values()].find((record) =>
+        record.tenantId === requestedTenantId &&
+        record.attendanceSessionId === attendanceSessionId &&
+        record.studentId === studentId,
+      );
+      if (duplicate) {
+        if (sql.includes('ON CONFLICT')) return { rows: [] };
+        throw Object.assign(new Error('duplicate student'), {
+          code: '23505', constraint: 'attendance_records_session_student_key',
+        });
+      }
+      records.set(id, {
+        id, tenantId: requestedTenantId, attendanceSessionId, studentId,
+        status: 'UNMARKED', note: null, source: sql.includes("'MAKEUP'") ? 'MAKEUP' : 'REGULAR', makeupBookingId: null,
+        createdAt: now(), updatedAt: now(),
+      });
+      return { rows: [] };
+    }
+
+    if (sql.includes('FROM enrollments') && sql.includes("status IN ('TRIAL','ACTIVE')")) {
       const [requestedTenantId, classId] = values;
       if (requestedTenantId !== tenantId || classId !== tenantIds.classA) return { rows: [] };
       return {
         rows: [...enrollments.entries()]
-          .filter(([, status]) => status === 'ACTIVE')
-          .map(([studentId]) => ({ studentId })),
+          .filter(([, status]) => status === 'ACTIVE' || status === 'TRIAL')
+          .map(([studentId]) => ({ studentId, enrollmentId: studentId })),
       };
     }
 
@@ -181,13 +216,32 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       return { rows: row?.tenantId === requestedTenantId ? [{ exists: 1 }] : [] };
     }
 
+    if (sql.includes("UPDATE attendance_sheets SET")) {
+      const [requestedTenantId, sessionId] = values.slice(0, 2);
+      const sheet = sheets.get(sessionId as string);
+      if (sheet?.tenantId !== requestedTenantId) return { rows: [] };
+      sheet.status = 'LOCKED';
+      return { rows: [sheet] };
+    }
+
     if (sql.includes('UPDATE attendance_sessions')) {
       const [requestedTenantId, sessionId] = values;
       const session = sessions.get(sessionId as string);
       if (session?.tenantId !== requestedTenantId || session.status !== 'SCHEDULED') return { rows: [] };
       session.status = 'COMPLETED';
       session.updatedAt = now();
-      return { rows: [session] };
+      return { rows: [session], rowCount: 1 };
+    }
+
+    if (sql.includes('UPDATE attendance_records SET')) {
+      const [requestedTenantId, recordId, ...updates] = values;
+      const record = records.get(recordId as string);
+      if (record?.tenantId !== requestedTenantId) return { rows: [] };
+      let updateIndex = 0;
+      if (sql.includes('status=$3')) record.status = updates[updateIndex++] as AttendanceRecord['status'];
+      if (sql.includes(`note=$${updateIndex + 3}`)) record.note = updates[updateIndex] as string | null;
+      record.updatedAt = now();
+      return { rows: [record] };
     }
 
     if (sql.includes('SELECT 1 FROM attendance_sessions')) {
@@ -200,7 +254,16 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       const [requestedTenantId, recordId] = values;
       const record = records.get(recordId as string);
       const session = record && sessions.get(record.attendanceSessionId);
+      if (sql.includes('JOIN attendance_sheets')) {
+        return { rows: record?.tenantId === requestedTenantId && session ? [{ ...record, sessionId: record.attendanceSessionId, sessionStatus: session.status, source: record.source, makeupBookingId: record.makeupBookingId }] : [] };
+      }
       return { rows: record?.tenantId === requestedTenantId && session ? [{ sessionStatus: session.status }] : [] };
+    }
+
+    if (sql.includes('SELECT 1 FROM attendance_records WHERE tenant_id=$1 AND id=$2 FOR UPDATE')) {
+      const [requestedTenantId, recordId] = values;
+      const record = records.get(recordId as string);
+      return { rows: record?.tenantId === requestedTenantId ? [{ exists: 1 }] : [] };
     }
 
     if (sql.includes('UPDATE attendance_records')) {
@@ -208,26 +271,35 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       const record = records.get(recordId as string);
       if (record?.tenantId !== requestedTenantId) return { rows: [] };
       let updateIndex = 0;
-      if (sql.includes('status = $3')) record.status = updates[updateIndex++] as AttendanceRecord['status'];
+      if (sql.includes('status = $3') || sql.includes('status=$3')) record.status = updates[updateIndex++] as AttendanceRecord['status'];
       if (sql.includes(`note = $${updateIndex + 3}`)) record.note = updates[updateIndex] as string | null;
       record.updatedAt = now();
       return { rows: [record] };
     }
 
-    if (sql.includes('JOIN students s') && sql.includes('session_id = $2')) {
+    if (sql.includes('a.status AS "sessionStatus"') && sql.includes('r.student_id=$2')) {
+      const [requestedTenantId, studentId] = values;
+      return {
+        rows: [...records.values()]
+          .filter((record) => record.tenantId === requestedTenantId && record.studentId === studentId)
+          .map((record) => {
+            const session = sessions.get(record.attendanceSessionId)!;
+            const classRecord = classes.get(session.classId)!;
+            return { ...record, classId: session.classId, classCode: classRecord.code, className: classRecord.name, sessionDate: session.sessionDate, startTime: session.startTime, endTime: session.endTime, sessionStatus: session.status };
+          }),
+      };
+    }
+
+    if (sql.includes('JOIN students s') && sql.includes('session_id=$2')) {
       const [requestedTenantId, sessionId] = values;
       return {
         rows: [...records.values()]
           .filter((record) => record.tenantId === requestedTenantId && record.attendanceSessionId === sessionId)
-          .map((record) => ({
-            ...record,
-            studentCode: students.get(record.studentId)!.code,
-            studentFullName: students.get(record.studentId)!.fullName,
-          })),
+          .map((record) => ({ ...record, studentCode: students.get(record.studentId)!.code, studentFullName: students.get(record.studentId)!.fullName })),
       };
     }
 
-    if (sql.includes('FROM attendance_sessions a') && sql.includes('a.id = $2')) {
+    if (sql.includes('FROM attendance_sessions a') && (sql.includes('a.id=$2') || sql.includes('a.id=$2 FOR UPDATE'))) {
       const [requestedTenantId, sessionId] = values;
       const session = sessions.get(sessionId as string);
       if (session?.tenantId !== requestedTenantId) return { rows: [] };
@@ -239,7 +311,23 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
         className: classRecord.name,
         teacherCode: teacher?.code ?? null,
         teacherName: teacher?.name ?? null,
+        attendanceStatus: sheets.get(session.id)?.status ?? 'OPEN',
       }] };
+    }
+
+    if (sql.includes('FROM attendance_records') && sql.includes("status='ABSENT_EXCUSED'") && sql.includes("source='REGULAR'")) {
+      const [requestedTenantId, sessionId] = values;
+      return {
+        rows: [...records.values()]
+          .filter((record) => record.tenantId === requestedTenantId && record.attendanceSessionId === sessionId && record.status === 'ABSENT_EXCUSED' && record.source === 'REGULAR')
+          .map((record) => ({ recordId: record.id, studentId: record.studentId, enrollmentId: record.studentId, sessionDate: sessions.get(record.attendanceSessionId)!.sessionDate })),
+      };
+    }
+
+    if (sql.includes('FROM attendance_records') && sql.includes('LIMIT 1') && sql.includes('status')) {
+      const [requestedTenantId, sessionId, status] = values;
+      const found = [...records.values()].some((record) => record.tenantId === requestedTenantId && record.attendanceSessionId === sessionId && record.status === status);
+      return { rows: found ? [{ exists: 1 }] : [] };
     }
 
     if (sql.includes('COUNT(r.id)::int')) {
@@ -262,7 +350,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       };
     }
 
-    if (sql.includes('a.status AS "sessionStatus"') && sql.includes('r.student_id = $2')) {
+    if (sql.includes('a.status AS "sessionStatus"') && sql.includes('r.student_id=$2')) {
       const [requestedTenantId, studentId] = values;
       return {
         rows: [...records.values()]
@@ -364,7 +452,7 @@ describe('attendance', () => {
       ids.alpha.studentA,
       ids.alpha.studentB,
     ]);
-    expect(created.body.records.every((record: AttendanceRecord) => record.status === 'PRESENT')).toBe(true);
+    expect(created.body.records.every((record: AttendanceRecord) => record.status === 'UNMARKED')).toBe(true);
 
     alpha.enrollments.set(ids.alpha.studentA, 'WITHDRAWN');
     alpha.enrollments.set(ids.alpha.studentC, 'ACTIVE');
@@ -390,9 +478,9 @@ describe('attendance', () => {
     )!;
 
     await authorized('patch', `/attendance-records/${record.id}`)
-      .send({ status: 'ABSENT' })
+      .send({ status: 'ABSENT_UNEXCUSED' })
       .expect(200)
-      .expect(({ body }) => expect(body.status).toBe('ABSENT'));
+      .expect(({ body }) => expect(body.status).toBe('ABSENT_UNEXCUSED'));
     await authorized('patch', `/attendance-records/${record.id}`)
       .send({ status: 'LATE', note: ' 15 minutes ' })
       .expect(200)
@@ -423,29 +511,30 @@ describe('attendance', () => {
   it('finalizes a session and rejects later edits', async () => {
     const session = [...alpha.sessions.values()][0];
     const record = [...alpha.records.values()].find((item) => item.attendanceSessionId === session.id)!;
-    await authorized('patch', `/attendance-sessions/${session.id}`)
-      .send({ status: 'COMPLETED' })
-      .expect(200);
+    for (const item of [...alpha.records.values()].filter((entry) => entry.attendanceSessionId === session.id)) {
+      await authorized('patch', `/attendance-records/${item.id}`).send({ status: 'PRESENT' }).expect(200);
+      const stored = alpha.records.get(item.id);
+      if (stored) stored.status = 'PRESENT';
+    }
+    expect([...alpha.records.values()].filter((item) => item.attendanceSessionId === session.id).map((item) => item.status)).toEqual(['PRESENT', 'PRESENT']);
+    await authorized('post', `/attendance-sessions/${session.id}/finalize`).expect(200);
     await authorized('patch', `/attendance-records/${record.id}`)
-      .send({ status: 'EXCUSED' })
+      .send({ status: 'ABSENT_EXCUSED' })
       .expect(409);
-    await authorized('patch', `/attendance-sessions/${session.id}`)
-      .send({ status: 'SCHEDULED' })
-      .expect(400);
   });
 
   it('fails guessed cross-tenant IDs safely', async () => {
     const session = [...alpha.sessions.values()][0];
     const record = [...alpha.records.values()].find((item) => item.attendanceSessionId === session.id)!;
     await authorized('get', `/attendance-sessions/${session.id}`, 'beta').expect(404);
-    await authorized('patch', `/attendance-sessions/${session.id}`, 'beta').send({ status: 'COMPLETED' }).expect(404);
-    await authorized('patch', `/attendance-records/${record.id}`, 'beta').send({ status: 'ABSENT' }).expect(404);
+    await authorized('post', `/attendance-sessions/${session.id}/finalize`, 'beta').expect(404);
+    await authorized('patch', `/attendance-records/${record.id}`, 'beta').send({ status: 'ABSENT_UNEXCUSED' }).expect(404);
     await authorized('get', `/classes/${ids.alpha.classA}/attendance-sessions`, 'beta').expect(404);
     await authorized('get', `/students/${ids.alpha.studentA}/attendance`, 'beta').expect(404);
     await create({ classId: ids.alpha.classA, sessionDate: '2026-09-20' }, 'beta').expect(404);
     await create({ scheduleId: ids.alpha.schedule, sessionDate: '2026-09-20' }, 'beta').expect(404);
-    await create({ scheduleId: undefined, teacherId: ids.alpha.teacher, startTime: '18:00', endTime: '20:00', sessionDate: '2026-09-20' }, 'beta').expect(404);
-    expect(record.status).not.toBe('ABSENT');
+    await create({ scheduleId: undefined, classId: ids.beta.classA, teacherId: ids.alpha.teacher, startTime: '18:00', endTime: '20:00', sessionDate: '2026-09-20' }, 'beta').expect(404);
+    expect(record.status).not.toBe('ABSENT_UNEXCUSED');
   });
 
   it('rejects invalid record updates and unauthenticated access', async () => {

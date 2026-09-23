@@ -100,8 +100,11 @@ ALTER TABLE attendance_sessions
   ADD CONSTRAINT attendance_sessions_time_order_check CHECK (start_time < end_time),
   ADD CONSTRAINT attendance_sessions_not_self_rescheduled_check CHECK (rescheduled_from_id IS NULL OR rescheduled_from_id <> id),
   ADD CONSTRAINT attendance_sessions_reschedule_source_check CHECK (
-    (rescheduled_from_id IS NULL AND source_session_date IS NULL AND source_start_time IS NULL AND source_end_time IS NULL)
-    OR (rescheduled_from_id IS NOT NULL AND source_session_date IS NOT NULL AND source_start_time IS NOT NULL AND source_end_time IS NOT NULL)
+    (source_session_date IS NULL AND source_start_time IS NULL AND source_end_time IS NULL)
+    OR (source_session_date IS NOT NULL AND source_start_time IS NOT NULL AND source_end_time IS NOT NULL)
+  ),
+  ADD CONSTRAINT attendance_sessions_reschedule_source_complete_check CHECK (
+    rescheduled_from_id IS NULL OR source_session_date IS NOT NULL
   );
 
 ALTER TABLE attendance_sessions ALTER COLUMN status SET DEFAULT 'SCHEDULED';
