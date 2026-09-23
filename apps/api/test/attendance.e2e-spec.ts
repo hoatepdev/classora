@@ -87,8 +87,11 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       tenantId,
       classId: tenantIds.classA,
       teacherId: tenantIds.teacher,
+      dayOfWeek: 'TUESDAY',
       startTime: '18:00',
       endTime: '20:00',
+      roomId: null,
+      branchId: null,
       status: 'ACTIVE',
       effectiveFrom: null,
       effectiveUntil: null,
@@ -114,7 +117,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
     }
 
     if (sql.includes('INSERT INTO attendance_sessions')) {
-      const [id, requestedTenantId, classId, scheduleId, teacherId, sessionDate, startTime, endTime] = values as Array<string | null>;
+      const [id, requestedTenantId, classId, scheduleId, , teacherId, , sessionDate, startTime, endTime] = values as Array<string | null>;
       const duplicate = [...sessions.values()].find((session) =>
         session.tenantId === requestedTenantId &&
         (scheduleId
@@ -198,6 +201,16 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       return { rows: schedule?.tenantId === requestedTenantId ? [schedule] : [] };
     }
 
+    if (sql.includes('start_date::text AS "startDate"') && sql.includes('FROM classes')) {
+      const [requestedTenantId, classId] = values;
+      const row = classes.get(classId as string);
+      return { rows: row?.tenantId === requestedTenantId ? [{ branchId: null, startDate: null, expectedEndDate: null, status: 'ACTIVE' }] : [] };
+    }
+
+    if (sql.includes('FROM schedule_exclusions')) return { rows: [] };
+
+    if (sql.includes('FROM attendance_sessions') && sql.includes("status IN ('SCHEDULED','COMPLETED')")) return { rows: [] };
+
     if (sql.includes('SELECT 1 FROM classes')) {
       const [requestedTenantId, classId] = values;
       const row = classes.get(classId as string);
@@ -260,6 +273,12 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       return { rows: record?.tenantId === requestedTenantId && session ? [{ sessionStatus: session.status }] : [] };
     }
 
+    if (sql.includes('FROM attendance_records r WHERE r.tenant_id=$1 AND r.id=$2 FOR UPDATE')) {
+      const [requestedTenantId, recordId] = values;
+      const record = records.get(recordId as string);
+      return { rows: record?.tenantId === requestedTenantId ? [record] : [] };
+    }
+
     if (sql.includes('SELECT 1 FROM attendance_records WHERE tenant_id=$1 AND id=$2 FOR UPDATE')) {
       const [requestedTenantId, recordId] = values;
       const record = records.get(recordId as string);
@@ -272,7 +291,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       if (record?.tenantId !== requestedTenantId) return { rows: [] };
       let updateIndex = 0;
       if (sql.includes('status = $3') || sql.includes('status=$3')) record.status = updates[updateIndex++] as AttendanceRecord['status'];
-      if (sql.includes(`note = $${updateIndex + 3}`)) record.note = updates[updateIndex] as string | null;
+      if (sql.includes(`note = $${updateIndex + 3}`) || sql.includes(`note=$${updateIndex + 3}`)) record.note = updates[updateIndex] as string | null;
       record.updatedAt = now();
       return { rows: [record] };
     }

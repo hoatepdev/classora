@@ -767,6 +767,15 @@ export class SchedulesService {
     if (input.roomId) add('a.room_id = $VALUE', input.roomId);
     if (input.branchId) add('a.branch_id = $VALUE', input.branchId);
     if (input.studentId) add("EXISTS (SELECT 1 FROM enrollments e WHERE e.tenant_id = a.tenant_id AND e.class_id = a.class_id AND e.student_id = $VALUE AND e.status IN ('PENDING', 'TRIAL', 'ACTIVE', 'PAUSED'))", input.studentId);
+    if (input.makeupEntitlementId) add(`EXISTS (
+      SELECT 1 FROM makeup_entitlements me
+      JOIN attendance_sessions source_session ON source_session.tenant_id = me.tenant_id AND source_session.id = me.source_session_id
+      JOIN classes source_class ON source_class.tenant_id = source_session.tenant_id AND source_class.id = source_session.class_id
+      WHERE me.tenant_id = a.tenant_id AND me.id = $VALUE
+        AND a.session_date <= me.expires_at
+        AND c.course_id IS NOT DISTINCT FROM source_class.course_id
+        AND (source_class.course_level_id IS NULL OR c.course_level_id = source_class.course_level_id)
+    )`, input.makeupEntitlementId);
     if (input.status) add('a.status = $VALUE', input.status);
     const result = await pool.query<SessionRow>(
       `SELECT ${sessionColumns}, c.code AS "classCode", c.name AS "className",
@@ -992,7 +1001,14 @@ export class SchedulesService {
              AND EXISTS (SELECT 1 FROM makeup_bookings b WHERE b.tenant_id = e.tenant_id AND b.entitlement_id = e.id AND b.destination_session_id = $2 AND b.status = 'CANCELLED')`,
           [tenant.tenantId, id],
         );
-        await client.query('DELETE FROM attendance_records WHERE tenant_id = $1 AND session_id = $2 AND source = \'MAKEUP\'', [tenant.tenantId, id]);
+        await client.query(
+          `WITH restored AS (
+            UPDATE attendance_records SET status = 'UNMARKED', source = 'REGULAR', makeup_booking_id = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = $1 AND session_id = $2 AND source = 'MAKEUP' AND enrollment_id IS NOT NULL
+          )
+          DELETE FROM attendance_records WHERE tenant_id = $1 AND session_id = $2 AND source = 'MAKEUP' AND enrollment_id IS NULL`,
+          [tenant.tenantId, id],
+        );
       }
       await this.auditSession(client, action, result.rows[0], session, reason);
       await client.query('COMMIT');

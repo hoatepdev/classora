@@ -140,6 +140,7 @@ export class AttendanceService {
     let sessionId: string;
     try {
       await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [context.tenant.tenantId]);
       const occurrence = await this.resolveOccurrence(
         client,
         context.tenant.tenantId,
@@ -147,17 +148,18 @@ export class AttendanceService {
       );
       sessionId = ulid();
       await client.query(
-        `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, teacher_id, session_date, start_time, end_time, manual_override) VALUES ($1,$2,$3,$4,$5,$6::date,$7::time,$8::time,$9)`,
+        `INSERT INTO attendance_sessions (id, tenant_id, class_id, schedule_pattern_id, room_id, teacher_id, branch_id, session_date, start_time, end_time, manual_override) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9::time,$10::time,TRUE)`,
         [
           sessionId,
           context.tenant.tenantId,
           input.classId,
           input.scheduleId ?? null,
+          occurrence.roomId,
           occurrence.teacherId,
+          occurrence.branchId,
           input.sessionDate,
           occurrence.startTime,
           occurrence.endTime,
-          !input.scheduleId,
         ],
       );
       await this.initializeInTransaction(
@@ -166,6 +168,13 @@ export class AttendanceService {
         sessionId,
         input.classId,
       );
+      await this.audit.recordTenant(client, {
+        ...actor(context),
+        action: "schedule.session.created",
+        entityType: "Session",
+        entityId: sessionId,
+        after: { classId: input.classId, schedulePatternId: input.scheduleId ?? null, sessionDate: input.sessionDate, startTime: occurrence.startTime, endTime: occurrence.endTime, manualOverride: true },
+      });
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -253,8 +262,8 @@ export class AttendanceService {
         ![AttendanceRecordStatus.MAKEUP, AttendanceRecordStatus.ABSENT_UNEXCUSED].includes(input.status)
       )
         throw new ConflictException("Makeup attendance can only be marked as makeup or no-show.");
-      const record = await client.query(
-        "SELECT 1 FROM attendance_records WHERE tenant_id=$1 AND id=$2 FOR UPDATE",
+      const record = await client.query<RecordRow>(
+        `SELECT ${recordColumns} FROM attendance_records r WHERE r.tenant_id=$1 AND r.id=$2 FOR UPDATE`,
         [context.tenant.tenantId, id],
       );
       if (!record.rows[0])
@@ -270,9 +279,17 @@ export class AttendanceService {
         fields.push(`note=$${values.length}`);
       }
       const result = await client.query<RecordRow>(
-        `UPDATE attendance_records SET ${fields.join(",")},updated_at=CURRENT_TIMESTAMP WHERE tenant_id=$1 AND id=$2 RETURNING ${recordColumns}`,
+        `UPDATE attendance_records AS r SET ${fields.join(",")},updated_at=CURRENT_TIMESTAMP WHERE r.tenant_id=$1 AND r.id=$2 RETURNING ${recordColumns}`,
         values,
       );
+      await this.audit.recordTenant(client, {
+        ...actor(context),
+        action: "attendance.updated",
+        entityType: "AttendanceRecord",
+        entityId: id,
+        before: { status: record.rows[0].status, note: record.rows[0].note },
+        after: { status: result.rows[0].status, note: result.rows[0].note },
+      });
       await client.query("COMMIT");
       return serializeRecord(result.rows[0]);
     } catch (error) {
@@ -391,7 +408,7 @@ export class AttendanceService {
           "Makeup attendance can only be marked as makeup or no-show.",
         );
       const updated = await client.query<RecordRow>(
-        `UPDATE attendance_records SET status=$3,note=$4,updated_at=CURRENT_TIMESTAMP WHERE tenant_id=$1 AND id=$2 RETURNING ${recordColumns}`,
+        `UPDATE attendance_records AS r SET status=$3,note=$4,updated_at=CURRENT_TIMESTAMP WHERE r.tenant_id=$1 AND r.id=$2 RETURNING ${recordColumns}`,
         [context.tenant.tenantId, id, input.status, input.note ?? old.note],
       );
       await client.query(
@@ -454,12 +471,6 @@ export class AttendanceService {
       `SELECT e.id,e.tenant_id AS "tenantId",e.student_id AS "studentId",e.source_attendance_record_id AS "sourceAttendanceRecordId",e.source_session_id AS "sourceSessionId",e.source_enrollment_id AS "sourceEnrollmentId",CASE WHEN e.status IN ('AVAILABLE','BOOKED') AND CURRENT_DATE > e.expires_at THEN 'EXPIRED' ELSE e.status END AS status,e.expires_at::text AS "expiresAt",b.id AS "bookingId",b.destination_session_id AS "bookingDestinationSessionId",b.status AS "bookingStatus",e.created_at AS "createdAt",e.updated_at AS "updatedAt" FROM makeup_entitlements e LEFT JOIN makeup_bookings b ON b.tenant_id=e.tenant_id AND b.entitlement_id=e.id AND b.status='BOOKED' WHERE e.tenant_id=$1${student} ORDER BY e.expires_at,e.id`,
       values,
     );
-    for (const row of rows.rows)
-      if (row.status === "EXPIRED")
-        await pool.query(
-          "UPDATE makeup_entitlements SET status='EXPIRED',updated_at=CURRENT_TIMESTAMP WHERE tenant_id=$1 AND id=$2 AND status IN ('AVAILABLE','BOOKED')",
-          [tenant.tenantId, row.id],
-        );
     return rows.rows.map((row) => ({
       ...row,
       createdAt: row.createdAt.toISOString(),
@@ -757,7 +768,11 @@ export class AttendanceService {
           "A booking in a finalized destination session cannot be rebooked.",
         );
       await client.query(
-        "DELETE FROM attendance_records WHERE tenant_id=$1 AND makeup_booking_id=$2 AND session_id=$3",
+        `WITH restored AS (
+          UPDATE attendance_records SET status='UNMARKED',source='REGULAR',makeup_booking_id=NULL,updated_at=CURRENT_TIMESTAMP
+          WHERE tenant_id=$1 AND makeup_booking_id=$2 AND session_id=$3 AND enrollment_id IS NOT NULL
+        )
+        DELETE FROM attendance_records WHERE tenant_id=$1 AND makeup_booking_id=$2 AND session_id=$3 AND enrollment_id IS NULL`,
         [context.tenant.tenantId, bookingId, booking.currentSessionId],
       );
       await client.query(
@@ -829,7 +844,13 @@ export class AttendanceService {
         [context.tenant.tenantId, booking.rows[0].entitlementId],
       );
       await client.query(
-        "DELETE FROM attendance_records WHERE tenant_id=$1 AND makeup_booking_id=$2 AND EXISTS (SELECT 1 FROM attendance_sheets WHERE tenant_id=$1 AND session_id=attendance_records.session_id AND status='OPEN')",
+        `WITH restored AS (
+          UPDATE attendance_records SET status='UNMARKED',source='REGULAR',makeup_booking_id=NULL,updated_at=CURRENT_TIMESTAMP
+          WHERE tenant_id=$1 AND makeup_booking_id=$2 AND enrollment_id IS NOT NULL
+            AND EXISTS (SELECT 1 FROM attendance_sheets WHERE tenant_id=$1 AND session_id=attendance_records.session_id AND status='OPEN')
+        )
+        DELETE FROM attendance_records WHERE tenant_id=$1 AND makeup_booking_id=$2 AND enrollment_id IS NULL
+          AND EXISTS (SELECT 1 FROM attendance_sheets WHERE tenant_id=$1 AND session_id=attendance_records.session_id AND status='OPEN')`,
         [context.tenant.tenantId, bookingId],
       );
       await this.audit.recordTenant(client, {
@@ -1130,31 +1151,64 @@ export class AttendanceService {
     if (!result.rows[0]) throw new NotFoundException("Session not found");
     return result.rows[0];
   }
+  private async assertNoSessionConflict(
+    client: PoolClient,
+    tenantId: string,
+    classId: string,
+    teacherId: string | null,
+    roomId: string | null,
+    sessionDate: string,
+    startTime: string,
+    endTime: string,
+  ) {
+    const conflict = await client.query<{ classId: string; teacherId: string | null; roomId: string | null }>(
+      `SELECT class_id AS "classId",teacher_id AS "teacherId",room_id AS "roomId" FROM attendance_sessions
+       WHERE tenant_id=$1 AND session_date=$2::date AND status IN ('SCHEDULED','COMPLETED')
+         AND (class_id=$3 OR ($4::char(26) IS NOT NULL AND teacher_id=$4) OR ($5::char(26) IS NOT NULL AND room_id=$5))
+         AND start_time < $7::time AND end_time > $6::time LIMIT 1`,
+      [tenantId, sessionDate, classId, teacherId, roomId, startTime, endTime],
+    );
+    const row = conflict.rows[0];
+    if (!row) return;
+    if (row.classId === classId) throw new ConflictException("Class already has an overlapping session.");
+    if (teacherId && row.teacherId === teacherId) throw new ConflictException("Teacher already has an overlapping session.");
+    throw new ConflictException("Room already has an overlapping session.");
+  }
+
   private async resolveOccurrence(
     client: PoolClient,
     tenantId: string,
     input: CreateAttendanceSessionDto,
   ) {
-    if (
-      !(
-        await client.query(
-          "SELECT 1 FROM classes WHERE tenant_id=$1 AND id=$2",
-          [tenantId, input.classId],
-        )
-      ).rows[0]
-    )
-      throw new NotFoundException("Class not found");
+    const classResult = await client.query<{
+      branchId: string | null;
+      startDate: string | null;
+      expectedEndDate: string | null;
+      status: string;
+    }>(
+      `SELECT branch_id AS "branchId",start_date::text AS "startDate",expected_end_date::text AS "expectedEndDate",status
+       FROM classes WHERE tenant_id=$1 AND id=$2`,
+      [tenantId, input.classId],
+    );
+    const classRecord = classResult.rows[0];
+    if (!classRecord) throw new NotFoundException("Class not found");
+    if (classRecord.status !== "ACTIVE") throw new ConflictException("Class is disabled.");
+    if ((classRecord.startDate && input.sessionDate < classRecord.startDate) || (classRecord.expectedEndDate && input.sessionDate > classRecord.expectedEndDate))
+      throw new ConflictException("Session date is outside the class lifecycle.");
     if (input.scheduleId) {
       const result = await client.query<{
         classId: string;
         teacherId: string;
+        roomId: string | null;
+        branchId: string | null;
+        dayOfWeek: string;
         startTime: string;
         endTime: string;
         status: string;
         effectiveFrom: string | null;
         effectiveUntil: string | null;
       }>(
-        `SELECT class_id AS "classId",teacher_id AS "teacherId",start_time::text AS "startTime",end_time::text AS "endTime",status,effective_from::text AS "effectiveFrom",effective_until::text AS "effectiveUntil" FROM schedules WHERE tenant_id=$1 AND id=$2`,
+        `SELECT class_id AS "classId",teacher_id AS "teacherId",room_id AS "roomId",branch_id AS "branchId",day_of_week AS "dayOfWeek",start_time::text AS "startTime",end_time::text AS "endTime",status,effective_from::text AS "effectiveFrom",effective_until::text AS "effectiveUntil" FROM schedules WHERE tenant_id=$1 AND id=$2`,
         [tenantId, input.scheduleId],
       );
       const schedule = result.rows[0];
@@ -1173,8 +1227,19 @@ export class AttendanceService {
         throw new ConflictException(
           "Session date is outside the schedule effective range.",
         );
+      const weekdays = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+      if (weekdays[new Date(`${input.sessionDate}T00:00:00Z`).getUTCDay()] !== schedule.dayOfWeek)
+        throw new ConflictException("Session date does not match the schedule weekday.");
+      const excluded = await client.query(
+        `SELECT 1 FROM schedule_exclusions WHERE tenant_id=$1 AND date=$2::date AND (branch_id IS NULL OR branch_id=$3)`,
+        [tenantId, input.sessionDate, schedule.branchId ?? classRecord.branchId],
+      );
+      if (excluded.rows[0]) throw new ConflictException("Session date is excluded from scheduling.");
+      await this.assertNoSessionConflict(client, tenantId, input.classId, schedule.teacherId, schedule.roomId, input.sessionDate, schedule.startTime, schedule.endTime);
       return {
         teacherId: schedule.teacherId,
+        roomId: schedule.roomId,
+        branchId: schedule.branchId ?? classRecord.branchId,
         startTime: schedule.startTime.slice(0, 5),
         endTime: schedule.endTime.slice(0, 5),
       };
@@ -1193,8 +1258,11 @@ export class AttendanceService {
       throw new BadRequestException(
         "Valid start and end times are required without a schedule.",
       );
+    await this.assertNoSessionConflict(client, tenantId, input.classId, input.teacherId ?? null, null, input.sessionDate, input.startTime, input.endTime);
     return {
       teacherId: input.teacherId ?? null,
+      roomId: null,
+      branchId: classRecord.branchId,
       startTime: input.startTime,
       endTime: input.endTime,
     };

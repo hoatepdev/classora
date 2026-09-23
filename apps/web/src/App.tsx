@@ -47,11 +47,11 @@ export function App() {
         <Route path="/classes/:id" element={<ProtectedRoute permission="class.read"><ClassDetail /></ProtectedRoute>} />
         <Route path="/classes/:id/edit" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/schedule" element={<ProtectedRoute permission="schedule.read"><SchedulePage /></ProtectedRoute>} />
-        <Route path="/attendance-sessions/:id" element={<AttendanceSessionPage />} />
-        <Route path="/settings/team" element={<TeamPage />} />
-        <Route path="/settings/roles" element={<RolesPage />} />
-        <Route path="/settings/security" element={<SecurityPage />} />
-        <Route path="/settings/audit-log" element={<AuditPage />} />
+        <Route path="/attendance-sessions/:id" element={<ProtectedRoute permission="attendance.read"><AttendanceSessionPage /></ProtectedRoute>} />
+        <Route path="/settings/team" element={<ProtectedRoute permission="team.read"><TeamPage /></ProtectedRoute>} />
+        <Route path="/settings/roles" element={<ProtectedRoute permission="team.read"><RolesPage /></ProtectedRoute>} />
+        <Route path="/settings/security" element={<ProtectedRoute permission="settings.read"><SecurityPage /></ProtectedRoute>} />
+        <Route path="/settings/audit-log" element={<ProtectedRoute permission="audit.read"><AuditPage /></ProtectedRoute>} />
         <Route path="/teachers" element={<ProtectedRoute permission="teacher.read"><TeachersPage /></ProtectedRoute>} />
         <Route path="/teachers/new" element={<ProtectedRoute permission="teacher.write"><TeacherForm /></ProtectedRoute>} />
         <Route path="/teachers/:id" element={<ProtectedRoute permission="teacher.read"><TeacherDetail /></ProtectedRoute>} />

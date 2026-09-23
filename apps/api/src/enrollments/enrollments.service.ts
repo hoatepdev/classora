@@ -34,7 +34,7 @@ export class EnrollmentsService {
       await this.validateStudentAndClass(client, context.tenant.tenantId, input.studentId, input.classId, status !== 'PENDING');
       await this.lockCapacity(client, context.tenant.tenantId, input.classId, status);
       const result = await client.query<EnrollmentRow>(`INSERT INTO enrollments (id, tenant_id, student_id, class_id, status, enrolled_at, started_at, expected_end_date, source_enrollment_id, notes)
-        VALUES ($1,$2,$3,$4,$5,COALESCE($6::timestamptz,CURRENT_TIMESTAMP),$7,$8,$9,$10) RETURNING ${columns.replaceAll('e.', '')}`, [id, context.tenant.tenantId, input.studentId, input.classId, status, input.enrolledAt ?? null, status === 'ACTIVE' ? input.enrolledAt ?? null : null, input.expectedEndDate ?? null, input.sourceEnrollmentId ?? null, input.notes ?? null]);
+        VALUES ($1,$2,$3,$4,$5,COALESCE($6::timestamptz,CURRENT_TIMESTAMP),$7,$8,$9,$10) RETURNING ${columns.replaceAll('e.', '')}`, [id, context.tenant.tenantId, input.studentId, input.classId, status, input.enrolledAt ?? null, status === 'ACTIVE' ? input.enrolledAt ?? null : null, input.expectedEndDate ?? null, null, input.notes ?? null]);
       const enrollment = result.rows[0];
       if (!enrollment) throw new ConflictException('Enrollment could not be created');
       await this.event(client, context, enrollment, 'ENROLLED', null, status, null, input.classId, null);
@@ -73,7 +73,26 @@ export class EnrollmentsService {
     } catch (error) { await client.query('ROLLBACK').catch(() => undefined); if (pgConstraint(error) === 'enrollments_operational_student_class_key') throw new ConflictException('Student already has an operational enrollment in the destination class'); throw error; } finally { client.release(); }
   }
 
-  async reenroll(id: string, input: CreateEnrollmentDto) { const source = await this.get(id); const result = await this.create({ ...input, status: input.status ?? EnrollmentInitialStatus.ACTIVE, sourceEnrollmentId: source.id }); return { ...result, sourceEnrollmentId: source.id }; }
+  async reenroll(id: string, input: CreateEnrollmentDto) {
+    const context = this.tenantContext.get(); const client = await this.client(context.pool); const destinationId = ulid();
+    const status = (input.status ?? EnrollmentInitialStatus.ACTIVE) as EnrollmentInitialStatus;
+    try {
+      await client.query('BEGIN');
+      const source = await this.locked(client, context.tenant.tenantId, id);
+      if (!['COMPLETED', 'WITHDRAWN', 'CANCELLED'].includes(source.status)) throw new ConflictException('Only terminal enrollments can be re-enrolled');
+      if (input.studentId !== source.studentId) throw new BadRequestException('Student must match the source enrollment');
+      await this.validateStudentAndClass(client, context.tenant.tenantId, source.studentId, input.classId, status !== 'PENDING');
+      await this.lockCapacity(client, context.tenant.tenantId, input.classId, status);
+      const inserted = await client.query<EnrollmentRow>(`INSERT INTO enrollments (id,tenant_id,student_id,class_id,status,enrolled_at,started_at,expected_end_date,source_enrollment_id,notes)
+        VALUES ($1,$2,$3,$4,$5,COALESCE($6::timestamptz,CURRENT_TIMESTAMP),$7,$8,$9,$10) RETURNING ${columns.replaceAll('e.', '')}`,[destinationId,context.tenant.tenantId,source.studentId,input.classId,status,input.enrolledAt ?? null,status === 'ACTIVE' ? input.enrolledAt ?? null : null,input.expectedEndDate ?? null,source.id,input.notes ?? null]);
+      const destination = inserted.rows[0];
+      if (!destination) throw new ConflictException('Enrollment could not be created');
+      await this.event(client, context, destination, 'REENROLLED', source.status, status, source.classId, input.classId, null);
+      await this.audit.recordTenant(client, { ...actor(context), action: 'enrollment.reenrolled', entityType: 'ENROLLMENT', entityId: destinationId, before: serialize(source), after: serialize(destination), metadata: { sourceEnrollmentId: source.id } });
+      await client.query('COMMIT');
+      return serialize(destination);
+    } catch (error) { await client.query('ROLLBACK').catch(() => undefined); if (pgConstraint(error) === 'enrollments_operational_student_class_key') throw new ConflictException('Student already has an operational enrollment in this class'); throw error; } finally { client.release(); }
+  }
   async get(id: string) { const { tenant, pool } = this.tenantContext.get(); const result = await pool.query<EnrollmentRow>(`SELECT ${columns} FROM enrollments e WHERE e.tenant_id=$1 AND e.id=$2`, [tenant.tenantId,id]); if (!result.rows[0]) throw new NotFoundException('Enrollment not found'); return serialize(result.rows[0]); }
   async history(id: string) { const { tenant, pool } = this.tenantContext.get(); const exists = await pool.query('SELECT 1 FROM enrollments WHERE tenant_id=$1 AND id=$2',[tenant.tenantId,id]); if (!exists.rows[0]) throw new NotFoundException('Enrollment not found'); const result = await pool.query<HistoryRow>(`SELECT id,type,from_status AS "fromStatus",to_status AS "toStatus",from_class_id AS "fromClassId",to_class_id AS "toClassId",reason,metadata,actor_user_id AS "actorUserId",actor_membership_id AS "actorMembershipId",occurred_at AS "occurredAt" FROM enrollment_events WHERE tenant_id=$1 AND enrollment_id=$2 ORDER BY occurred_at ASC,id ASC`,[tenant.tenantId,id]); return result.rows.map((row) => ({ ...row, occurredAt: row.occurredAt.toISOString() })); }
   async listStudents(classId: string) { const { tenant, pool } = this.tenantContext.get(); await this.assertExists(pool, 'classes', classId, 'Class'); const result = await pool.query(`SELECT ${columns},s.code AS "studentCode",s.full_name AS "studentFullName" FROM enrollments e JOIN students s ON s.tenant_id=e.tenant_id AND s.id=e.student_id WHERE e.tenant_id=$1 AND e.class_id=$2 ORDER BY s.full_name,e.id`,[tenant.tenantId,classId]); return result.rows.map(serialize); }

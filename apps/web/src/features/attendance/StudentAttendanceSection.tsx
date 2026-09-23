@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/status-badge";
 import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
 import { listSessions } from "../schedules/api.js";
-import type { Session } from "../schedules/types.js";
 import {
   bookMakeup,
   cancelMakeup,
@@ -43,10 +42,6 @@ export function StudentAttendanceSection({ studentId }: { studentId: string }) {
     queryFn: () => listMakeupEntitlements(studentId),
   });
   const range = makeupSessionRange();
-  const sessions = useQuery({
-    queryKey: ["makeup-destinations", window.location.hostname, studentId, range],
-    queryFn: () => listSessions({ ...range, studentId, status: "SCHEDULED" }),
-  });
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["makeup-entitlements", window.location.hostname, studentId] }),
@@ -95,7 +90,7 @@ export function StudentAttendanceSection({ studentId }: { studentId: string }) {
           <tbody>{entitlements.data.map((entitlement) => <MakeupRow
             key={entitlement.id}
             entitlement={entitlement}
-            sessions={sessions.data ?? []}
+            range={range}
             destination={destinations[entitlement.id] ?? ""}
             canWrite={canWrite}
             pending={book.isPending || rebook.isPending || cancel.isPending}
@@ -105,15 +100,14 @@ export function StudentAttendanceSection({ studentId }: { studentId: string }) {
             onCancel={() => cancel.mutate(entitlement.bookingId!)}
           />)}</tbody>
         </table>
-        {sessions.isError && <p className="state error" role="alert">Không thể tải các buổi học phù hợp để đặt học bù.</p>}
       </div>}
     </section>
   </>;
 }
 
-function MakeupRow({ entitlement, sessions, destination, canWrite, pending, onDestinationChange, onBook, onRebook, onCancel }: {
+function MakeupRow({ entitlement, range, destination, canWrite, pending, onDestinationChange, onBook, onRebook, onCancel }: {
   entitlement: MakeupEntitlement;
-  sessions: Session[];
+  range: { from: string; to: string };
   destination: string;
   canWrite: boolean;
   pending: boolean;
@@ -122,7 +116,12 @@ function MakeupRow({ entitlement, sessions, destination, canWrite, pending, onDe
   onRebook: () => void;
   onCancel: () => void;
 }) {
-  const choices = sessions.filter((session) => session.sessionDate <= entitlement.expiresAt);
+  const sessions = useQuery({
+    queryKey: ["makeup-destinations", window.location.hostname, entitlement.id, range],
+    queryFn: () => listSessions({ ...range, makeupEntitlementId: entitlement.id, status: "SCHEDULED" }),
+    enabled: entitlement.status === "AVAILABLE" || entitlement.status === "BOOKED",
+  });
+  const choices = sessions.data ?? [];
   const canBook = entitlement.status === "AVAILABLE";
   const canRebook = entitlement.status === "BOOKED" && Boolean(entitlement.bookingId);
   return <tr>
@@ -140,6 +139,7 @@ function MakeupRow({ entitlement, sessions, destination, canWrite, pending, onDe
         </select>
         <button type="button" className="button" disabled={!canWrite || pending || !destination} onClick={canBook ? onBook : onRebook}>{canBook ? "Đặt học bù" : "Đổi buổi"}</button>
         {canRebook && <button type="button" className="button secondary" disabled={!canWrite || pending} onClick={onCancel}>Hủy đặt</button>}
+        {sessions.isError && <span className="field-error" role="alert">Không thể tải buổi học phù hợp.</span>}
       </div>}
     </td>
   </tr>;

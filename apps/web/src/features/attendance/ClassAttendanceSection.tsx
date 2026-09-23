@@ -28,7 +28,7 @@ export function ClassAttendanceSection({ classId }: { classId: string }) {
   const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
   const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
   const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
-  const canWrite = can(membership, "attendance.write");
+  const canWrite = can(membership, "attendance.write") && can(membership, "schedule.write");
   const sessions = useQuery({
     queryKey: classAttendanceQueryKey(classId),
     queryFn: () => listClassAttendanceSessions(classId),

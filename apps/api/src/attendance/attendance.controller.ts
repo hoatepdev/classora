@@ -21,7 +21,7 @@ export class AttendanceController {
   constructor(private readonly attendance: AttendanceService) {}
 
   @Post('attendance-sessions')
-  @RequirePermissions(PERMISSIONS.ATTENDANCE_WRITE)
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_WRITE, PERMISSIONS.SCHEDULE_WRITE)
   @ApiInvalidRequest()
   @ApiCreatedResponse({ schema: schemaRef('AttendanceSessionDetail') })
   @ApiConflictResponse({ description: 'Attendance occurrence already exists', ...errorResponse })

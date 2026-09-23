@@ -336,6 +336,10 @@ describe('enrollments', () => {
   it('withdraws and re-enrolls the canonical Student-Class enrollment', async () => {
     const enrollment = [...alpha.enrollments.values()][0];
 
+    await authorized('post', `/enrollments/${enrollment.id}/reenroll`)
+      .send({ studentId, classId, status: 'ACTIVE' })
+      .expect(409);
+
     await authorized('post', `/enrollments/${enrollment.id}/withdraw`)
       .send({ reason: 'Student request' })
       .expect(200)
@@ -348,6 +352,10 @@ describe('enrollments', () => {
     await authorized('post', `/enrollments/${enrollment.id}/withdraw`)
       .send({ reason: 'Duplicate withdrawal' })
       .expect(409);
+
+    await authorized('post', `/enrollments/${enrollment.id}/reenroll`)
+      .send({ studentId: records.beta.studentId, classId, status: 'ACTIVE' })
+      .expect(400);
 
     await authorized('post', `/enrollments/${enrollment.id}/reenroll`)
       .send({ studentId, classId, status: 'ACTIVE' })
@@ -365,6 +373,9 @@ describe('enrollments', () => {
       .expect(400);
     await authorized('post', '/enrollments')
       .send({ studentId, classId, tenantId: tenants.beta.id })
+      .expect(400);
+    await authorized('post', '/enrollments')
+      .send({ studentId, classId, sourceEnrollmentId: [...alpha.enrollments.values()][0].id })
       .expect(400);
     await authorized('post', `/enrollments/${[...alpha.enrollments.values()][0].id}/activate`)
       .send({})

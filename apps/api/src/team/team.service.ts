@@ -269,6 +269,7 @@ export class TeamService {
       throw new ForbiddenException();
     }
     return this.database.$transaction(async (transaction) => {
+      await this.lockTenantMemberships(transaction, tenantId);
       const target = await transaction.tenantMembership.findFirst({
         where: { id: membershipId, tenantId },
         select: { id: true, role: true, status: true, disabledAt: true, createdAt: true, user: { select: { name: true, email: true } } },
@@ -290,6 +291,7 @@ export class TeamService {
   async setStatus(tenantId: string, actorId: string, membershipId: string, status: MembershipStatus, request?: RequestWithId) {
     const actor = await this.assertCanManage(tenantId, actorId);
     return this.database.$transaction(async (transaction) => {
+      await this.lockTenantMemberships(transaction, tenantId);
       const target = await transaction.tenantMembership.findFirst({
         where: { id: membershipId, tenantId },
         select: { id: true, role: true, status: true, disabledAt: true, createdAt: true, user: { select: { name: true, email: true } } },
@@ -312,6 +314,7 @@ export class TeamService {
   async remove(tenantId: string, actorId: string, membershipId: string, request?: RequestWithId) {
     const actor = await this.assertCanManage(tenantId, actorId);
     return this.database.$transaction(async (transaction) => {
+      await this.lockTenantMemberships(transaction, tenantId);
       const target = await transaction.tenantMembership.findFirst({
         where: { id: membershipId, tenantId },
         select: { id: true, role: true, status: true, disabledAt: true, createdAt: true, user: { select: { name: true, email: true } } },
@@ -325,6 +328,10 @@ export class TeamService {
       await transaction.tenantMembership.delete({ where: { id: target.id } });
       return { removed: true };
     });
+  }
+
+  private async lockTenantMemberships(transaction: Prisma.TransactionClient, tenantId: string) {
+    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId}, 0))`;
   }
 
   private async assertOwnerRemains(transaction: Prisma.TransactionClient, tenantId: string, excludingMembershipId: string) {

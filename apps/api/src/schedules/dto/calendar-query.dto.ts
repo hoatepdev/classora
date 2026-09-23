@@ -48,6 +48,11 @@ export class CalendarQueryDto {
   @Matches(ulidPattern)
   studentId?: string;
 
+  @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' })
+  @IsOptional()
+  @Matches(ulidPattern)
+  makeupEntitlementId?: string;
+
   @ApiPropertyOptional({ enum: SessionStatus })
   @IsOptional()
   @IsEnum(SessionStatus)

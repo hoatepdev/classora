@@ -91,6 +91,7 @@ export type CalendarFilters = {
   roomId?: string;
   branchId?: string;
   studentId?: string;
+  makeupEntitlementId?: string;
   status?: SessionStatus;
 };
 

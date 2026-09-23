@@ -1,5 +1,7 @@
+import { vi } from 'vitest';
 import { permissionsForRole, hasPermission, PERMISSIONS } from '../src/authorization/permissions.js';
-import { TenantRole } from '../src/generated/prisma/enums.js';
+import { MembershipStatus, TenantRole } from '../src/generated/prisma/enums.js';
+import { TeamService } from '../src/team/team.service.js';
 
 describe('authorization matrix', () => {
   it('defines every built-in role and keeps sensitive permissions least-privileged', () => {
@@ -18,6 +20,37 @@ describe('authorization matrix', () => {
     expect(hasPermission(TenantRole.ACADEMIC_MANAGER, PERMISSIONS.AUDIT_READ)).toBe(false);
     expect(hasPermission(TenantRole.STAFF, PERMISSIONS.AUDIT_READ)).toBe(false);
     expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.AUDIT_READ)).toBe(false);
+  });
+
+  it('serializes owner-changing membership mutations before checking the final-owner invariant', async () => {
+    const calls: string[] = [];
+    const target = {
+      id: '01JHZX3V8Q9K5M2N7R4T6W1Y0D',
+      role: TenantRole.OWNER,
+      status: MembershipStatus.ACTIVE,
+      disabledAt: null,
+      createdAt: new Date(0),
+      user: { name: 'Owner', email: 'owner@example.com' },
+    };
+    const transaction = {
+      $queryRaw: vi.fn(async () => { calls.push('lock'); }),
+      tenantMembership: {
+        findFirst: vi.fn(async () => { calls.push('read'); return target; }),
+        count: vi.fn(async () => 1),
+        update: vi.fn(async () => ({ ...target, role: TenantRole.CENTER_ADMIN })),
+      },
+    };
+    const database = {
+      tenantMembership: { findUnique: vi.fn(async () => target) },
+      $transaction: vi.fn(async (callback: (client: typeof transaction) => unknown) => callback(transaction)),
+    };
+    const audit = { recordControl: vi.fn() };
+    const service = new TeamService(database as never, audit as never);
+
+    await service.changeRole('01JHZX3V8Q9K5M2N7R4T6W1Y0A', target.id, target.id, { role: TenantRole.CENTER_ADMIN });
+
+    expect(calls.slice(0, 2)).toEqual(['lock', 'read']);
+    expect(transaction.tenantMembership.count).toHaveBeenCalled();
   });
 
   it('scopes LOCAL-04 organization permissions per role', () => {

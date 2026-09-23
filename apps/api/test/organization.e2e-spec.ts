@@ -109,7 +109,7 @@ function orgPool() {
         updatedAt: now,
       };
       if (
-        [...rooms.values()].some(
+        [...rooms.values(), ...stagedRooms.map(([, row]) => row)].some(
           (row) => row.tenantId === room.tenantId && row.branchId === room.branchId && row.code === room.code,
         )
       ) {
@@ -183,7 +183,7 @@ function orgPool() {
 
     if (sql.includes('FROM rooms r JOIN branches')) {
       if (sql.includes('FOR UPDATE') || sql.includes('r.id=$2')) {
-        const room = rooms.get(values[1] as string);
+        const room = rooms.get(values[1] as string) ?? stagedRooms.find(([id]) => id === values[1])?.[1];
         return { rows: room?.tenantId === values[0] ? [{ ...room }] : [] };
       }
       const list = [...rooms.values()].filter(

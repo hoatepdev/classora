@@ -153,7 +153,7 @@ model Room {
   notes     String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  branch           Branch            @relation(fields: [branchId], references: [id])
+  branch           Branch            @relation(fields: [tenantId, branchId], references: [tenantId, id])
   classes          Class[]
   schedulePatterns SchedulePattern[]
   sessions         Session[]
@@ -176,6 +176,7 @@ model Course {
   classes     Class[]
   levels      CourseLevel[]
 
+  @@unique([tenantId, id], map: "courses_tenant_id_id_key")
   @@unique([tenantId, code], map: "courses_tenant_id_code_key")
   @@index([tenantId, name, id], map: "courses_tenant_id_name_id_idx")
   @@map("courses")
@@ -192,9 +193,10 @@ model CourseLevel {
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz
-  course       Course   @relation(fields: [courseId], references: [id])
+  course       Course   @relation(fields: [tenantId, courseId], references: [tenantId, id])
   classes      Class[]
 
+  @@unique([tenantId, id], map: "course_levels_tenant_id_id_key")
   @@unique([tenantId, courseId, code], map: "course_levels_tenant_id_course_id_code_key")
   @@index([tenantId, courseId, displayOrder, id], map: "course_levels_tenant_id_course_id_order_id_idx")
   @@map("course_levels")
@@ -217,11 +219,11 @@ model Class {
   status             String              @default("ACTIVE")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  course             Course?             @relation(fields: [courseId], references: [id])
-  branch             Branch?             @relation(fields: [branchId], references: [id])
-  courseLevel       CourseLevel?        @relation(fields: [courseLevelId], references: [id])
-  defaultRoom        Room?               @relation(fields: [defaultRoomId], references: [id])
-  primaryTeacher     Teacher?            @relation(fields: [primaryTeacherId], references: [id])
+  course             Course?             @relation(fields: [tenantId, courseId], references: [tenantId, id])
+  branch             Branch?             @relation(fields: [tenantId, branchId], references: [tenantId, id])
+  courseLevel        CourseLevel?        @relation(fields: [tenantId, courseLevelId], references: [tenantId, id])
+  defaultRoom        Room?               @relation(fields: [tenantId, defaultRoomId], references: [tenantId, id])
+  primaryTeacher     Teacher?            @relation(fields: [tenantId, primaryTeacherId], references: [tenantId, id])
   enrollments        Enrollment[]
   schedulePatterns   SchedulePattern[]
   sessions           Session[]
@@ -263,8 +265,8 @@ model TeacherBranch {
   teacherId String   @map("teacher_id") @db.Char(26)
   branchId  String   @map("branch_id") @db.Char(26)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  teacher   Teacher  @relation(fields: [teacherId], references: [id])
-  branch    Branch   @relation(fields: [branchId], references: [id])
+  teacher   Teacher  @relation(fields: [tenantId, teacherId], references: [tenantId, id])
+  branch    Branch   @relation(fields: [tenantId, branchId], references: [tenantId, id])
 
   @@unique([tenantId, teacherId, branchId], map: "teacher_branches_tenant_teacher_branch_key")
   @@index([tenantId, branchId, teacherId], map: "teacher_branches_tenant_branch_teacher_idx")
@@ -286,9 +288,9 @@ model Enrollment {
   notes              String?
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  student            Student           @relation(fields: [studentId], references: [id])
-  class              Class             @relation(fields: [classId], references: [id])
-  sourceEnrollment   Enrollment?       @relation("EnrollmentSource", fields: [sourceEnrollmentId], references: [id])
+  student            Student           @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  class              Class             @relation(fields: [tenantId, classId], references: [tenantId, id])
+  sourceEnrollment   Enrollment?       @relation("EnrollmentSource", fields: [tenantId, sourceEnrollmentId], references: [tenantId, id])
   derivedEnrollments Enrollment[]      @relation("EnrollmentSource")
   events             EnrollmentEvent[]
   attendanceRecords  AttendanceRecord[]
@@ -314,7 +316,7 @@ model EnrollmentEvent {
   actorUserId      String?    @map("actor_user_id") @db.Char(26)
   actorMembershipId String?   @map("actor_membership_id") @db.Char(26)
   occurredAt       DateTime   @default(now()) @map("occurred_at") @db.Timestamptz
-  enrollment       Enrollment @relation(fields: [enrollmentId], references: [id])
+  enrollment       Enrollment @relation(fields: [tenantId, enrollmentId], references: [tenantId, id])
 
   @@index([tenantId, enrollmentId, occurredAt, id])
   @@index([tenantId, occurredAt, id])
@@ -437,6 +439,7 @@ model AttendanceRecord {
   corrections         AttendanceCorrection[]
   makeupEntitlement   MakeupEntitlement? @relation("MakeupSourceRecord")
 
+  @@unique([tenantId, id], map: "attendance_records_tenant_id_id_key")
   @@unique([tenantId, sessionId, studentId], map: "attendance_records_session_student_key")
   @@index([tenantId, studentId, id], map: "attendance_records_tenant_id_student_id_id_idx")
   @@map("attendance_records")
@@ -500,7 +503,7 @@ model MakeupBooking {
   entitlement          MakeupEntitlement @relation(fields: [tenantId, entitlementId], references: [tenantId, id])
   student              Student @relation(fields: [tenantId, studentId], references: [tenantId, id])
   destinationSession   Session @relation("MakeupDestinationSession", fields: [tenantId, destinationSessionId], references: [tenantId, id])
-  attendanceRecord     AttendanceRecord?
+  attendanceRecords    AttendanceRecord[]
 
   @@unique([tenantId, id], map: "makeup_bookings_tenant_id_id_key")
   @@index([tenantId, destinationSessionId, status, id])

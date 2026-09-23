@@ -11,6 +11,5 @@ export class CreateEnrollmentDto {
   @ApiPropertyOptional({ enum: EnrollmentInitialStatus, default: EnrollmentInitialStatus.PENDING }) @IsOptional() @IsEnum(EnrollmentInitialStatus) status?: EnrollmentInitialStatus;
   @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() enrolledAt?: string;
   @ApiPropertyOptional({ format: 'date' }) @IsOptional() @IsDateString() expectedEndDate?: string;
-  @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }) @IsOptional() @Matches(ulidPattern) sourceEnrollmentId?: string;
   @ApiPropertyOptional({ maxLength: 2000 }) @IsOptional() @IsString() @MaxLength(2000) notes?: string;
 }
