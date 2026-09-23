@@ -5,6 +5,7 @@ import { AuthorizationModule } from './authorization/authorization.module.js';
 import { PermissionGuard } from './authorization/permission.guard.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
 import { BranchesModule } from './branches/branches.module.js';
+import { BillingModule } from './billing/billing.module.js';
 import { RoomsModule } from './rooms/rooms.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
@@ -39,6 +40,7 @@ import { TeamModule } from './team/team.module.js';
     SchedulesModule,
     AttendanceModule,
     AuditModule,
+    BillingModule,
     BranchesModule,
     RoomsModule,
     TeamModule,

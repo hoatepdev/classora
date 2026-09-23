@@ -1,4 +1,4 @@
-import { BookOpen, Building2, CalendarDays, DoorOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
@@ -12,6 +12,7 @@ const navigation = [
   { to: "/schedule", label: "Lịch học", icon: CalendarDays, permission: "schedule.read" },
   { to: "/branches", label: "Chi nhánh", icon: Building2, permission: "branch.read" },
   { to: "/rooms", label: "Phòng học", icon: DoorOpen, permission: "room.read" },
+  { to: "/billing", label: "Tài chính", icon: CircleDollarSign, permission: "billing.read" },
 ];
 
 export function Sidebar({ centerName, hostname, user, activeMembership, onNavigate, onLogout }: {

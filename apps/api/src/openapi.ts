@@ -460,6 +460,37 @@ export const openApiSchemas = {
     properties: { id: ulid, tenantId: ulid, entitlementId: ulid, studentId: ulid, destinationSessionId: ulid, status: { type: 'string', enum: ['BOOKED', 'USED', 'CANCELLED'] }, bookedAt: timestamp, cancelledAt: { ...timestamp, nullable: true }, usedAt: { ...timestamp, nullable: true }, createdAt: timestamp, updatedAt: timestamp },
     required: ['id', 'tenantId', 'entitlementId', 'studentId', 'destinationSessionId', 'status', 'bookedAt', 'cancelledAt', 'usedAt', 'createdAt', 'updatedAt'],
   },
+  PricingPlan: {
+    type: 'object',
+    properties: {
+      ...resourceProperties,
+      code: { type: 'string' },
+      name: { type: 'string' },
+      amountVnd: { type: 'string', pattern: '^\\d+$' },
+      billingPeriod: { type: 'string', enum: ['ONE_TIME', 'MONTHLY', 'TERM'] },
+      status: { type: 'string', enum: ['ACTIVE', 'DISABLED'] },
+    },
+    required: [...resourceRequired, 'code', 'name', 'amountVnd', 'billingPeriod', 'status'],
+  },
+  Invoice: {
+    type: 'object',
+    properties: {
+      ...resourceProperties,
+      invoiceNumber: { type: 'string' },
+      studentId: ulid,
+      enrollmentId: { ...ulid, nullable: true },
+      pricingPlanId: { ...ulid, nullable: true },
+      status: { type: 'string', enum: ['DRAFT', 'ISSUED', 'VOID'] },
+      effectiveStatus: { type: 'string', enum: ['DRAFT', 'ISSUED', 'OPEN', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'VOID'] },
+      issueDate: { type: 'string', format: 'date', nullable: true },
+      dueDate: { type: 'string', format: 'date', nullable: true },
+      subtotalVnd: { type: 'string', pattern: '^\\d+$' },
+      discountVnd: { type: 'string', pattern: '^\\d+$' },
+      totalVnd: { type: 'string', pattern: '^\\d+$' },
+      paidVnd: { type: 'string', pattern: '^\\d+$' },
+    },
+    required: [...resourceRequired, 'invoiceNumber', 'studentId', 'enrollmentId', 'pricingPlanId', 'status', 'effectiveStatus', 'issueDate', 'dueDate', 'subtotalVnd', 'discountVnd', 'totalVnd'],
+  },
   AttendanceSessionSummary: {
     allOf: [
       { $ref: '#/components/schemas/AttendanceSession' },
