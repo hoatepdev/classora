@@ -8,6 +8,11 @@ export class RecordPaymentDto {
   @ApiPropertyOptional({ maxLength: 2000 }) @IsOptional() @IsString() @MaxLength(2000) note?: string;
   @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() receivedAt?: string;
 }
+export class RefundPaymentDto {
+  @ApiProperty({ type: String }) @Matches(/^[1-9]\d*$/) amountVnd!: string;
+  @ApiProperty({ minLength: 1, maxLength: 1000 }) @IsString() @MinLength(1) @MaxLength(1000) reason!: string;
+  @ApiProperty({ minLength: 1, maxLength: 100 }) @IsString() @MinLength(1) @MaxLength(100) idempotencyKey!: string;
+}
 export class ReversePaymentDto {
   @ApiProperty({ minLength: 1, maxLength: 1000 }) @IsString() @MinLength(1) @MaxLength(1000) reason!: string;
 }
