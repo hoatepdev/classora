@@ -80,6 +80,17 @@ CREATE TABLE payments (
 );
 CREATE INDEX payments_tenant_invoice_date_idx ON payments (tenant_id, invoice_id, received_at, id);
 
+CREATE OR REPLACE FUNCTION prevent_payment_mutation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'payments are append-only';
+END;
+$$;
+CREATE TRIGGER payments_append_only BEFORE UPDATE OR DELETE ON payments
+FOR EACH ROW EXECUTE FUNCTION prevent_payment_mutation();
+CREATE TRIGGER payments_no_truncate BEFORE TRUNCATE ON payments
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_payment_mutation();
+
 CREATE TABLE payment_reversals (
   id CHAR(26) PRIMARY KEY,
   tenant_id CHAR(26) NOT NULL,

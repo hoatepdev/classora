@@ -42,6 +42,7 @@ import { TeamModule } from './team/team.module.js';
     AuditModule,
     BillingModule,
     BranchesModule,
+    BillingModule,
     RoomsModule,
     TeamModule,
   ],
