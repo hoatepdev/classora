@@ -30,6 +30,7 @@ model Student {
   attendanceRecords AttendanceRecord[]
   makeupEntitlements MakeupEntitlement[]
   makeupBookings MakeupBooking[]
+  invoices          Invoice[]
 
   @@unique([tenantId, id], map: "students_tenant_id_id_key")
   @@unique([tenantId, code], map: "students_tenant_id_code_key")
@@ -295,6 +296,10 @@ model Enrollment {
   events             EnrollmentEvent[]
   attendanceRecords  AttendanceRecord[]
   makeupEntitlements MakeupEntitlement[]
+  pricingPlanId     String?          @map("pricing_plan_id") @db.Char(26)
+  pricingPlan       PricingPlan?     @relation(fields: [tenantId, pricingPlanId], references: [tenantId, id])
+  invoiceItems      InvoiceItem[]
+  invoices          Invoice[]
 
   @@unique([tenantId, id], map: "enrollments_tenant_id_id_key")
   @@index([tenantId, classId, enrolledAt, id], map: "enrollments_tenant_id_class_id_enrolled_at_id_idx")
@@ -509,6 +514,106 @@ model MakeupBooking {
   @@index([tenantId, destinationSessionId, status, id])
   @@index([tenantId, studentId, status, bookedAt, id])
   @@map("makeup_bookings")
+}
+
+model PricingPlan {
+  id            String        @id @db.Char(26)
+  tenantId      String        @map("tenant_id") @db.Char(26)
+  code          String
+  name          String
+  amountVnd     BigInt        @map("amount_vnd")
+  billingPeriod String        @default("ONE_TIME") @map("billing_period")
+  status        String        @default("ACTIVE")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  enrollments   Enrollment[]
+  invoices      Invoice[]
+
+  @@unique([tenantId, id], map: "pricing_plans_tenant_id_key")
+  @@unique([tenantId, code], map: "pricing_plans_tenant_code_key")
+  @@index([tenantId, status, name, id])
+  @@map("pricing_plans")
+}
+
+model Invoice {
+  id             String         @id @db.Char(26)
+  tenantId       String         @map("tenant_id") @db.Char(26)
+  invoiceNumber  String         @map("invoice_number")
+  studentId      String         @map("student_id") @db.Char(26)
+  enrollmentId   String?        @map("enrollment_id") @db.Char(26)
+  pricingPlanId  String?        @map("pricing_plan_id") @db.Char(26)
+  status         String         @default("DRAFT")
+  issueDate      DateTime?      @map("issue_date") @db.Date
+  dueDate        DateTime?      @map("due_date") @db.Date
+  subtotalVnd    BigInt         @default(0) @map("subtotal_vnd")
+  discountVnd    BigInt         @default(0) @map("discount_vnd")
+  totalVnd       BigInt         @default(0) @map("total_vnd")
+  notes          String?
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  voidedAt       DateTime?      @map("voided_at") @db.Timestamptz
+  student        Student        @relation(fields: [tenantId, studentId], references: [tenantId, id])
+  enrollment     Enrollment?    @relation(fields: [tenantId, enrollmentId], references: [tenantId, id])
+  pricingPlan    PricingPlan?   @relation(fields: [tenantId, pricingPlanId], references: [tenantId, id])
+  items          InvoiceItem[]
+  payments       Payment[]
+
+  @@unique([tenantId, id], map: "invoices_tenant_id_key")
+  @@unique([tenantId, invoiceNumber], map: "invoices_tenant_number_key")
+  @@index([tenantId, studentId, issueDate, id])
+  @@index([tenantId, status, dueDate, id])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id            String      @id @db.Char(26)
+  tenantId      String      @map("tenant_id") @db.Char(26)
+  invoiceId     String      @map("invoice_id") @db.Char(26)
+  enrollmentId  String?     @map("enrollment_id") @db.Char(26)
+  description   String
+  quantity      BigInt      @default(1)
+  unitAmountVnd BigInt      @map("unit_amount_vnd")
+  amountVnd     BigInt      @map("amount_vnd")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  invoice       Invoice     @relation(fields: [tenantId, invoiceId], references: [tenantId, id])
+  enrollment    Enrollment? @relation(fields: [tenantId, enrollmentId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "invoice_items_tenant_id_key")
+  @@index([tenantId, invoiceId, id])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id          String             @id @db.Char(26)
+  tenantId    String             @map("tenant_id") @db.Char(26)
+  invoiceId   String             @map("invoice_id") @db.Char(26)
+  amountVnd   BigInt             @map("amount_vnd")
+  method      String
+  reference   String?
+  note        String?
+  receivedAt DateTime           @default(now()) @map("received_at") @db.Timestamptz
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  invoice     Invoice            @relation(fields: [tenantId, invoiceId], references: [tenantId, id])
+  reversals   PaymentReversal[]
+
+  @@unique([tenantId, id], map: "payments_tenant_id_key")
+  @@index([tenantId, invoiceId, receivedAt, id])
+  @@map("payments")
+}
+
+model PaymentReversal {
+  id             String   @id @db.Char(26)
+  tenantId       String   @map("tenant_id") @db.Char(26)
+  paymentId      String   @map("payment_id") @db.Char(26)
+  reason         String
+  actorUserId    String?  @map("actor_user_id") @db.Char(26)
+  actorMembershipId String? @map("actor_membership_id") @db.Char(26)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  payment        Payment  @relation(fields: [tenantId, paymentId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "payment_reversals_tenant_id_key")
+  @@unique([tenantId, paymentId], map: "payment_reversals_one_per_payment_key")
+  @@map("payment_reversals")
 }
 
 model AuditEvent {
