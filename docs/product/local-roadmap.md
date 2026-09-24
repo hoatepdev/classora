@@ -14,7 +14,7 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-06 | Scheduling + Session Engine | DONE |
 | LOCAL-07 | Attendance + Makeup | DONE |
 | LOCAL-08 | Billing / Tuition | DONE |
-| LOCAL-09 | Teacher Compensation | Planned |
+| LOCAL-09 | Teacher Compensation | DONE |
 | LOCAL-10 | CRM | Planned |
 | LOCAL-11 | Communication | Planned |
 | LOCAL-12 | Parent / Student Portal | Planned |
@@ -43,6 +43,10 @@ idempotent rerun, cross-tenant composite-FK rejection). Branch is now an
 operational data dimension, but branch-scoped authorization remains deferred
 to LOCAL-19. The existing free-text schedule room is unchanged; a Class
 default Room is not occurrence scheduling.
+
+## LOCAL-09 notes
+
+Adds effective-dated teacher compensation agreements, explicit Class completion, completed-Session and completed-Class eligibility, integer-only VND calculation, unresolved configuration handling, period generation/regeneration, itemized statements, signed adjustments, finalization revalidation, immutable finalized history, tenant-qualified source constraints, compensation-specific permissions, audit events, and finance UI navigation. The disposable PostgreSQL schema gate passed fresh deployment, supported legacy upgrade, catalog equivalence, drift rejection, and idempotent rerun. API tests passed (22 files, 185 tests); API/web typechecks and production builds passed. Browser verification passed on the disposable `demo` tenant for workspace, agreements, generated statements, finalized read-only behavior, finance navigation, narrow viewport layout, and compensation API requests. LOCAL-10 remains planned and was not implemented.
 
 ## LOCAL-08 notes
 

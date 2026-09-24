@@ -4,7 +4,7 @@ import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap; permission: string; alternatePermission?: string }> = [
   { to: "/students", label: "Học viên", icon: GraduationCap, permission: "student.read" },
   { to: "/teachers", label: "Giáo viên", icon: Users, permission: "teacher.read" },
   { to: "/courses", label: "Khóa học", icon: BookOpen, permission: "course.read" },
@@ -12,7 +12,7 @@ const navigation = [
   { to: "/schedule", label: "Lịch học", icon: CalendarDays, permission: "schedule.read" },
   { to: "/branches", label: "Chi nhánh", icon: Building2, permission: "branch.read" },
   { to: "/rooms", label: "Phòng học", icon: DoorOpen, permission: "room.read" },
-  { to: "/billing", label: "Tài chính", icon: CircleDollarSign, permission: "billing.read" },
+  { to: "/billing", label: "Tài chính", icon: CircleDollarSign, permission: "billing.read", alternatePermission: "compensation.read" },
 ];
 
 export function Sidebar({ centerName, hostname, user, activeMembership, onNavigate, onLogout }: {
@@ -25,7 +25,8 @@ export function Sidebar({ centerName, hostname, user, activeMembership, onNaviga
 }) {
   const { pathname } = useLocation();
   const membership = activeMembership ?? user?.memberships.find((item) => item.tenant.slug === hostname.split('.')[0]);
-  const visibleNavigation = navigation.filter((item) => !item.permission || can(membership, item.permission));
+  const visibleNavigation = navigation.filter((item) => !item.permission || can(membership, item.permission) || (item.alternatePermission && can(membership, item.alternatePermission)));
+  const financePath = can(membership, "billing.read") ? "/billing" : "/billing/compensation";
   return <div className="flex h-full flex-col border-r border-[#e2e8f0] bg-white text-[#334155]">
     <div className="px-5 pt-5 pb-4">
       <Link to="/students" onClick={onNavigate} className="inline-flex items-center gap-2.5 text-xl font-bold tracking-[-.03em] text-[#0f172a]">
@@ -43,10 +44,11 @@ export function Sidebar({ centerName, hostname, user, activeMembership, onNaviga
       <p className="mb-2 px-3 text-[11px] font-semibold tracking-[.08em] text-[#94a3b8] uppercase">Vận hành</p>
       <div className="grid gap-1">
         {visibleNavigation.map(({ to, label, icon: Icon }) => {
-          const active = pathname.startsWith(to) || (to === "/classes" && pathname.startsWith("/attendance-sessions"));
+          const target = to === "/billing" ? financePath : to;
+          const active = pathname.startsWith(target) || (to === "/classes" && pathname.startsWith("/attendance-sessions"));
           return <Link
             key={to}
-            to={to}
+            to={target}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(

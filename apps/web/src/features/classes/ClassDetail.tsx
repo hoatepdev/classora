@@ -17,7 +17,12 @@ import { ClassSchedulesSection } from "../schedules/ClassSchedulesSection.js";
 import { listUpcomingSessions, upcomingSessionQueryKey } from "../schedules/api.js";
 import type { Session } from "../schedules/types.js";
 import { listStudents, studentQueryKey } from "../students/api.js";
-import { classQueryKey, getClass } from "./api.js";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { getApiErrorMessage } from "@/lib/api";
+import { toast } from "sonner";
+import { classQueryKey, completeClass, getClass } from "./api.js";
 
 const dateFormatter = new Intl.DateTimeFormat("vi-VN");
 const sessionDateFormatter = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
@@ -41,6 +46,8 @@ export function ClassDetail() {
   const queryClient = useQueryClient();
   const [studentId, setStudentId] = useState("");
   const [mutationError, setMutationError] = useState("");
+  const [completeDialog, setCompleteDialog] = useState(false);
+  const [completedOn, setCompletedOn] = useState("");
   const classRecord = useQuery({
     queryKey: [...classQueryKey(), id],
     queryFn: () => getClass(id!),
@@ -65,6 +72,17 @@ export function ClassDetail() {
   const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
   const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
   const canEnrollmentWrite = can(membership, "enrollment.write");
+  const canClassWrite = can(membership, "class.write");
+  const complete = useMutation({
+    mutationFn: () => completeClass(id!, completedOn),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: classQueryKey() });
+      setCompleteDialog(false);
+      setCompletedOn("");
+      toast.success("Đã hoàn tất lớp.");
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, "Không thể hoàn tất lớp.")),
+  });
   const enroll = useMutation({
     mutationFn: createEnrollment,
     onSuccess: async (enrollment) => {
@@ -116,6 +134,7 @@ export function ClassDetail() {
     ["Giáo viên phụ trách", classRecord.data.primaryTeacherName ?? "—"],
     ["Sức chứa", classRecord.data.capacity ? `${classRecord.data.capacity} người` : "—"],
     ["Thời gian", classRecord.data.startDate || classRecord.data.expectedEndDate ? `${classRecord.data.startDate?.slice(0, 10) ?? "?"} – ${classRecord.data.expectedEndDate?.slice(0, 10) ?? "?"}` : "—"],
+    ["Ngày hoàn tất", classRecord.data.completedOn?.slice(0, 10) ?? "—"],
   ];
   const activeStudentIds = new Set(
     enrollments.data?.filter((enrollment) => ["PENDING", "TRIAL", "ACTIVE", "PAUSED"].includes(enrollment.status)).map((enrollment) => enrollment.studentId),
@@ -127,12 +146,12 @@ export function ClassDetail() {
   return <main className="page">
     <div className="page-heading">
       <div><h1>{classRecord.data.name}</h1><p className="subtitle">Thông tin lớp học đang lưu tại trung tâm.</p></div>
-      <Link className="button" to={`/classes/${classRecord.data.id}/edit`}>Chỉnh sửa</Link>
+      {canClassWrite && <div className="flex gap-2">{classRecord.data.status === "ACTIVE" && <Button variant="secondary" onClick={() => setCompleteDialog(true)}>Hoàn tất lớp</Button>}{classRecord.data.status !== "COMPLETED" && <Link className="button" to={`/classes/${classRecord.data.id}/edit`}>Chỉnh sửa</Link>}</div>}
     </div>
     <dl className="detail-sheet">
       {fields.map(([label, value]) => <div className="detail-field" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       <div className="detail-field"><dt>Khóa học</dt><dd>{classRecord.data.courseId && classRecord.data.courseCode && classRecord.data.courseName ? <Link className="action-link" to={`/courses/${classRecord.data.courseId}`}>{classRecord.data.courseCode} — {classRecord.data.courseName}</Link> : "—"}</dd></div>
-      <div className="detail-field"><dt>Trạng thái</dt><dd><span className={`status ${classRecord.data.status === "DISABLED" ? "disabled" : ""}`}>{classRecord.data.status === "ACTIVE" ? "Đang hoạt động" : "Ngừng hoạt động"}</span></dd></div>
+      <div className="detail-field"><dt>Trạng thái</dt><dd><span className={`status ${classRecord.data.status !== "ACTIVE" ? "disabled" : ""}`}>{classRecord.data.status === "ACTIVE" ? "Đang hoạt động" : classRecord.data.status === "COMPLETED" ? "Đã hoàn tất" : "Ngừng hoạt động"}</span></dd></div>
     </dl>
 
     <section className="relationship-section" aria-labelledby="class-students-heading">
@@ -178,5 +197,6 @@ export function ClassDetail() {
     <ClassAttendanceSection classId={classRecord.data.id} />
 
     <div className="form-actions"><Link className="button secondary" to="/classes">Quay lại danh sách</Link></div>
+    <Dialog open={completeDialog} onOpenChange={setCompleteDialog}><DialogContent><DialogHeader><DialogTitle>Hoàn tất lớp?</DialogTitle><DialogDescription>Ngày hoàn tất là nguồn nghiệp vụ cho thù lao theo lớp. Lớp đã hoàn tất sẽ không thể chỉnh sửa.</DialogDescription></DialogHeader><label className="grid gap-1.5 text-sm font-semibold">Ngày hoàn tất<Input type="date" min={classRecord.data.startDate?.slice(0, 10)} value={completedOn} onChange={(event) => setCompletedOn(event.target.value)} /></label><DialogFooter><Button variant="secondary" onClick={() => setCompleteDialog(false)}>Hủy</Button><Button disabled={complete.isPending || !completedOn} onClick={() => complete.mutate()}>{complete.isPending ? "Đang hoàn tất…" : "Hoàn tất lớp"}</Button></DialogFooter></DialogContent></Dialog>
   </main>;
 }

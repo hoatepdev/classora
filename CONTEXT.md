@@ -66,6 +66,7 @@ These belong to each training center:
 - schedules
 - attendance
 - payments / tuition
+- teacher compensation (completed Session/Class -> period -> statement -> payable)
 
 Potential later domains:
 

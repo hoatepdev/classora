@@ -16,6 +16,7 @@ import { ClassesService } from './classes.service.js';
 import { ClassIdDto } from './dto/class-id.dto.js';
 import { CreateClassDto } from './dto/create-class.dto.js';
 import { UpdateClassDto } from './dto/update-class.dto.js';
+import { CompleteClassDto } from './dto/complete-class.dto.js';
 
 @ApiTenantDomain('Classes')
 @ApiTenantErrors()
@@ -46,6 +47,14 @@ export class ClassesController {
   @ApiConflictResponse({ description: 'Class code exists or course is disabled', ...errorResponse })
   create(@Body() input: CreateClassDto) {
     return this.classes.create(input);
+  }
+
+  @Post(':id/complete')
+  @RequirePermissions(PERMISSIONS.CLASS_WRITE)
+  @ApiUlidParam()
+  @ApiOkResponse({ schema: schemaRef('Class') })
+  complete(@Param() { id }: ClassIdDto, @Body() input: CompleteClassDto) {
+    return this.classes.complete(id, input.completedOn);
   }
 
   @Patch(':id')

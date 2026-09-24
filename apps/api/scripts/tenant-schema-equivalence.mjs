@@ -539,6 +539,150 @@ async function assertLocal07Constraints(dbName, label) {
   );
 }
 
+async function assertLocal09CompensationConstraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const teacherId = '01J0000000000000000000000F';
+  const otherTeacherId = '01J0000000000000000000000K';
+  const classId = '01J0000000000000000000000V';
+  const sessionId = '01J000000000000000000000E0';
+  const agreementId = '01J000000000000000000000E1';
+  const overlappingAgreementId = '01J000000000000000000000E2';
+  const fixedAgreementId = '01J000000000000000000000E3';
+  const periodId = '01J000000000000000000000E4';
+  const statementId = '01J000000000000000000000E5';
+  const sessionItemId = '01J000000000000000000000E6';
+  const fixedItemId = '01J000000000000000000000E7';
+  const adjustmentId = '01J000000000000000000000E8';
+
+  const rejects = async (sql, message) =>
+    assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+
+  await rejects(
+    `UPDATE classes SET status = 'COMPLETED' WHERE tenant_id = '${tenantId}' AND id = '${classId}'`,
+    'completed Class without completed_on was allowed',
+  );
+  await rejects(
+    `UPDATE classes SET completed_on = '2030-02-04' WHERE tenant_id = '${tenantId}' AND id = '${classId}'`,
+    'active Class with completed_on was allowed',
+  );
+  await execute(dbName, `
+    INSERT INTO attendance_sessions
+      (id, tenant_id, class_id, teacher_id, session_date, start_time, end_time, status)
+    VALUES ('${sessionId}', '${tenantId}', '${classId}', '${teacherId}', '2030-02-03', '08:00', '09:00', 'COMPLETED');
+    UPDATE classes SET status = 'COMPLETED', completed_on = '2030-02-04'
+    WHERE tenant_id = '${tenantId}' AND id = '${classId}';
+  `);
+
+  await execute(dbName, `
+    INSERT INTO compensation_agreements
+      (id, tenant_id, teacher_id, basis, rate_vnd, effective_from, effective_until)
+    VALUES ('${agreementId}', '${tenantId}', '${teacherId}', 'PER_SESSION', 100000, '2030-01-01', '2030-12-31');
+    INSERT INTO compensation_agreements
+      (id, tenant_id, teacher_id, class_id, basis, rate_vnd, effective_from)
+    VALUES ('${fixedAgreementId}', '${tenantId}', '${teacherId}', '${classId}', 'FIXED_CLASS', 500000, '2030-01-01');
+  `);
+  await rejects(
+    `INSERT INTO compensation_agreements (id, tenant_id, teacher_id, basis, rate_vnd, effective_from, effective_until) VALUES ('${overlappingAgreementId}', '${tenantId}', '${teacherId}', 'PER_HOUR', 200000, '2030-06-01', '2030-06-30')`,
+    'overlapping compensation agreement was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_agreements (id, tenant_id, teacher_id, basis, rate_vnd, effective_from) VALUES ('01J000000000000000000000E9', '${tenantId}', '${teacherId}', 'FIXED_CLASS', 1, '2030-01-01')`,
+    'fixed-class agreement without class scope was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_agreements (id, tenant_id, teacher_id, basis, rate_vnd, effective_from) VALUES ('01J000000000000000000000EA', '${otherTenantId}', '${teacherId}', 'PER_SESSION', 1, '2030-01-01')`,
+    'cross-tenant agreement → Teacher relationship was allowed',
+  );
+
+  await execute(dbName, `
+    INSERT INTO compensation_periods (id, tenant_id, period_start, period_end)
+    VALUES ('${periodId}', '${tenantId}', '2030-02-01', '2030-02-28');
+    INSERT INTO teacher_compensation_statements (id, tenant_id, period_id, teacher_id)
+    VALUES ('${statementId}', '${tenantId}', '${periodId}', '${teacherId}');
+    INSERT INTO compensation_items
+      (id, tenant_id, statement_id, teacher_id, class_id, session_id, agreement_id, source_kind,
+       work_date, start_time, end_time, duration_minutes, basis, rate_vnd, amount_vnd,
+       teacher_code, teacher_name, class_code, class_name, description)
+    VALUES
+      ('${sessionItemId}', '${tenantId}', '${statementId}', '${teacherId}', '${classId}', '${sessionId}', '${agreementId}', 'SESSION',
+       '2030-02-03', '08:00', '09:00', 60, 'PER_SESSION', 100000, 100000,
+       'SCHEMA-T1', 'Schema Teacher', 'SCHEMA-K1', 'Schema Class', 'Completed session compensation'),
+      ('${fixedItemId}', '${tenantId}', '${statementId}', '${teacherId}', '${classId}', NULL, '${fixedAgreementId}', 'FIXED_CLASS',
+       '2030-02-04', NULL, NULL, NULL, 'FIXED_CLASS', 500000, 500000,
+       'SCHEMA-T1', 'Schema Teacher', 'SCHEMA-K1', 'Schema Class', 'Completed class compensation');
+    INSERT INTO compensation_adjustments
+      (id, tenant_id, statement_id, amount_vnd, reason)
+    VALUES ('${adjustmentId}', '${tenantId}', '${statementId}', -10000, 'Schema adjustment');
+  `);
+  await execute(dbName, `
+    INSERT INTO attendance_sessions
+      (id, tenant_id, class_id, teacher_id, session_date, start_time, end_time, status)
+    VALUES ('01J000000000000000000000F0', '${tenantId}', '${classId}', '${teacherId}', '2030-02-02', '10:00', '11:00', 'COMPLETED');
+    INSERT INTO unresolved_compensation
+      (id, tenant_id, period_id, teacher_id, class_id, session_id, work_date, reason_code, description)
+    VALUES ('01J000000000000000000000F1', '${tenantId}', '${periodId}', '${teacherId}', '${classId}', '01J000000000000000000000F0', '2030-02-02', 'MISSING_AGREEMENT', 'No applicable agreement');
+  `);
+  await rejects(
+    `INSERT INTO unresolved_compensation (id, tenant_id, period_id, teacher_id, class_id, session_id, work_date, reason_code, description) VALUES ('01J000000000000000000000F2', '${tenantId}', '${periodId}', '${teacherId}', '${classId}', '${sessionId}', '2030-02-03', 'MISSING_AGREEMENT', 'Conflict')`,
+    'unresolved row for a session with payable compensation was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_items (id, tenant_id, statement_id, teacher_id, class_id, session_id, agreement_id, source_kind, work_date, start_time, end_time, duration_minutes, basis, rate_vnd, amount_vnd, teacher_code, teacher_name, class_code, class_name, description) VALUES ('01J000000000000000000000F3', '${tenantId}', '${statementId}', '${teacherId}', '${classId}', '01J000000000000000000000F0', '${agreementId}', 'SESSION', '2030-02-02', '10:00', '11:00', 60, 'PER_SESSION', 100000, 100000, 'SCHEMA-T1', 'Schema Teacher', 'SCHEMA-K1', 'Schema Class', 'Conflict')`,
+    'compensation item for a session claimed by unresolved work was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_items (id, tenant_id, statement_id, teacher_id, class_id, session_id, agreement_id, source_kind, work_date, start_time, end_time, duration_minutes, basis, rate_vnd, amount_vnd, teacher_code, teacher_name, class_code, class_name, description) SELECT '01J000000000000000000000EB', tenant_id, statement_id, teacher_id, class_id, session_id, agreement_id, source_kind, work_date, start_time, end_time, duration_minutes, basis, rate_vnd, amount_vnd, teacher_code, teacher_name, class_code, class_name, description FROM compensation_items WHERE id = '${sessionItemId}'`,
+    'duplicate Session compensation item was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_items (id, tenant_id, statement_id, teacher_id, class_id, agreement_id, source_kind, work_date, basis, rate_vnd, amount_vnd, teacher_code, teacher_name, class_code, class_name, description) SELECT '01J000000000000000000000EC', tenant_id, statement_id, teacher_id, class_id, agreement_id, source_kind, work_date, basis, rate_vnd, amount_vnd, teacher_code, teacher_name, class_code, class_name, description FROM compensation_items WHERE id = '${fixedItemId}'`,
+    'duplicate fixed-class compensation item was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_adjustments (id, tenant_id, statement_id, amount_vnd, reason) VALUES ('01J000000000000000000000ED', '${tenantId}', '${statementId}', 0, 'Zero')`,
+    'zero adjustment was allowed',
+  );
+  await rejects(
+    `INSERT INTO compensation_adjustments (id, tenant_id, statement_id, amount_vnd, reason) VALUES ('01J000000000000000000000EE', '${tenantId}', '${statementId}', 1, '   ')`,
+    'blank adjustment reason was allowed',
+  );
+
+  await execute(dbName, `
+    UPDATE compensation_periods
+    SET status = 'FINALIZED', finalized_at = CURRENT_TIMESTAMP, finalized_by_user_id = '${otherTeacherId}'
+    WHERE tenant_id = '${tenantId}' AND id = '${periodId}';
+  `);
+  await rejects(
+    `UPDATE compensation_items SET amount_vnd = 1 WHERE tenant_id = '${tenantId}' AND id = '${sessionItemId}'`,
+    'finalized compensation item mutation was allowed',
+  );
+  await rejects(
+    `DELETE FROM compensation_items WHERE tenant_id = '${tenantId}' AND id = '${sessionItemId}'`,
+    'finalized compensation item deletion was allowed',
+  );
+  await rejects(
+    `UPDATE compensation_adjustments SET amount_vnd = 1 WHERE tenant_id = '${tenantId}' AND id = '${adjustmentId}'`,
+    'finalized adjustment mutation was allowed',
+  );
+  await rejects(
+    `UPDATE teacher_compensation_statements SET payable_vnd = 1 WHERE tenant_id = '${tenantId}' AND id = '${statementId}'`,
+    'finalized statement total mutation was allowed',
+  );
+  await rejects(
+    `UPDATE compensation_periods SET finalized_at = NULL WHERE tenant_id = '${tenantId}' AND id = '${periodId}'`,
+    'finalized period mutation was allowed',
+  );
+  await rejects(
+    `DELETE FROM teacher_compensation_statements WHERE tenant_id = '${tenantId}' AND id = '${statementId}'`,
+    'finalized statement deletion was allowed',
+  );
+  await rejects(
+    `DELETE FROM compensation_periods WHERE tenant_id = '${tenantId}' AND id = '${periodId}'`,
+    'finalized period deletion was allowed',
+  );
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -598,6 +742,8 @@ async function main() {
   await assertLocal07Constraints(legacy, 'legacy');
   await assertLocal08BillingConstraints(fresh, 'fresh');
   await assertLocal08BillingConstraints(legacy, 'legacy');
+  await assertLocal09CompensationConstraints(fresh, 'fresh');
+  await assertLocal09CompensationConstraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

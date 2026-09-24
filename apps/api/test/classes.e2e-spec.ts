@@ -50,10 +50,11 @@ type ClassRecord = {
   capacity: number | null;
   startDate: string | null;
   expectedEndDate: string | null;
+  completedOn?: string | null;
   code: string;
   name: string;
   description: string | null;
-  status: 'ACTIVE' | 'DISABLED';
+  status: 'ACTIVE' | 'DISABLED' | 'COMPLETED';
   createdAt: Date;
   updatedAt: Date;
 };
@@ -76,6 +77,7 @@ function classPool() {
   const rooms = new Map<string, RefRecord>();
   const teachers = new Map<string, RefRecord>();
   const teacherBranches = new Set<string>();
+  const futureSessions = new Set<string>();
   const withRefs = (record: ClassRecord) => {
     const course = record.courseId ? courses.get(record.courseId) : undefined;
     const branch = record.branchId ? branches.get(record.branchId) : undefined;
@@ -191,6 +193,21 @@ function classPool() {
       return { rows: [withRefs(classRecord)] };
     }
 
+    if (sql.includes('FROM attendance_sessions')) {
+      const [tenantId, classId] = values as string[];
+      return { rows: futureSessions.has(`${tenantId}:${classId}`) ? [{ ok: 1 }] : [] };
+    }
+
+    if (sql.includes("SET status='COMPLETED'")) {
+      const [tenantId, id, completedOn] = values as string[];
+      const classRecord = rows.get(id);
+      if (!classRecord || classRecord.tenantId !== tenantId) return { rows: [] };
+      classRecord.status = 'COMPLETED';
+      classRecord.completedOn = completedOn;
+      classRecord.updatedAt = new Date('2026-09-14T01:00:00.000Z');
+      return { rows: [] };
+    }
+
     if (sql.includes('UPDATE classes')) {
       const [tenantId, id, ...updates] = values as [string, string, ...unknown[]];
       const classRecord = rows.get(id);
@@ -237,7 +254,7 @@ function classPool() {
     connect: vi.fn(async () => ({ query, release })),
   } as unknown as Pool;
 
-  return { pool, query, release, rows, courses, branches, levels, rooms, teachers, teacherBranches };
+  return { pool, query, release, rows, courses, branches, levels, rooms, teachers, teacherBranches, futureSessions };
 }
 
 describe('classes', () => {
@@ -537,6 +554,34 @@ describe('classes', () => {
     await authorized('post', '/classes').send({ courseId: activeCourseId, branchId: '01JHZX3V8Q9K5M2N7R4T6W1Y0T', code: 'NOBRANCH', name: 'x' }).expect(404);
     await authorized('post', '/classes', 'beta').send({ courseId: activeCourseId, branchId, code: 'CROSS', name: 'x' }).expect(404);
     expect(alpha.rows.size).toBe(rowsBefore + 1);
+  });
+
+  it('completes only active Classes without later operational Sessions', async () => {
+    const audit = app.get(AuditService);
+    const record = vi.spyOn(audit, 'recordTenant');
+    const created = await authorized('post', '/classes')
+      .send({ courseId: activeCourseId, code: 'DONE1', name: 'Completable', startDate: '2026-09-01' })
+      .expect(201);
+
+    record.mockClear();
+    await authorized('post', `/classes/${created.body.id}/complete`)
+      .send({ completedOn: '2026-09-30' })
+      .expect(201)
+      .expect(({ body }) => expect(body).toMatchObject({ status: 'COMPLETED', completedOn: '2026-09-30' }));
+    expect(record.mock.calls.some(([, event]) => event.action === 'class.completed')).toBe(true);
+
+    await authorized('patch', `/classes/${created.body.id}`).send({ name: 'Changed' }).expect(409);
+    await authorized('post', `/classes/${created.body.id}/complete`).send({ completedOn: '2026-10-01' }).expect(409);
+    await authorized('post', `/classes/${created.body.id}/complete`, 'beta').send({ completedOn: '2026-09-30' }).expect(404);
+
+    const blocked = await authorized('post', '/classes')
+      .send({ courseId: activeCourseId, code: 'DONE2', name: 'Blocked', startDate: '2026-09-01' })
+      .expect(201);
+    alpha.futureSessions.add(`${tenants.alpha.id}:${blocked.body.id}`);
+    await authorized('post', `/classes/${blocked.body.id}/complete`).send({ completedOn: '2026-09-30' }).expect(409);
+    expect(alpha.rows.get(blocked.body.id)?.status).toBe('ACTIVE');
+    await authorized('post', `/classes/${blocked.body.id}/complete`).send({ completedOn: '2026-08-31' }).expect(400);
+    await authorized('post', `/classes/${blocked.body.id}/complete`).send({ completedOn: '2026-02-30' }).expect(400);
   });
 
   it('rejects new disabled references and preserves existing disabled ones', async () => {

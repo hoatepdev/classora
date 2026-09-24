@@ -1,4 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { currentTenantQueryKey, currentUserQueryKey, getCurrentTenant, getCurrentUser } from "@/auth/api";
+import { can } from "@/auth/permissions";
+import { getCompensationTeacher, compensationTeacherQueryKey } from "../compensation/api.js";
+import type { CompensationTeacherSummary } from "../compensation/types.js";
 import axios from "axios";
 import { Link, useParams } from "react-router-dom";
 import { listTeacherSchedules, listUpcomingSessions, teacherScheduleQueryKey, upcomingSessionQueryKey } from "../schedules/api.js";
@@ -40,6 +44,11 @@ export function TeacherDetail() {
     queryFn: () => listUpcomingSessions({ ...upcomingRange, teacherId: id, status: "SCHEDULED" }),
     enabled: Boolean(id),
   });
+  const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
+  const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
+  const canCompensationRead = can(membership, "compensation.read");
+  const compensation = useQuery({ queryKey: compensationTeacherQueryKey(id ?? ""), queryFn: () => getCompensationTeacher(id!), enabled: Boolean(id) && canCompensationRead });
 
   if (teacher.isPending) {
     return <main className="page"><div className="state">Đang tải thông tin giáo viên…</div></main>;
@@ -88,7 +97,14 @@ export function TeacherDetail() {
       </div>}
     </section>
     <UpcomingTeacherSessions query={upcomingSessions} />
+    {canCompensationRead && <TeacherCompensationSection query={compensation} />}
 
     <div className="form-actions"><Link className="button secondary" to="/teachers">Quay lại danh sách</Link></div>
   </main>;
+}
+
+function TeacherCompensationSection({ query }: { query: { isPending: boolean; isError: boolean; data?: CompensationTeacherSummary } }) {
+  if (query.isPending) return <section className="relationship-section"><div className="relationship-heading"><h2>Thù lao</h2></div><div className="state">Đang tải thông tin thù lao…</div></section>;
+  if (query.isError || !query.data) return <section className="relationship-section"><div className="relationship-heading"><h2>Thù lao</h2></div><div className="state error" role="alert">Không thể tải thông tin thù lao.</div></section>;
+  return <section className="relationship-section" aria-labelledby="teacher-compensation-heading"><div className="relationship-heading"><div><h2 id="teacher-compensation-heading">Thù lao</h2><p className="subtitle">Thông tin chỉ hiển thị cho người có quyền tài chính.</p></div><Link className="action-link" to="/billing/compensation">Mở khu vực thù lao</Link></div><div className="register"><table><thead><tr><th>Thỏa thuận gần đây</th><th>Cách tính</th><th>Mức thù lao</th><th>Hiệu lực</th></tr></thead><tbody>{query.data.agreements.slice(0, 5).map((agreement) => <tr key={agreement.id}><td data-label="Thỏa thuận">{agreement.classCode ? `${agreement.classCode} — ${agreement.className}` : "Mặc định giáo viên"}</td><td data-label="Cách tính">{agreement.basis}</td><td data-label="Mức thù lao">{new Intl.NumberFormat("vi-VN").format(BigInt(agreement.rateVnd))} ₫</td><td data-label="Hiệu lực">{agreement.effectiveFrom.slice(0, 10)} — {agreement.effectiveUntil?.slice(0, 10) ?? "Hiện tại"}</td></tr>)}</tbody></table></div></section>;
 }

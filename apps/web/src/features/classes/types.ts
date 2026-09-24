@@ -1,4 +1,4 @@
-export type ClassStatus = "ACTIVE" | "DISABLED";
+export type ClassStatus = "ACTIVE" | "DISABLED" | "COMPLETED";
 
 export type Class = {
   id: string;
@@ -20,6 +20,7 @@ export type Class = {
   capacity: number | null;
   startDate: string | null;
   expectedEndDate: string | null;
+  completedOn: string | null;
   code: string;
   name: string;
   description: string | null;
@@ -40,5 +41,5 @@ export type ClassInput = {
   code: string;
   name: string;
   description?: string | null;
-  status: ClassStatus;
+  status: Exclude<ClassStatus, "COMPLETED">;
 };

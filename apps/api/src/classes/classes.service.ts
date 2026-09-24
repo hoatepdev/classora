@@ -13,7 +13,7 @@ type ClassRow = QueryResultRow & {
   defaultRoomId: string | null; defaultRoomCode: string | null;
   primaryTeacherId: string | null; primaryTeacherCode: string | null; primaryTeacherName: string | null;
   code: string; name: string; description: string | null; capacity: number | null;
-  startDate: Date | string | null; expectedEndDate: Date | string | null; status: ClassStatus;
+  startDate: Date | string | null; expectedEndDate: Date | string | null; completedOn: Date | string | null; status: ClassStatus;
   createdAt: Date; updatedAt: Date;
 };
 
@@ -22,7 +22,7 @@ const columns = `c.id, c.tenant_id AS "tenantId", c.course_id AS "courseId", cou
   c.course_level_id AS "courseLevelId", level.code AS "courseLevelCode", level.name AS "courseLevelName",
   c.default_room_id AS "defaultRoomId", room.code AS "defaultRoomCode",
   c.primary_teacher_id AS "primaryTeacherId", teacher.code AS "primaryTeacherCode", teacher.name AS "primaryTeacherName",
-  c.code, c.name, c.description, c.capacity, c.start_date AS "startDate", c.expected_end_date AS "expectedEndDate", c.status,
+  c.code, c.name, c.description, c.capacity, c.start_date AS "startDate", c.expected_end_date AS "expectedEndDate", c.completed_on AS "completedOn", c.status,
   c.created_at AS "createdAt", c.updated_at AS "updatedAt"`;
 const select = `SELECT ${columns} FROM classes c
   LEFT JOIN courses course ON course.tenant_id = c.tenant_id AND course.id = c.course_id
@@ -37,9 +37,9 @@ function dateValue(value: Date | string | null) {
   return value.toISOString().slice(0, 10);
 }
 function serialize(row: ClassRow) {
-  return { ...row, startDate: dateValue(row.startDate), expectedEndDate: dateValue(row.expectedEndDate), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+  return { ...row, startDate: dateValue(row.startDate), expectedEndDate: dateValue(row.expectedEndDate), completedOn: dateValue(row.completedOn), createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
-const snapshot = (row: ClassRow) => ({ courseId: row.courseId, branchId: row.branchId, courseLevelId: row.courseLevelId, defaultRoomId: row.defaultRoomId, primaryTeacherId: row.primaryTeacherId, code: row.code, name: row.name, description: row.description, capacity: row.capacity, startDate: dateValue(row.startDate), expectedEndDate: dateValue(row.expectedEndDate), status: row.status });
+const snapshot = (row: ClassRow) => ({ courseId: row.courseId, branchId: row.branchId, courseLevelId: row.courseLevelId, defaultRoomId: row.defaultRoomId, primaryTeacherId: row.primaryTeacherId, code: row.code, name: row.name, description: row.description, capacity: row.capacity, startDate: dateValue(row.startDate), expectedEndDate: dateValue(row.expectedEndDate), completedOn: dateValue(row.completedOn), status: row.status });
 function isClassCodeConflict(error: unknown) { return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505' && 'constraint' in error && error.constraint === 'classes_tenant_id_code_key'; }
 function actor(context: ReturnType<TenantContextService['get']>) { return { tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId, actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId }; }
 
@@ -51,6 +51,7 @@ export class ClassesService {
   async get(id: string) { const { tenant, pool } = this.tenantContext.get(); const result = await pool.query<ClassRow>(`${select} WHERE c.tenant_id = $1 AND c.id = $2`, [tenant.tenantId, id]); if (!result.rows[0]) throw new NotFoundException('Class not found'); return serialize(result.rows[0]); }
 
   async create(input: CreateClassDto) {
+    if (input.status === ClassStatus.COMPLETED) throw new BadRequestException('Use the class completion command');
     const context = this.tenantContext.get(); const client = await context.pool.connect(); let id = ulid();
     try {
       await client.query('BEGIN');
@@ -70,6 +71,27 @@ export class ClassesService {
     return this.get(id);
   }
 
+  async complete(id: string, completedOn: string) {
+    const context = this.tenantContext.get(); const client = await context.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const old = await this.lockedRow(client, context.tenant.tenantId, id);
+      if (old.status !== ClassStatus.ACTIVE) throw new ConflictException('Only active classes can be completed');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(completedOn)) throw new BadRequestException('Completion date must be a calendar date');
+      const parsed = new Date(`${completedOn}T00:00:00Z`);
+      if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== completedOn) throw new BadRequestException('Completion date must be a calendar date');
+      const date = completedOn;
+      if (old.startDate && dateValue(old.startDate)! > date) throw new BadRequestException('Completion date cannot precede class start');
+      const sessions = await client.query("SELECT 1 FROM attendance_sessions WHERE tenant_id=$1 AND class_id=$2 AND session_date > $3 AND status IN ('SCHEDULED','COMPLETED') LIMIT 1", [context.tenant.tenantId, id, date]);
+      if (sessions.rows[0]) throw new ConflictException('Operational sessions exist after the completion date');
+      await client.query("UPDATE classes SET status='COMPLETED', completed_on=$3, updated_at=CURRENT_TIMESTAMP WHERE tenant_id=$1 AND id=$2", [context.tenant.tenantId, id, date]);
+      const row = await this.lockedRow(client, context.tenant.tenantId, id);
+      await this.audit.recordTenant(client, { ...actor(context), action: 'class.completed', entityType: 'CLASS', entityId: id, before: snapshot(old), after: snapshot(row) });
+      await client.query('COMMIT');
+      return serialize(row);
+    } catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; } finally { client.release(); }
+  }
+
   async update(id: string, input: UpdateClassDto) {
     const columns: Array<[keyof UpdateClassDto, string, (value: never) => unknown]> = [
       ['courseId', 'course_id', (value: string) => value], ['branchId', 'branch_id', (value: string) => value], ['courseLevelId', 'course_level_id', (value: string | null) => value], ['defaultRoomId', 'default_room_id', (value: string | null) => value], ['primaryTeacherId', 'primary_teacher_id', (value: string | null) => value],
@@ -82,6 +104,8 @@ export class ClassesService {
     try {
       await client.query('BEGIN');
       const old = await this.lockedRow(client, context.tenant.tenantId, id);
+      if (old.status === ClassStatus.COMPLETED) throw new ConflictException('Completed classes are immutable');
+      if (input.status === ClassStatus.COMPLETED) throw new ConflictException('Use the class completion command');
       const proposed = {
         ...old,
         ...input,

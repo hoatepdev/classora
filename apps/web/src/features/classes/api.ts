@@ -20,6 +20,10 @@ export async function updateClass(id: string, input: ClassInput) {
   return (await api.patch<Class>(`/classes/${id}`, input)).data;
 }
 
+export async function completeClass(id: string, completedOn: string) {
+  return (await api.post<Class>(`/classes/${id}/complete`, { completedOn })).data;
+}
+
 export async function listRoomsForBranch(branchId: string) {
   return (await api.get<Room[]>("/rooms", { params: { branchId } })).data;
 }

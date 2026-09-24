@@ -39,7 +39,7 @@ export function ClassForm() {
 
   useEffect(() => {
     if (!classRecord.data) return;
-    reset({ courseId: classRecord.data.courseId ?? "", branchId: classRecord.data.branchId ?? "", courseLevelId: classRecord.data.courseLevelId ?? "", defaultRoomId: classRecord.data.defaultRoomId ?? "", primaryTeacherId: classRecord.data.primaryTeacherId ?? "", capacity: classRecord.data.capacity ? String(classRecord.data.capacity) : "", startDate: classRecord.data.startDate?.slice(0, 10) ?? "", expectedEndDate: classRecord.data.expectedEndDate?.slice(0, 10) ?? "", code: classRecord.data.code, name: classRecord.data.name, description: classRecord.data.description ?? "", status: classRecord.data.status });
+    reset({ courseId: classRecord.data.courseId ?? "", branchId: classRecord.data.branchId ?? "", courseLevelId: classRecord.data.courseLevelId ?? "", defaultRoomId: classRecord.data.defaultRoomId ?? "", primaryTeacherId: classRecord.data.primaryTeacherId ?? "", capacity: classRecord.data.capacity ? String(classRecord.data.capacity) : "", startDate: classRecord.data.startDate?.slice(0, 10) ?? "", expectedEndDate: classRecord.data.expectedEndDate?.slice(0, 10) ?? "", code: classRecord.data.code, name: classRecord.data.name, description: classRecord.data.description ?? "", status: classRecord.data.status === "COMPLETED" ? "DISABLED" : classRecord.data.status });
   }, [classRecord.data, reset]);
 
   const mutation = useMutation({

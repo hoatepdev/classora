@@ -14,6 +14,16 @@ describe('authorization matrix', () => {
     expect(hasPermission(TenantRole.ACADEMIC_MANAGER, PERMISSIONS.TEAM_MANAGE)).toBe(false);
     expect(hasPermission(TenantRole.ACCOUNTANT, PERMISSIONS.STUDENT_WRITE)).toBe(false);
     expect(hasPermission(TenantRole.ACCOUNTANT, PERMISSIONS.TEAM_MANAGE)).toBe(false);
+    expect(hasPermission(TenantRole.OWNER, PERMISSIONS.COMPENSATION_READ)).toBe(true);
+    expect(hasPermission(TenantRole.OWNER, PERMISSIONS.COMPENSATION_MANAGE)).toBe(true);
+    expect(hasPermission(TenantRole.CENTER_ADMIN, PERMISSIONS.COMPENSATION_READ)).toBe(true);
+    expect(hasPermission(TenantRole.CENTER_ADMIN, PERMISSIONS.COMPENSATION_MANAGE)).toBe(true);
+    expect(hasPermission(TenantRole.ACCOUNTANT, PERMISSIONS.COMPENSATION_READ)).toBe(true);
+    expect(hasPermission(TenantRole.ACCOUNTANT, PERMISSIONS.COMPENSATION_MANAGE)).toBe(true);
+    for (const role of [TenantRole.ACADEMIC_MANAGER, TenantRole.STAFF, TenantRole.TEACHER, TenantRole.SALE]) {
+      expect(hasPermission(role, PERMISSIONS.COMPENSATION_READ)).toBe(false);
+      expect(hasPermission(role, PERMISSIONS.COMPENSATION_MANAGE)).toBe(false);
+    }
     expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.SETTINGS_MANAGE)).toBe(false);
     expect(hasPermission(TenantRole.OWNER, PERMISSIONS.AUDIT_READ)).toBe(true);
     expect(hasPermission(TenantRole.CENTER_ADMIN, PERMISSIONS.AUDIT_READ)).toBe(true);

@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 
-export enum ClassStatus { ACTIVE = 'ACTIVE', DISABLED = 'DISABLED' }
+export enum ClassStatus { ACTIVE = 'ACTIVE', DISABLED = 'DISABLED', COMPLETED = 'COMPLETED' }
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 const nullableText = ({ value }: { value: unknown }) => typeof value === 'string' && value.trim() === '' ? null : trim({ value });
 const id = /^[0-9A-HJKMNP-TV-Z]{26}$/;

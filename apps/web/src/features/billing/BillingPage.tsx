@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getApiErrorMessage } from "@/lib/api";
+import { FinanceNavigation } from "../finance/FinanceNavigation.js";
 import { billingDiscountsQueryKey, billingInvoicesQueryKey, billingOverviewQueryKey, billingPaymentsQueryKey, billingPricesQueryKey, billingReceivablesQueryKey, billingRefundsQueryKey, getBillingOverview, listDiscounts, listInvoices, listPayments, listPrices, listReceivables, listRefunds, recordPayment, requestRefund } from "./api";
 import type { BillingDiscount, BillingInvoice, BillingPayment, BillingPrice, BillingReceivable, BillingRefund } from "./types";
 
@@ -39,7 +40,8 @@ export function BillingPage() {
 
   return <PageContainer>
     <PageHeader title="Học phí & thanh toán" description="Theo dõi hóa đơn, thu học phí và công nợ của trung tâm." />
-    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-[#e2e8f0]" aria-label="Khu vực tài chính">
+    <FinanceNavigation />
+    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-[#e2e8f0]" aria-label="Các chức năng học phí">
       {sections.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => select(id)} aria-current={section === id ? "page" : undefined} className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-semibold transition-colors ${section === id ? "border-[#2563eb] text-[#2563eb]" : "border-transparent text-[#64748b] hover:border-[#cbd5e1] hover:text-[#0f172a]"}`}><Icon size={16} aria-hidden="true" />{label}</button>)}
     </nav>
     {section === "overview" && <Overview />}
