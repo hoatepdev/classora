@@ -13,7 +13,7 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-05 | Enrollment Lifecycle | DONE |
 | LOCAL-06 | Scheduling + Session Engine | DONE |
 | LOCAL-07 | Attendance + Makeup | DONE |
-| LOCAL-08 | Billing / Tuition | Planned |
+| LOCAL-08 | Billing / Tuition | DONE |
 | LOCAL-09 | Teacher Compensation | Planned |
 | LOCAL-10 | CRM | Planned |
 | LOCAL-11 | Communication | Planned |
@@ -43,6 +43,26 @@ idempotent rerun, cross-tenant composite-FK rejection). Branch is now an
 operational data dimension, but branch-scoped authorization remains deferred
 to LOCAL-19. The existing free-text schedule room is unchanged; a Class
 default Room is not occurrence scheduling.
+
+## LOCAL-08 notes
+
+Adds tenant-scoped pricing plans, effective-dated enrollment pricing, immutable
+invoice discount snapshots, issue-time tenant-local invoice and credit-note
+numbering, partial and multi-invoice payment allocations, unallocated customer
+credit, reversals, allocated refunds, credit notes, receivables, and historical
+`asOf` invoice balances/status. Financial ledgers and status history are
+append-only, issued invoices and items are immutable, money remains BIGINT in
+PostgreSQL and decimal strings at API boundaries, and every mutation writes its
+audit event on the same tenant transaction. Permissions separate billing read,
+management, collection, refund, and finance reporting. The billing workspace
+and Student 360 billing section use the real API and gate visibility with
+`billing.read`. Cross-tenant access, concurrent numbering/allocation,
+idempotent retries, refund and credit-note accounting, append-only constraints,
+and historical balances are covered by the real PostgreSQL integration suite.
+API tests passed (21 files, 180 tests); API/web typechecks and builds passed; the
+disposable PostgreSQL gate passed fresh deployment, supported legacy upgrade,
+catalog equivalence, drift rejection, and idempotent rerun. The web build retains
+the existing non-blocking chunk-size warning.
 
 ## LOCAL-07 notes
 

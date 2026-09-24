@@ -18,7 +18,7 @@ import { listStudentEnrollments, studentEnrollmentQueryKey } from "../enrollment
 import { listUpcomingSessions, upcomingSessionQueryKey } from "../schedules/api.js";
 import type { Session } from "../schedules/types.js";
 import { EnrollmentLifecycleActions } from "../enrollments/EnrollmentLifecycleActions.js";
-import { addStudentNote, addStudentTag, createAndLinkGuardian, getStudent, linkGuardian, listGuardians, listStudentActivity, listStudentGuardians, listStudentNotes, listStudentTags, removeStudentTag, studentQueryKey, unlinkGuardian, updateGuardianLink } from "./api.js";
+import { addStudentNote, addStudentTag, createAndLinkGuardian, getStudent, getStudentBilling, linkGuardian, listGuardians, listStudentActivity, listStudentGuardians, listStudentNotes, listStudentTags, removeStudentTag, studentQueryKey, unlinkGuardian, updateGuardianLink } from "./api.js";
 const dateFormatter = new Intl.DateTimeFormat("vi-VN");
 const sessionDateFormatter = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 const enrollmentStatusLabels: Record<import("../enrollments/types.js").EnrollmentStatus, string> = { PENDING: "Chờ bắt đầu", TRIAL: "Học thử", ACTIVE: "Đang học", PAUSED: "Tạm dừng", COMPLETED: "Đã hoàn thành", WITHDRAWN: "Đã rút", CANCELLED: "Đã hủy" };
@@ -39,7 +39,8 @@ export function StudentDetail() {
   const activity = useQuery({ queryKey: ["student-activity", window.location.hostname, id], queryFn: () => listStudentActivity(id!), enabled: Boolean(id) });
   const user = useQuery({ queryKey: currentUserQueryKey(), queryFn: getCurrentUser });
   const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
-  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId); const canWrite = can(membership, "student.write"); const canEnrollmentWrite = can(membership, "enrollment.write");
+  const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId); const canWrite = can(membership, "student.write"); const canEnrollmentWrite = can(membership, "enrollment.write"); const canBillingRead = can(membership, "billing.read");
+  const billing = useQuery({ queryKey: ["student-billing", window.location.hostname, id], queryFn: () => getStudentBilling(id!), enabled: Boolean(id) && canBillingRead });
   const [guardianDialogOpen, setGuardianDialogOpen] = useState(false);
   const [guardianSearch, setGuardianSearch] = useState("");
   const [selectedGuardianId, setSelectedGuardianId] = useState("");
@@ -72,6 +73,7 @@ export function StudentDetail() {
     <section className="mt-7"><SectionHeader title="Hoạt động" /><AsyncBlock query={activity} empty="Chưa có hoạt động." render={(items) => <div className="space-y-2">{items.map((item) => <article className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={item.id}><p className="m-0 text-sm font-medium text-[#334155]">{item.action}</p><p className="mt-1 mb-0 text-xs text-[#64748b]">{item.actorName ?? "Hệ thống"} · {dateFormatter.format(new Date(item.occurredAt))}</p></article>)}</div>} /></section>
     <section className="mt-7"><SectionHeader title="Ghi chú nội bộ" action={canWrite ? <NoteForm pending={noteMutation.isPending} onSubmit={(content) => noteMutation.mutate(content)} /> : undefined} /><AsyncBlock query={notes} empty="Chưa có ghi chú." render={(items) => <div className="space-y-3">{items.map((note) => <article className="rounded-xl border border-[#e2e8f0] bg-white p-4" key={note.id}><p className="m-0 whitespace-pre-wrap text-sm text-[#334155]">{note.content}</p><p className="mt-3 mb-0 text-xs text-[#64748b]">{note.authorName ?? "Nhân viên"} · {dateFormatter.format(new Date(note.createdAt))}</p></article>)}</div>} /></section>
     <section className="mt-7"><SectionHeader title="Lớp học" /><AsyncBlock query={enrollments} empty="Học viên chưa ghi danh vào lớp nào." render={(items) => <div className="overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white"><table className="w-full text-left text-sm"><thead><tr><th className="px-4 py-3">Mã lớp</th><th className="px-4 py-3">Tên lớp</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Ngày ghi danh</th><th className="px-4 py-3">Thao tác</th></tr></thead><tbody>{items.map((item) => <tr className="border-t border-[#f1f5f9]" key={item.id}><td className="px-4 py-3 font-semibold">{item.classCode}</td><td className="px-4 py-3"><Link className="text-[#2563eb] hover:underline" to={`/classes/${item.classId}`}>{item.className}</Link></td><td className="px-4 py-3"><StatusBadge status={item.status}>{enrollmentStatusLabels[item.status]}</StatusBadge></td><td className="px-4 py-3 text-[#64748b]">{dateFormatter.format(new Date(item.enrolledAt))}</td><td className="px-4 py-3"><EnrollmentLifecycleActions enrollment={item} canWrite={canEnrollmentWrite} /></td></tr>)}</tbody></table></div>} /></section>
+    {canBillingRead && <StudentBillingSection query={billing} />}
     <UpcomingStudentSessions query={upcomingSessions} />
     <StudentAttendanceSection studentId={student.data.id} />
   </PageContainer>;
@@ -82,6 +84,22 @@ function upcomingDateRange() {
   const to = new Date(from);
   to.setUTCDate(to.getUTCDate() + 30);
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function StudentBillingSection({ query }: { query: { isPending: boolean; isError: boolean; data?: import("./api.js").StudentBilling; refetch: () => unknown } }) {
+  if (query.isPending) return <section className="mt-7"><SectionHeader title="Học phí" /><LoadingState label="Đang tải thông tin học phí" /></section>;
+  if (query.isError) return <section className="mt-7"><SectionHeader title="Học phí" /><ErrorState title="Không thể tải thông tin học phí" message="Vui lòng thử lại." onRetry={() => void query.refetch()} /></section>;
+  if (!query.data) return null;
+  const money = (value: string) => /^\d+$/.test(value) ? `${new Intl.NumberFormat("vi-VN").format(BigInt(value))} ₫` : "—";
+  return <section className="mt-7" aria-labelledby="student-billing-heading">
+    <SectionHeader title="Học phí" />
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="rounded-xl border border-[#e2e8f0] bg-white p-4"><p className="m-0 text-sm text-[#64748b]">Tín dụng chưa phân bổ</p><p className="mt-1 mb-0 text-lg font-semibold text-[#0f172a]">{money(query.data.availableCreditVnd)}</p></div>
+      <div className="rounded-xl border border-[#e2e8f0] bg-white p-4"><p className="m-0 text-sm text-[#64748b]">Hóa đơn</p><p className="mt-1 mb-0 text-lg font-semibold text-[#0f172a]">{query.data.invoices.length}</p></div>
+      <div className="rounded-xl border border-[#e2e8f0] bg-white p-4"><p className="m-0 text-sm text-[#64748b]">Thanh toán</p><p className="mt-1 mb-0 text-lg font-semibold text-[#0f172a]">{query.data.payments.length}</p></div>
+    </div>
+    {query.data.invoices.length > 0 && <div className="mt-4 overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white"><table className="w-full text-left text-sm"><thead><tr><th className="px-4 py-3">Hóa đơn</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3 text-right">Tổng</th><th className="px-4 py-3 text-right">Còn phải thu</th></tr></thead><tbody>{query.data.invoices.map((invoice) => <tr className="border-t border-[#f1f5f9]" key={invoice.id}><td className="px-4 py-3 font-semibold">{invoice.invoiceNumber ?? invoice.id}</td><td className="px-4 py-3"><span className="inline-flex rounded-full bg-[#f1f5f9] px-2.5 py-1 text-xs font-semibold text-[#475569]">{invoice.effectiveStatus}</span></td><td className="px-4 py-3 text-right">{money(invoice.totalVnd)}</td><td className="px-4 py-3 text-right font-semibold">{money(invoice.outstandingVnd)}</td></tr>)}</tbody></table></div>}
+  </section>;
 }
 
 function UpcomingStudentSessions({ query }: { query: { isPending: boolean; isError: boolean; data?: Session[] } }) {

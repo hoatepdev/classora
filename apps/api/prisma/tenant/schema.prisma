@@ -31,6 +31,7 @@ model Student {
   makeupEntitlements MakeupEntitlement[]
   makeupBookings MakeupBooking[]
   invoices          Invoice[]
+  payments          Payment[]
   enrollmentPricing EnrollmentPricing[]
   enrollmentDiscounts EnrollmentDiscount[]
 
@@ -543,7 +544,7 @@ model PricingPlan {
 model Invoice {
   id             String         @id @db.Char(26)
   tenantId       String         @map("tenant_id") @db.Char(26)
-  invoiceNumber  String         @map("invoice_number")
+  invoiceNumber  String?        @map("invoice_number")
   studentId      String         @map("student_id") @db.Char(26)
   enrollmentId   String?        @map("enrollment_id") @db.Char(26)
   pricingPlanId  String?        @map("pricing_plan_id") @db.Char(26)
@@ -562,8 +563,10 @@ model Invoice {
   pricingPlan    PricingPlan?   @relation(fields: [tenantId, pricingPlanId], references: [tenantId, id])
   items          InvoiceItem[]
   payments       Payment[]
-  creditNotes    CreditNote[]
+  creditNotes       CreditNote[]
   paymentAllocations PaymentAllocation[]
+  statusHistory    InvoiceStatusHistory[]
+  discountSnapshots InvoiceDiscountSnapshot[]
 
   @@unique([tenantId, id], map: "invoices_tenant_id_key")
   @@unique([tenantId, invoiceNumber], map: "invoices_tenant_number_key")
@@ -594,18 +597,22 @@ model Payment {
   id          String             @id @db.Char(26)
   tenantId    String             @map("tenant_id") @db.Char(26)
   invoiceId   String?            @map("invoice_id") @db.Char(26)
+  studentId   String?            @map("student_id") @db.Char(26)
   amountVnd   BigInt             @map("amount_vnd")
+  idempotencyKey String?         @map("idempotency_key")
   method      String
   reference   String?
   note        String?
   receivedAt DateTime           @default(now()) @map("received_at") @db.Timestamptz
   createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
   invoice     Invoice?           @relation(fields: [tenantId, invoiceId], references: [tenantId, id])
+  student     Student?           @relation(fields: [tenantId, studentId], references: [tenantId, id])
   reversals   PaymentReversal[]
   allocations PaymentAllocation[]
   refunds Refund[]
 
   @@unique([tenantId, id], map: "payments_tenant_id_key")
+  @@unique([tenantId, idempotencyKey], map: "payments_tenant_idempotency_key_idx")
   @@index([tenantId, invoiceId, receivedAt, id])
   @@map("payments")
 }
@@ -614,6 +621,7 @@ model PaymentReversal {
   id             String   @id @db.Char(26)
   tenantId       String   @map("tenant_id") @db.Char(26)
   paymentId      String   @map("payment_id") @db.Char(26)
+  idempotencyKey String?  @map("idempotency_key")
   reason         String
   actorUserId    String?  @map("actor_user_id") @db.Char(26)
   actorMembershipId String? @map("actor_membership_id") @db.Char(26)
@@ -622,6 +630,7 @@ model PaymentReversal {
 
   @@unique([tenantId, id], map: "payment_reversals_tenant_id_key")
   @@unique([tenantId, paymentId], map: "payment_reversals_one_per_payment_key")
+  @@unique([tenantId, idempotencyKey], map: "payment_reversals_tenant_idempotency_key_idx")
   @@map("payment_reversals")
 }
 
@@ -637,6 +646,7 @@ model Discount {
   effectiveFrom DateTime? @map("effective_from") @db.Date
   effectiveUntil DateTime? @map("effective_until") @db.Date
   enrollmentDiscounts EnrollmentDiscount[]
+  invoiceDiscountSnapshots InvoiceDiscountSnapshot[]
   @@unique([tenantId,id], map: "discounts_tenant_id_key")
   @@unique([tenantId,code], map: "discounts_tenant_code_key")
   @@map("discounts")
@@ -651,7 +661,7 @@ model EnrollmentPricing {
   currency String @default("VND")
   effectiveFrom DateTime @map("effective_from") @db.Date
   effectiveUntil DateTime? @map("effective_until") @db.Date
-  lockedAt DateTime @default(now()) @map("locked_at") @db.Timestamptz
+  lockedAt DateTime? @map("locked_at") @db.Timestamptz
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   enrollment Enrollment @relation(fields: [tenantId,enrollmentId], references: [tenantId,id])
   pricingPlan PricingPlan? @relation(fields: [tenantId,pricingPlanId], references: [tenantId,id])
@@ -669,24 +679,80 @@ model EnrollmentDiscount {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   enrollment Enrollment @relation(fields: [tenantId,enrollmentId], references: [tenantId,id])
   discount Discount @relation(fields: [tenantId,discountId], references: [tenantId,id])
+  invoiceDiscountSnapshots InvoiceDiscountSnapshot[]
   @@unique([tenantId,id], map: "enrollment_discounts_tenant_id_key")
   @@map("enrollment_discounts")
+}
+
+model InvoiceStatusHistory {
+  id          String   @id @db.Char(26)
+  tenantId    String   @map("tenant_id") @db.Char(26)
+  invoiceId   String   @map("invoice_id") @db.Char(26)
+  status      String
+  effectiveAt DateTime @map("effective_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  invoice     Invoice  @relation(fields: [tenantId, invoiceId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "invoice_status_history_tenant_id_key")
+  @@index([tenantId, invoiceId, effectiveAt, id])
+  @@map("invoice_status_history")
 }
 
 model CreditNote {
   id String @id @db.Char(26)
   tenantId String @map("tenant_id") @db.Char(26)
-  creditNoteNumber String @map("credit_note_number")
+  creditNoteNumber String? @map("credit_note_number")
   invoiceId String @map("invoice_id") @db.Char(26)
   amountVnd BigInt @map("amount_vnd")
   reason String
-  status String @default("ISSUED")
+  status String @default("DRAFT")
   issuedAt DateTime? @map("issued_at") @db.Timestamptz
+  idempotencyKey String? @map("idempotency_key")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   invoice Invoice @relation(fields: [tenantId,invoiceId], references: [tenantId,id])
+  voids CreditNoteVoid[]
   @@unique([tenantId,id], map: "credit_notes_tenant_id_key")
   @@unique([tenantId,creditNoteNumber], map: "credit_notes_tenant_number_key")
+  @@unique([tenantId,idempotencyKey], map: "credit_notes_tenant_idempotency_key_idx")
   @@map("credit_notes")
+}
+
+model CreditNoteVoid {
+  id String @id @db.Char(26)
+  tenantId String @map("tenant_id") @db.Char(26)
+  creditNoteId String @map("credit_note_id") @db.Char(26)
+  reason String
+  actorUserId String? @map("actor_user_id") @db.Char(26)
+  actorMembershipId String? @map("actor_membership_id") @db.Char(26)
+  idempotencyKey String @map("idempotency_key")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  creditNote CreditNote @relation(fields: [tenantId, creditNoteId], references: [tenantId, id])
+  @@unique([tenantId,id], map: "credit_note_voids_tenant_id_key")
+  @@unique([tenantId,creditNoteId], map: "credit_note_voids_one_per_note_key")
+  @@unique([tenantId,idempotencyKey], map: "credit_note_voids_idempotency_key")
+  @@map("credit_note_voids")
+}
+
+model InvoiceDiscountSnapshot {
+  id                   String   @id @db.Char(26)
+  tenantId             String   @map("tenant_id") @db.Char(26)
+  invoiceId            String   @map("invoice_id") @db.Char(26)
+  enrollmentDiscountId String?  @map("enrollment_discount_id") @db.Char(26)
+  discountId           String?  @map("discount_id") @db.Char(26)
+  code                 String?
+  name                 String?
+  kind                 String?
+  value                BigInt?
+  maxAmountVnd         BigInt?  @map("max_amount_vnd")
+  amountVnd            BigInt   @map("amount_vnd")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  invoice              Invoice  @relation(fields: [tenantId, invoiceId], references: [tenantId, id])
+  enrollmentDiscount   EnrollmentDiscount? @relation(fields: [tenantId, enrollmentDiscountId], references: [tenantId, id])
+  discount             Discount? @relation(fields: [tenantId, discountId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "invoice_discount_snapshots_tenant_id_key")
+  @@index([tenantId, invoiceId, id])
+  @@map("invoice_discount_snapshots")
 }
 
 model PaymentAllocation {
@@ -695,10 +761,13 @@ model PaymentAllocation {
   paymentId String @map("payment_id") @db.Char(26)
   invoiceId String @map("invoice_id") @db.Char(26)
   amountVnd BigInt @map("amount_vnd")
+  idempotencyKey String? @map("idempotency_key")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   payment Payment @relation(fields: [tenantId,paymentId], references: [tenantId,id])
   invoice Invoice @relation(fields: [tenantId,invoiceId], references: [tenantId,id])
+  refundAllocations RefundAllocation[]
   @@unique([tenantId,id], map: "payment_allocations_tenant_id_key")
+  @@unique([tenantId,paymentId,invoiceId,idempotencyKey], map: "payment_allocations_tenant_idempotency_key_idx")
   @@map("payment_allocations")
 }
 
@@ -713,8 +782,25 @@ model Refund {
   idempotencyKey String @map("idempotency_key")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   payment Payment @relation(fields: [tenantId,paymentId], references: [tenantId,id])
+  allocations RefundAllocation[]
   @@unique([tenantId,id], map: "refunds_tenant_id_key")
+  @@unique([tenantId,paymentId,idempotencyKey], map: "refunds_payment_key")
   @@map("refunds")
+}
+
+model RefundAllocation {
+  id String @id @db.Char(26)
+  tenantId String @map("tenant_id") @db.Char(26)
+  refundId String @map("refund_id") @db.Char(26)
+  paymentAllocationId String @map("payment_allocation_id") @db.Char(26)
+  amountVnd BigInt @map("amount_vnd")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  refund Refund @relation(fields: [tenantId, refundId], references: [tenantId, id])
+  paymentAllocation PaymentAllocation @relation(fields: [tenantId, paymentAllocationId], references: [tenantId, id])
+  @@unique([tenantId,id], map: "refund_allocations_tenant_id_key")
+  @@unique([tenantId,refundId,paymentAllocationId], map: "refund_allocations_unique_key")
+  @@index([tenantId,paymentAllocationId,id], map: "refund_allocations_invoice_lookup_idx")
+  @@map("refund_allocations")
 }
 
 model AuditEvent {

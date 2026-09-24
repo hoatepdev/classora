@@ -2,25 +2,34 @@ export type BillingStatus = "DRAFT" | "ISSUED" | "PARTIALLY_PAID" | "PAID" | "OV
 
 export type BillingInvoice = {
   id: string;
-  number: string;
+  invoiceNumber?: string | null;
+  number?: string | null;
   studentId: string;
-  studentName: string;
-  issuedAt: string;
-  dueAt: string;
-  total: number;
-  paid: number;
-  balance: number;
+  studentName?: string | null;
+  issueDate?: string | null;
+  issuedAt?: string | null;
+  dueDate?: string | null;
+  dueAt?: string | null;
+  totalVnd?: string;
+  total?: string;
+  paidVnd?: string;
+  paid?: string;
+  outstandingVnd?: string;
+  balance?: string;
   status: BillingStatus | string;
+  effectiveStatus?: BillingStatus | string;
 };
 
 export type BillingPayment = {
   id: string;
   invoiceId?: string | null;
   invoiceNumber?: string | null;
-  studentId: string;
-  studentName: string;
-  amount: number;
-  paidAt: string;
+  studentId: string | null;
+  studentName: string | null;
+  amountVnd?: string;
+  amount?: string;
+  receivedAt?: string;
+  paidAt?: string;
   method: string;
   reference?: string | null;
   status: BillingStatus | string;
@@ -32,8 +41,9 @@ export type BillingReceivable = {
   studentName: string;
   invoiceId?: string | null;
   invoiceNumber?: string | null;
-  dueAt: string;
-  amount: number;
+  dueDate?: string | null;
+  dueAt?: string | null;
+  amount: string;
   daysOverdue: number;
   status: BillingStatus | string;
 };
@@ -42,7 +52,7 @@ export type BillingPrice = {
   id: string;
   name: string;
   description?: string | null;
-  amount: number;
+  amount: string;
   billingPeriod: string;
   status: BillingStatus | string;
   updatedAt: string;
@@ -53,7 +63,7 @@ export type BillingDiscount = {
   name: string;
   code?: string | null;
   type: "PERCENTAGE" | "FIXED" | string;
-  value: number;
+  value: string;
   startsAt?: string | null;
   endsAt?: string | null;
   usageCount?: number;
@@ -64,7 +74,7 @@ export type BillingRefund = {
   id: string;
   paymentId: string;
   studentName: string;
-  amount: number;
+  amount: string;
   requestedAt: string;
   reason?: string | null;
   status: BillingStatus | string;
@@ -72,24 +82,26 @@ export type BillingRefund = {
 
 export type BillingOverview = {
   currency: string;
-  outstanding: number;
-  overdue: number;
-  collectedThisPeriod: number;
-  dueThisPeriod: number;
+  outstanding: string;
+  overdue: string;
+  collectedThisPeriod: string;
+  dueThisPeriod: string;
   recentInvoices: BillingInvoice[];
   recentPayments: BillingPayment[];
 };
 
 export type RecordPaymentInput = {
   invoiceId: string;
-  amount: number;
-  paidAt: string;
+  amountVnd: string;
+  receivedAt: string;
   method: string;
+  idempotencyKey: string;
   reference?: string;
 };
 
 export type RequestRefundInput = {
   paymentId: string;
-  amount: number;
+  amountVnd: string;
   reason: string;
+  idempotencyKey: string;
 };

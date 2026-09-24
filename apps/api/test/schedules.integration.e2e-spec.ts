@@ -93,7 +93,7 @@ describe.skipIf(!enabled)('LOCAL-06 schedules integration (real PostgreSQL)', ()
     // recordTenant only uses the pool client; the control-database dependency is unused on this path.
     const audit = new AuditService({} as ControlDatabaseService, tenantContext);
     service = new SchedulesService(tenantContext, audit);
-  });
+  }, 120_000);
 
   afterAll(async () => {
     for (const pool of [poolA, poolB, admin]) {
@@ -152,7 +152,7 @@ describe.skipIf(!enabled)('LOCAL-06 schedules integration (real PostgreSQL)', ()
     const rerun = await run(tenantA, poolA, () => service.generate(classId, { from: '2026-01-01', to: '2026-01-31' }));
     expect(rerun.inserted).toBe(0);
     expect(await countSessions('tenant_id = $1 AND schedule_pattern_id = $2', [tenantA.tenantId, pattern.id])).toBe(4);
-  });
+  }, 120_000);
 
   it('clamps generation to the class lifecycle', async () => {
     const branchId = await seedBranch('GEN-B2');

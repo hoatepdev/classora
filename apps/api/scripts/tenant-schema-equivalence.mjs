@@ -51,10 +51,6 @@ async function createDatabase(dbName) {
 async function dropDatabase(dbName) {
   const pool = adminPool();
   try {
-    await pool.query(
-      'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
-      [dbName],
-    );
     await pool.query(`DROP DATABASE IF EXISTS ${escapeIdentifier(dbName)}`);
   } finally {
     await pool.end();
@@ -119,6 +115,63 @@ async function assertStudent360Constraints(dbName, label) {
     undefined,
     `${label}: duplicate tag assignment was allowed`,
   );
+}
+
+async function assertLocal08BillingConstraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const studentId = '01J00000000000000000000000';
+  const classId = '01J0000000000000000000000V';
+  const otherStudentId = '01J0000000000000000000000Q';
+  const otherClassId = '01J0000000000000000000000R';
+  const enrollmentId = '01J0000000000000000000000S';
+  const otherEnrollmentId = '01J0000000000000000000000T';
+  const planId = '01J0000000000000000000000U';
+  const invoiceId = '01J0000000000000000000000W';
+  const otherInvoiceId = '01J0000000000000000000000X';
+  const paymentId = '01J0000000000000000000000Y';
+  const otherPaymentId = '01J0000000000000000000000Z';
+  const allocationId = '01J000000000000000000000A0';
+  const refundId = '01J000000000000000000000A1';
+  const noteId = '01J000000000000000000000A2';
+  const voidId = '01J000000000000000000000A3';
+  const historyId = '01J000000000000000000000A4';
+  const snapshotId = '01J000000000000000000000A5';
+
+  await execute(dbName, `
+    INSERT INTO students (id, tenant_id, code, full_name) VALUES ('${otherStudentId}', '${otherTenantId}', 'SCHEMA-S4', 'Other Billing Student');
+    INSERT INTO classes (id, tenant_id, code, name) VALUES ('${otherClassId}', '${otherTenantId}', 'SCHEMA-K4', 'Other Billing Class');
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('${otherEnrollmentId}', '${otherTenantId}', '${otherStudentId}', '${otherClassId}', 'ACTIVE');
+    INSERT INTO pricing_plans (id, tenant_id, code, name, amount_vnd) VALUES ('${planId}', '${tenantId}', 'SCHEMA-P1', 'Schema Billing Plan', 1000);
+    INSERT INTO invoices (id, tenant_id, invoice_number, student_id, status, subtotal_vnd, total_vnd) VALUES ('${invoiceId}', '${tenantId}', 'INV-SCHEMA-1', '${studentId}', 'ISSUED', 1000, 1000);
+    INSERT INTO invoices (id, tenant_id, invoice_number, student_id, status, subtotal_vnd, total_vnd) VALUES ('${otherInvoiceId}', '${otherTenantId}', 'INV-SCHEMA-2', '${otherStudentId}', 'ISSUED', 1000, 1000);
+    INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount_vnd, method) VALUES ('${paymentId}', '${tenantId}', '${invoiceId}', '${studentId}', 1000, 'CASH');
+    INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount_vnd, method) VALUES ('${otherPaymentId}', '${otherTenantId}', '${otherInvoiceId}', '${otherStudentId}', 1000, 'CASH');
+    INSERT INTO payment_allocations (id, tenant_id, payment_id, invoice_id, amount_vnd) VALUES ('${allocationId}', '${tenantId}', '${paymentId}', '${invoiceId}', 500);
+    INSERT INTO refunds (id, tenant_id, payment_id, amount_vnd, reason, idempotency_key) VALUES ('${refundId}', '${tenantId}', '${paymentId}', 100, 'Schema refund', 'schema-refund');
+    INSERT INTO refund_allocations (id, tenant_id, refund_id, payment_allocation_id, amount_vnd) VALUES ('01J000000000000000000000A6', '${tenantId}', '${refundId}', '${allocationId}', 100);
+    INSERT INTO credit_notes (id, tenant_id, credit_note_number, invoice_id, amount_vnd, reason, status, issued_at) VALUES ('${noteId}', '${tenantId}', 'CN-SCHEMA-1', '${invoiceId}', 100, 'Schema note', 'ISSUED', CURRENT_TIMESTAMP);
+    INSERT INTO credit_note_voids (id, tenant_id, credit_note_id, reason, idempotency_key) VALUES ('${voidId}', '${tenantId}', '${noteId}', 'Schema void', 'schema-void');
+    INSERT INTO invoice_status_history (id, tenant_id, invoice_id, status, effective_at) VALUES ('${historyId}', '${tenantId}', '${invoiceId}', 'ISSUED', CURRENT_TIMESTAMP);
+    INSERT INTO invoice_discount_snapshots (id, tenant_id, invoice_id, amount_vnd) VALUES ('${snapshotId}', '${tenantId}', '${invoiceId}', 0);
+  `);
+
+  const rejects = async (sql, message) => assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await rejects(`INSERT INTO payment_allocations (id, tenant_id, payment_id, invoice_id, amount_vnd) VALUES ('01J000000000000000000000A7', '${tenantId}', '${paymentId}', '${otherInvoiceId}', 1)`, 'cross-tenant payment allocation was allowed');
+  await rejects(`INSERT INTO refunds (id, tenant_id, payment_id, amount_vnd, reason, idempotency_key) VALUES ('01J000000000000000000000A8', '${tenantId}', '${otherPaymentId}', 1, 'Cross', 'schema-cross-refund')`, 'cross-tenant refund was allowed');
+  await rejects(`INSERT INTO refund_allocations (id, tenant_id, refund_id, payment_allocation_id, amount_vnd) VALUES ('01J000000000000000000000A9', '${tenantId}', '${refundId}', '01J000000000000000000000A7', 1)`, 'cross-tenant refund allocation was allowed');
+  await rejects(`INSERT INTO payment_allocations (id, tenant_id, payment_id, invoice_id, amount_vnd) VALUES ('01J000000000000000000000AA', '${tenantId}', '${paymentId}', '${invoiceId}', 501)`, 'payment allocation balance was not enforced');
+  await rejects(`INSERT INTO refund_allocations (id, tenant_id, refund_id, payment_allocation_id, amount_vnd) VALUES ('01J000000000000000000000AB', '${tenantId}', '${refundId}', '${allocationId}', 401)`, 'refund allocation balance was not enforced');
+  await execute(dbName, `INSERT INTO payment_reversals (id, tenant_id, payment_id, reason, idempotency_key) VALUES ('01J000000000000000000000AC', '${tenantId}', '${paymentId}', 'Schema reversal', 'schema-reversal')`);
+  await rejects(`INSERT INTO payment_allocations (id, tenant_id, payment_id, invoice_id, amount_vnd) VALUES ('01J000000000000000000000AD', '${tenantId}', '${paymentId}', '${invoiceId}', 1)`, 'reversed payment allocation was allowed');
+  await rejects(`UPDATE payments SET amount_vnd = 999 WHERE tenant_id = '${tenantId}' AND id = '${paymentId}'`, 'payment mutation was allowed');
+  await rejects(`DELETE FROM payment_reversals WHERE tenant_id = '${tenantId}' AND payment_id = '${paymentId}'`, 'payment reversal mutation was allowed');
+  await rejects(`UPDATE payment_allocations SET amount_vnd = 1 WHERE tenant_id = '${tenantId}' AND id = '${allocationId}'`, 'payment allocation mutation was allowed');
+  await rejects(`DELETE FROM refunds WHERE tenant_id = '${tenantId}' AND id = '${refundId}'`, 'refund mutation was allowed');
+  await rejects(`DELETE FROM refund_allocations WHERE tenant_id = '${tenantId}' AND refund_id = '${refundId}'`, 'refund allocation mutation was allowed');
+  await rejects(`DELETE FROM credit_note_voids WHERE tenant_id = '${tenantId}' AND id = '${voidId}'`, 'credit note void mutation was allowed');
+  await rejects(`DELETE FROM invoice_status_history WHERE tenant_id = '${tenantId}' AND id = '${historyId}'`, 'invoice status history mutation was allowed');
+  await rejects(`DELETE FROM invoice_discount_snapshots WHERE tenant_id = '${tenantId}' AND id = '${snapshotId}'`, 'invoice discount snapshot mutation was allowed');
 }
 
 async function assertAppendOnly(dbName, label) {
@@ -543,6 +596,8 @@ async function main() {
   await assertLocal06Constraints(legacy, 'legacy');
   await assertLocal07Constraints(fresh, 'fresh');
   await assertLocal07Constraints(legacy, 'legacy');
+  await assertLocal08BillingConstraints(fresh, 'fresh');
+  await assertLocal08BillingConstraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

@@ -1,18 +1,37 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsDateString, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
+
 export enum PaymentMethod { CASH = 'CASH', BANK_TRANSFER = 'BANK_TRANSFER', CARD = 'CARD', OTHER = 'OTHER' }
+const id = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
 export class RecordPaymentDto {
   @ApiProperty({ type: String, description: 'Positive VND integer string' }) @Matches(/^[1-9]\d*$/) amountVnd!: string;
   @ApiProperty({ enum: PaymentMethod }) @IsEnum(PaymentMethod) method!: PaymentMethod;
+  @ApiProperty({ minLength: 1, maxLength: 100 }) @IsString() @MinLength(1) @MaxLength(100) idempotencyKey!: string;
+  @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }) @IsOptional() @Matches(id) studentId?: string;
   @ApiPropertyOptional({ maxLength: 200 }) @IsOptional() @IsString() @MaxLength(200) reference?: string;
   @ApiPropertyOptional({ maxLength: 2000 }) @IsOptional() @IsString() @MaxLength(2000) note?: string;
   @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() receivedAt?: string;
 }
+
+export class AllocatePaymentDto {
+  @ApiProperty({ type: String, description: 'Positive VND integer string' }) @Matches(/^[1-9]\d*$/) amountVnd!: string;
+  @ApiProperty({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }) @Matches(id) invoiceId!: string;
+}
+
+export class AllocatePaymentBatchDto {
+  @ApiProperty({ type: [AllocatePaymentDto] }) @IsArray() @ValidateNested({ each: true }) @Type(() => AllocatePaymentDto) allocations!: AllocatePaymentDto[];
+  @ApiProperty({ minLength: 1, maxLength: 100 }) @IsString() @MinLength(1) @MaxLength(100) idempotencyKey!: string;
+}
+
 export class RefundPaymentDto {
   @ApiProperty({ type: String }) @Matches(/^[1-9]\d*$/) amountVnd!: string;
   @ApiProperty({ minLength: 1, maxLength: 1000 }) @IsString() @MinLength(1) @MaxLength(1000) reason!: string;
   @ApiProperty({ minLength: 1, maxLength: 100 }) @IsString() @MinLength(1) @MaxLength(100) idempotencyKey!: string;
 }
+
 export class ReversePaymentDto {
   @ApiProperty({ minLength: 1, maxLength: 1000 }) @IsString() @MinLength(1) @MaxLength(1000) reason!: string;
+  @ApiProperty({ minLength: 1, maxLength: 100 }) @IsString() @MinLength(1) @MaxLength(100) idempotencyKey!: string;
 }

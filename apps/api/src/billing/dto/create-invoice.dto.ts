@@ -12,10 +12,9 @@ export class CreateInvoiceDto {
   @ApiProperty({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }) @Matches(id) studentId!: string;
   @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }) @IsOptional() @Matches(id) enrollmentId?: string;
   @ApiPropertyOptional({ pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }) @IsOptional() @Matches(id) pricingPlanId?: string;
-  @ApiProperty({ maxLength: 50 }) @IsString() @MinLength(1) @MaxLength(50) invoiceNumber!: string;
   @ApiPropertyOptional({ format: 'date' }) @IsOptional() @IsDateString() issueDate?: string;
   @ApiPropertyOptional({ format: 'date' }) @IsOptional() @IsDateString() dueDate?: string;
   @ApiPropertyOptional({ type: String, default: '0' }) @IsOptional() @Matches(/^\d+$/) discountVnd?: string;
   @ApiPropertyOptional({ maxLength: 2000 }) @IsOptional() @IsString() @MaxLength(2000) notes?: string;
-  @ApiProperty({ type: [CreateInvoiceItemDto] }) @IsArray() @ValidateNested({ each: true }) @Type(() => CreateInvoiceItemDto) items!: CreateInvoiceItemDto[];
+  @ApiPropertyOptional({ type: [CreateInvoiceItemDto], description: 'Optional when enrollment pricing or pricingPlanId supplies the invoice item' }) @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CreateInvoiceItemDto) items?: CreateInvoiceItemDto[];
 }

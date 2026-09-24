@@ -17,6 +17,34 @@ export async function getStudent(id: string) {
   return (await api.get<Student>(`/students/${id}`)).data;
 }
 
+export type StudentBillingInvoice = {
+  id: string;
+  invoiceNumber: string | null;
+  effectiveStatus: string;
+  dueDate: string | null;
+  totalVnd: string;
+  paidVnd: string;
+  creditVnd: string;
+  outstandingVnd: string;
+};
+export type StudentBillingPayment = {
+  id: string;
+  amountVnd: string;
+  method: string;
+  receivedAt: string;
+  invoiceId: string | null;
+  status: string;
+};
+export type StudentBilling = {
+  student: { id: string; fullName: string };
+  invoices: StudentBillingInvoice[];
+  payments: StudentBillingPayment[];
+  availableCreditVnd: string;
+};
+export async function getStudentBilling(id: string) {
+  return (await api.get<StudentBilling>(`/students/${id}/billing`)).data;
+}
+
 export async function createStudent(input: StudentInput) {
   return (await api.post<Student>("/students", input)).data;
 }
