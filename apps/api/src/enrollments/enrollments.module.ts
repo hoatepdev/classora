@@ -8,5 +8,6 @@ import { EnrollmentsService } from './enrollments.service.js';
   imports: [TenantModule, AuditModule],
   controllers: [EnrollmentsController],
   providers: [EnrollmentsService],
+  exports: [EnrollmentsService],
 })
 export class EnrollmentsModule {}

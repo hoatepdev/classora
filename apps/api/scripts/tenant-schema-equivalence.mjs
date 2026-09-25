@@ -683,6 +683,107 @@ async function assertLocal09CompensationConstraints(dbName, label) {
   );
 }
 
+async function assertLocal10CrmConstraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const studentId = '01J00000000000000000000G0';
+  const otherStudentId = '01J00000000000000000000G1';
+  const guardianId = '01J00000000000000000000G2';
+  const otherGuardianId = '01J00000000000000000000G3';
+  const courseId = '01J00000000000000000000G4';
+  const otherCourseId = '01J00000000000000000000G5';
+  const branchId = '01J00000000000000000000G6';
+  const otherBranchId = '01J00000000000000000000G7';
+  const levelId = '01J00000000000000000000G8';
+  const classId = '01J00000000000000000000G9';
+  const otherClassId = '01J00000000000000000000HA';
+  const sessionId = '01J00000000000000000000HB';
+  const otherTenantSessionId = '01J00000000000000000000HC';
+  const enrollmentId = '01J00000000000000000000HD';
+  const leadId = '01J00000000000000000000HE';
+  const bookingId = '01J00000000000000000000HF';
+
+  await execute(dbName, `
+    INSERT INTO students (id, tenant_id, code, full_name) VALUES ('${studentId}', '${tenantId}', 'SCHEMA-S10', 'CRM Student');
+    INSERT INTO students (id, tenant_id, code, full_name) VALUES ('${otherStudentId}', '${otherTenantId}', 'SCHEMA-S11', 'Other CRM Student');
+    INSERT INTO guardians (id, tenant_id, full_name) VALUES ('${guardianId}', '${tenantId}', 'CRM Guardian');
+    INSERT INTO guardians (id, tenant_id, full_name) VALUES ('${otherGuardianId}', '${otherTenantId}', 'Other CRM Guardian');
+    INSERT INTO courses (id, tenant_id, code, name) VALUES ('${courseId}', '${tenantId}', 'SCHEMA-C10', 'CRM Course');
+    INSERT INTO courses (id, tenant_id, code, name) VALUES ('${otherCourseId}', '${otherTenantId}', 'SCHEMA-C11', 'Other CRM Course');
+    INSERT INTO branches (id, tenant_id, code, name) VALUES ('${branchId}', '${tenantId}', 'SCHEMA-B10', 'CRM Branch');
+    INSERT INTO branches (id, tenant_id, code, name) VALUES ('${otherBranchId}', '${otherTenantId}', 'SCHEMA-B11', 'Other CRM Branch');
+    INSERT INTO course_levels (id, tenant_id, course_id, code, name) VALUES ('${levelId}', '${tenantId}', '${courseId}', 'SCHEMA-L10', 'CRM Level');
+    INSERT INTO classes (id, tenant_id, course_id, code, name) VALUES ('${classId}', '${tenantId}', '${courseId}', 'SCHEMA-K10', 'CRM Class');
+    INSERT INTO classes (id, tenant_id, course_id, code, name) VALUES ('${otherClassId}', '${otherTenantId}', '${otherCourseId}', 'SCHEMA-K11', 'Other CRM Class');
+    INSERT INTO attendance_sessions (id, tenant_id, class_id, session_date, start_time, end_time, status)
+    VALUES ('${sessionId}', '${tenantId}', '${classId}', '2030-03-01', '08:00', '09:00', 'SCHEDULED');
+    INSERT INTO attendance_sessions (id, tenant_id, class_id, session_date, start_time, end_time, status)
+    VALUES ('${otherTenantSessionId}', '${otherTenantId}', '${otherClassId}', '2030-03-01', '08:00', '09:00', 'SCHEDULED');
+    INSERT INTO enrollments (id, tenant_id, student_id, class_id, status) VALUES ('${enrollmentId}', '${tenantId}', '${studentId}', '${classId}', 'TRIAL');
+    INSERT INTO leads (id, tenant_id, status, student_name, source)
+    VALUES ('${leadId}', '${tenantId}', 'QUALIFIED', 'CRM Lead Student', 'FACEBOOK');
+  `);
+
+  const rejects = async (sql, message) => assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, student_name, interested_course_id) VALUES ('01J00000000000000000000HG', '${tenantId}', 'Cross', '${otherCourseId}')`,
+    'cross-tenant Lead → Course relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, student_name, preferred_branch_id) VALUES ('01J00000000000000000000HJ', '${tenantId}', 'Cross', '${otherBranchId}')`,
+    'cross-tenant Lead → Branch relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, status, student_name, converted_student_id, converted_enrollment_id) VALUES ('01J00000000000000000000HK', '${tenantId}', 'WON', 'Cross', '${otherStudentId}', '${enrollmentId}')`,
+    'cross-tenant Lead → converted Student relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, student_name, status) VALUES ('01J00000000000000000000HM', '${tenantId}', 'Cross', 'HOT')`,
+    'invalid Lead status was allowed',
+  );
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, student_name, status, lost_at) VALUES ('01J00000000000000000000HN', '${tenantId}', 'Cross', 'LOST', CURRENT_TIMESTAMP)`,
+    'LOST Lead without a reason was allowed',
+  );
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, student_name, status, won_at) VALUES ('01J00000000000000000000HP', '${tenantId}', 'Cross', 'WON', CURRENT_TIMESTAMP)`,
+    'WON Lead without a converted Enrollment was allowed',
+  );
+  await rejects(
+    `INSERT INTO leads (id, tenant_id, student_name, converted_student_id) VALUES ('01J00000000000000000000HQ', '${tenantId}', 'Early', '${studentId}')`,
+    'converted Lead links before reaching a terminal status were allowed',
+  );
+
+  await execute(dbName, `
+    INSERT INTO trial_bookings (id, tenant_id, lead_id, session_id, student_id, trial_enrollment_id)
+    VALUES ('${bookingId}', '${tenantId}', '${leadId}', '${sessionId}', '${studentId}', '${enrollmentId}');
+  `);
+  await rejects(
+    `INSERT INTO trial_bookings (id, tenant_id, lead_id, session_id, student_id, trial_enrollment_id) VALUES ('01J00000000000000000000HR', '${tenantId}', '${leadId}', '${sessionId}', '${studentId}', '${enrollmentId}')`,
+    'duplicate active TrialBooking per Lead was allowed',
+  );
+  await rejects(
+    `INSERT INTO trial_bookings (id, tenant_id, lead_id, session_id, student_id, trial_enrollment_id) VALUES ('01J00000000000000000000HT', '${tenantId}', '${leadId}', '${otherTenantSessionId}', '${studentId}', '${enrollmentId}')`,
+    'cross-tenant TrialBooking → Session relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO trial_bookings (id, tenant_id, lead_id, session_id, student_id, trial_enrollment_id, status, outcome, completed_at) VALUES ('01J00000000000000000000HV', '${tenantId}', '${leadId}', '${sessionId}', '${studentId}', '${enrollmentId}', 'COMPLETED', 'MAYBE', CURRENT_TIMESTAMP)`,
+    'invalid TrialBooking outcome was allowed',
+  );
+  await rejects(
+    `INSERT INTO trial_bookings (id, tenant_id, lead_id, session_id, student_id, trial_enrollment_id, completed_at) VALUES ('01J00000000000000000000HW', '${tenantId}', '${leadId}', '${sessionId}', '${studentId}', '${enrollmentId}', CURRENT_TIMESTAMP)`,
+    'BOOKED TrialBooking with a completion timestamp was allowed',
+  );
+  await rejects(
+    `INSERT INTO lead_notes (id, tenant_id, lead_id, content) VALUES ('01J00000000000000000000HX', '${otherTenantId}', '${leadId}', 'Cross')`,
+    'cross-tenant LeadNote relationship was allowed',
+  );
+  await rejects(
+    `INSERT INTO lead_events (id, tenant_id, lead_id, type) VALUES ('01J00000000000000000000HY', '${tenantId}', '${leadId}', 'HACKED')`,
+    'invalid LeadEvent type was allowed',
+  );
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -744,6 +845,8 @@ async function main() {
   await assertLocal08BillingConstraints(legacy, 'legacy');
   await assertLocal09CompensationConstraints(fresh, 'fresh');
   await assertLocal09CompensationConstraints(legacy, 'legacy');
+  await assertLocal10CrmConstraints(fresh, 'fresh');
+  await assertLocal10CrmConstraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

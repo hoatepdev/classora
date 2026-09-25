@@ -12,6 +12,7 @@ import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ClassesModule } from './classes/classes.module.js';
 import { CompensationModule } from './compensation/compensation.module.js';
+import { CrmModule } from './crm/crm.module.js';
 import { CoursesModule } from './courses/courses.module.js';
 import { ControlDatabaseModule } from './database/control-database.module.js';
 import { EnrollmentsModule } from './enrollments/enrollments.module.js';
@@ -45,6 +46,7 @@ import { TeamModule } from './team/team.module.js';
     CompensationModule,
     BranchesModule,
     RoomsModule,
+    CrmModule,
     TeamModule,
   ],
   controllers: [HealthController],

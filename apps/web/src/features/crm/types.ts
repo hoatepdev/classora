@@ -1,0 +1,103 @@
+export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "TRIAL_BOOKED" | "TRIAL_COMPLETED" | "WON" | "LOST";
+export type LeadSource = "REFERRAL" | "FACEBOOK" | "GOOGLE" | "WALK_IN" | "EXISTING_CUSTOMER" | "OTHER";
+export type LostReason = "PRICE" | "SCHEDULE" | "NO_RESPONSE" | "COMPETITOR" | "NOT_INTERESTED" | "LOCATION" | "OTHER";
+export type GuardianRelationship = "MOTHER" | "FATHER" | "GRANDPARENT" | "GUARDIAN" | "OTHER";
+export type TrialOutcomeValue = "ENROLL" | "FOLLOW_UP" | "LOST";
+export type FollowUpFilter = "OVERDUE" | "TODAY" | "UPCOMING" | "NONE";
+
+export type Lead = {
+  id: string;
+  tenantId: string;
+  status: LeadStatus;
+  studentName: string;
+  studentPhone: string | null;
+  studentEmail: string | null;
+  guardianName: string | null;
+  guardianPhone: string | null;
+  guardianEmail: string | null;
+  source: LeadSource | null;
+  campaign: string | null;
+  interestedCourseId: string | null;
+  interestedCourseName: string | null;
+  interestedCourseLevelId: string | null;
+  interestedCourseLevelName: string | null;
+  preferredBranchId: string | null;
+  preferredBranchName: string | null;
+  assignedMembershipId: string | null;
+  nextFollowUpAt: string | null;
+  convertedStudentId: string | null;
+  convertedGuardianId: string | null;
+  convertedEnrollmentId: string | null;
+  lostReason: LostReason | null;
+  lostReasonDetail: string | null;
+  wonAt: string | null;
+  lostAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LeadNote = { id: string; leadId: string; content: string; authorName: string | null; createdAt: string };
+export type LeadEvent = {
+  id: string;
+  type: string;
+  fromStatus: LeadStatus | null;
+  toStatus: LeadStatus | null;
+  reason: string | null;
+  metadata: Record<string, unknown> | null;
+  actorMembershipId: string | null;
+  occurredAt: string;
+};
+export type TrialBooking = {
+  id: string;
+  leadId: string;
+  sessionId: string;
+  studentId: string;
+  guardianId: string | null;
+  trialEnrollmentId: string;
+  status: "BOOKED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
+  outcome: TrialOutcomeValue | null;
+  outcomeNotes: string | null;
+  cancelReason: string | null;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  sessionStatus: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "RESCHEDULED";
+  classCode: string;
+  className: string;
+  bookedAt: string;
+  cancelledAt: string | null;
+  completedAt: string | null;
+};
+export type LeadConversion = { studentId: string; guardianId: string | null; enrollmentId: string; conversionMode: "TRIAL_PROMOTED" | "TRIAL_REENROLLED" | "DIRECT" };
+export type LeadDetail = Lead & { notes: LeadNote[]; events: LeadEvent[]; trialBookings: TrialBooking[]; conversion?: LeadConversion };
+export type LeadDuplicateCandidate = { kind: "STUDENT" | "GUARDIAN" | "LEAD"; id: string; name: string; phone: string | null; email: string | null };
+
+export type CrmCourseLookup = { id: string; code: string; name: string; levels: Array<{ id: string; code: string; name: string }> };
+export type CrmBranchLookup = { id: string; code: string; name: string };
+export type CrmClassLookup = { id: string; code: string; name: string; courseName: string | null };
+export type CrmAssigneeLookup = { membershipId: string; name: string; role: string };
+export type CrmTrialSession = {
+  id: string;
+  classId: string;
+  classCode: string;
+  className: string;
+  courseId: string | null;
+  courseName: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+};
+
+export type LeadListFilters = {
+  search?: string;
+  status?: LeadStatus;
+  assignedMembershipId?: string;
+  courseId?: string;
+  branchId?: string;
+  source?: LeadSource;
+  followUp?: FollowUpFilter;
+  limit?: number;
+  cursor?: string;
+};

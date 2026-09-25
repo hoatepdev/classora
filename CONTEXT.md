@@ -65,12 +65,12 @@ These belong to each training center:
 - enrollments
 - schedules
 - attendance
+- CRM / leads (Lead -> Qualification -> Trial over real Session/Enrollment/Attendance -> Conversion)
 - payments / tuition
 - teacher compensation (completed Session/Class -> period -> statement -> payable)
 
 Potential later domains:
 
-- CRM / leads
 - accounting / expenses
 - reporting
 - notifications
@@ -115,6 +115,44 @@ client-supplied tenant or database selectors are not accepted.
 Future domains should attach through their own tenant-scoped relations rather
 than adding enrollment, scheduling, billing, communication, or portal state to
 Student or Guardian prematurely.
+
+### CRM
+
+A Lead is the tenant-scoped sales prospect before and around conversion. The
+prospect's student contact data and optional guardian contact data are stored
+separately on the Lead; lead phones never implicitly double as student or
+guardian phones. Lead status follows an explicit validated lifecycle
+(`NEW -> CONTACTED -> QUALIFIED -> TRIAL_BOOKED -> TRIAL_COMPLETED -> WON/LOST`)
+driven by domain commands, never by arbitrary status patches; `WON` and `LOST`
+are terminal and `LOST` requires a controlled reason.
+
+CRM owns only the prospect lifecycle. Trials use the real Session (from
+Class -> SchedulePattern -> Session), a real TRIAL Enrollment, and real
+Attendance: booking a trial materializes the Student (and Guardian +
+StudentGuardian link) from Lead data without re-entry, creates a TRIAL
+Enrollment under existing capacity rules, and records a TrialBooking; the
+trial outcome is derived only from finalized AttendanceRecord statuses
+(PRESENT/LATE/ONLINE -> attended; absences -> NO_SHOW). Cancelling a booking
+keeps it in history, withdraws its trial enrollment, and returns the Lead to
+QUALIFIED. TRIAL absences do not generate normal makeup entitlements.
+
+Conversion (`QUALIFIED` or `TRIAL_COMPLETED` only) atomically reuses or creates
+the Student/Guardian and produces the final enrollment: same-class trials are
+promoted `TRIAL -> ACTIVE`; different-class trials are withdrawn and
+re-enrolled with `sourceEnrollmentId` linkage; direct conversion creates a new
+ACTIVE enrollment. Duplicate contact matches are surfaced as candidates only
+and staff must choose reuse or create explicitly. Conversion does not create
+pricing, invoices, or payments.
+
+Sales assignment is a control-database membership ID stored as a validated
+scalar on the Lead; cross-database foreign keys are not possible, so
+assignment validates existence, tenant ownership, and active status. LeadEvent
+is the business CRM timeline; AuditEvent remains the security/operational
+audit. CRM reads require `crm.read`, CRM writes and the constrained conversion
+command require `crm.write`; SALE staff cannot reach Student/Enrollment write
+APIs directly. Small CRM lookup endpoints (courses, branches, classes,
+assignees, future trial sessions) serve CRM selectors without broad academic
+permissions.
 
 ## Multi-Tenancy
 

@@ -999,7 +999,7 @@ export class AttendanceService {
       enrollmentId: string | null;
       sessionDate: string;
     }>(
-      `SELECT r.id AS "recordId",r.student_id AS "studentId",r.enrollment_id AS "enrollmentId",a.session_date::text AS "sessionDate" FROM attendance_records r JOIN attendance_sessions a ON a.tenant_id=r.tenant_id AND a.id=r.session_id WHERE r.tenant_id=$1 AND r.session_id=$2 AND r.status='ABSENT_EXCUSED' AND r.source='REGULAR'`,
+      `SELECT r.id AS "recordId",r.student_id AS "studentId",r.enrollment_id AS "enrollmentId",a.session_date::text AS "sessionDate" FROM attendance_records r JOIN attendance_sessions a ON a.tenant_id=r.tenant_id AND a.id=r.session_id WHERE r.tenant_id=$1 AND r.session_id=$2 AND r.status='ABSENT_EXCUSED' AND r.source='REGULAR' AND NOT EXISTS (SELECT 1 FROM enrollments te WHERE te.tenant_id=r.tenant_id AND te.id=r.enrollment_id AND te.status='TRIAL')`,
       [context.tenant.tenantId, sessionId],
     );
     for (const row of rows.rows) {

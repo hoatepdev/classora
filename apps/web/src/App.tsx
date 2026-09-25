@@ -28,6 +28,9 @@ import { AuditPage } from "./features/audit/AuditPage.js";
 import { StudentForm } from "./features/students/StudentForm.js";
 import { StudentsPage } from "./features/students/StudentsPage.js";
 import { BillingPage } from "./features/billing/BillingPage.js";
+import { LeadDetailPage } from "./features/crm/LeadDetailPage.js";
+import { LeadForm } from "./features/crm/LeadForm.js";
+import { LeadsPage } from "./features/crm/LeadsPage.js";
 import { CompensationPage } from "./features/compensation/CompensationPage.js";
 import { CompensationPeriodPage } from "./features/compensation/CompensationPeriodPage.js";
 import { CompensationStatementPage } from "./features/compensation/CompensationStatementPage.js";
@@ -39,6 +42,10 @@ export function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppShell />}>
         <Route path="/students" element={<StudentsPage />} />
+        <Route path="/leads" element={<ProtectedRoute permission="crm.read"><LeadsPage /></ProtectedRoute>} />
+        <Route path="/leads/new" element={<ProtectedRoute permission="crm.write"><LeadForm /></ProtectedRoute>} />
+        <Route path="/leads/:id" element={<ProtectedRoute permission="crm.read"><LeadDetailPage /></ProtectedRoute>} />
+        <Route path="/leads/:id/edit" element={<ProtectedRoute permission="crm.write"><LeadForm /></ProtectedRoute>} />
         <Route path="/billing/compensation" element={<ProtectedRoute permission="compensation.read"><CompensationPage /></ProtectedRoute>} />
         <Route path="/billing/compensation/periods/:id" element={<ProtectedRoute permission="compensation.read"><CompensationPeriodPage /></ProtectedRoute>} />
         <Route path="/billing/compensation/statements/:id" element={<ProtectedRoute permission="compensation.read"><CompensationStatementPage /></ProtectedRoute>} />

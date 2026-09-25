@@ -15,7 +15,7 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-07 | Attendance + Makeup | DONE |
 | LOCAL-08 | Billing / Tuition | DONE |
 | LOCAL-09 | Teacher Compensation | DONE |
-| LOCAL-10 | CRM | Planned |
+| LOCAL-10 | CRM | DONE |
 | LOCAL-11 | Communication | Planned |
 | LOCAL-12 | Parent / Student Portal | Planned |
 | LOCAL-13 | Progress / Assessment | Planned |
@@ -31,6 +31,34 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-10 notes
+
+Adds the CRM vertical slice over the existing academic system: Lead with
+separate student/guardian prospect contacts, an explicit validated status
+lifecycle (NEW → CONTACTED → QUALIFIED → TRIAL_BOOKED → TRIAL_COMPLETED →
+WON/LOST) driven only by domain commands, sales assignment validated against
+the control database (cross-DB membership is a validated scalar, not an FK),
+next-follow-up with overdue/today/upcoming filters, append-only LeadNotes,
+and LeadEvent as the business timeline alongside AuditEvent. Trials use the
+real Session/TRIAL Enrollment/Attendance chain: booking materializes
+Student + Guardian + StudentGuardian from lead data (no re-entry), respects
+existing enrollment capacity, and one active booking per lead is index-
+enforced; outcomes derive only from finalized AttendanceRecord (attended vs
+NO_SHOW) and TRIAL absences no longer create makeup entitlements.
+Conversion (direct, same-class promotion, or different-class re-enrollment
+with source linkage) is one atomic transaction under lead row locks with
+explicit duplicate reuse/create decisions and idempotent rejection after
+WON. crm.read/crm.write gate everything; SALE stays out of direct
+Student/Enrollment writes, and bounded CRM lookups replace broad academic
+reads. The pipeline board, list, detail, notes, activity, follow-up, trial,
+and conversion UI shipped and was browser-verified on the demo tenant. The
+disposable PostgreSQL gate passed fresh deployment, LOCAL-09 upgrade, catalog
+equivalence, LOCAL-10 constraint assertions, drift rejection, and idempotent
+rerun; API tests passed (24 files, 206 tests) including real-PostgreSQL
+integration coverage of the 16 acceptance scenarios (full path, no-show,
+different-class, duplicates, lost, rebook, concurrency races, cross-tenant
+attacks). LOCAL-11 remains planned and was not implemented.
 
 ## LOCAL-04 notes
 

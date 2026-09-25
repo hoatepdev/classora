@@ -1,10 +1,11 @@
-import { BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LogOut, School, Settings, Users } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
 import { cn } from "@/lib/utils";
 
 const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap; permission: string; alternatePermission?: string }> = [
+  { to: "/leads", label: "Tiềm năng", icon: UserRoundSearch, permission: "crm.read" },
   { to: "/students", label: "Học viên", icon: GraduationCap, permission: "student.read" },
   { to: "/teachers", label: "Giáo viên", icon: Users, permission: "teacher.read" },
   { to: "/courses", label: "Khóa học", icon: BookOpen, permission: "course.read" },

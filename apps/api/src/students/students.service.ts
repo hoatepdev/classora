@@ -126,40 +126,13 @@ export class StudentsService {
   }
 
   async create(input: CreateStudentDto) {
-    const { tenant, pool, actorUserId, actorMembershipId, actorName, actorEmail, requestId } = this.tenantContext.get();
+    const { pool } = this.tenantContext.get();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = await client.query<StudentRow>(
-        `INSERT INTO students
-          (id, tenant_id, code, full_name, phone, email, date_of_birth, status, gender, address, school, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING
-           id,
-           tenant_id AS "tenantId",
-           code,
-           full_name AS "fullName",
-           phone,
-           email,
-           date_of_birth::text AS "dateOfBirth",
-           status,
-           gender,
-           address,
-           school,
-           source,
-           created_at AS "createdAt",
-           updated_at AS "updatedAt"`,
-        [ulid(), tenant.tenantId, input.code.toUpperCase(), input.fullName, input.phone ?? null, input.email?.toLowerCase() ?? null, input.dateOfBirth ?? null, input.status ?? StudentStatus.ACTIVE, input.gender ?? null, input.address ?? null, input.school ?? null, input.source ?? null],
-      );
-      const student = result.rows[0];
-      const snapshot = (row: StudentRow) => ({ code: row.code, fullName: row.fullName, phone: row.phone, email: row.email, dateOfBirth: row.dateOfBirth, status: row.status, gender: row.gender, address: row.address, school: row.school, source: row.source });
-      await this.audit.recordTenant(client, {
-        tenantId: tenant.tenantId, actorUserId, actorMembershipId, actorName, actorEmail, requestId,
-        action: 'student.created', entityType: 'STUDENT', entityId: student.id,
-        after: snapshot(student),
-      });
+      const student = await this.createInTransaction(client, input);
       await client.query('COMMIT');
-      return serialize(student);
+      return student;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       if (isStudentCodeConflict(error)) throw new ConflictException('Student code already exists');
@@ -167,6 +140,39 @@ export class StudentsService {
     } finally {
       client.release?.();
     }
+  }
+
+  async createInTransaction(client: PoolClient, input: CreateStudentDto) {
+    const { tenant, actorUserId, actorMembershipId, actorName, actorEmail, requestId } = this.tenantContext.get();
+    const result = await client.query<StudentRow>(
+      `INSERT INTO students
+        (id, tenant_id, code, full_name, phone, email, date_of_birth, status, gender, address, school, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING
+         id,
+         tenant_id AS "tenantId",
+         code,
+         full_name AS "fullName",
+         phone,
+         email,
+         date_of_birth::text AS "dateOfBirth",
+         status,
+         gender,
+         address,
+         school,
+         source,
+         created_at AS "createdAt",
+         updated_at AS "updatedAt"`,
+      [ulid(), tenant.tenantId, input.code.toUpperCase(), input.fullName, input.phone ?? null, input.email?.toLowerCase() ?? null, input.dateOfBirth ?? null, input.status ?? StudentStatus.ACTIVE, input.gender ?? null, input.address ?? null, input.school ?? null, input.source ?? null],
+    );
+    const student = result.rows[0];
+    const snapshot = (row: StudentRow) => ({ code: row.code, fullName: row.fullName, phone: row.phone, email: row.email, dateOfBirth: row.dateOfBirth, status: row.status, gender: row.gender, address: row.address, school: row.school, source: row.source });
+    await this.audit.recordTenant(client, {
+      tenantId: tenant.tenantId, actorUserId, actorMembershipId, actorName, actorEmail, requestId,
+      action: 'student.created', entityType: 'STUDENT', entityId: student.id,
+      after: snapshot(student),
+    });
+    return serialize(student);
   }
 
   async update(id: string, input: UpdateStudentDto) {

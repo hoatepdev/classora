@@ -268,6 +268,41 @@ export class StudentRelationshipsService {
     return result.rows;
   }
 
+  async createGuardianInTransaction(client: PoolClient, input: { fullName: string; phone?: string | null; email?: string | null; notes?: string | null }) {
+    const context = this.tenantContext.get();
+    const id = ulid();
+    await client.query(
+      'INSERT INTO guardians (id, tenant_id, full_name, phone, email, address, notes) VALUES ($1, $2, $3, $4, $5, NULL, $6)',
+      [id, context.tenant.tenantId, input.fullName, input.phone ?? null, input.email?.toLowerCase() ?? null, input.notes ?? null],
+    );
+    await this.audit.recordTenant(client, {
+      tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId,
+      actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId,
+      action: 'guardian.created', entityType: 'GUARDIAN', entityId: id,
+      after: { fullName: input.fullName, phone: input.phone ?? null, email: input.email?.toLowerCase() ?? null },
+    });
+    return id;
+  }
+
+  async linkGuardianInTransaction(client: PoolClient, studentId: string, guardianId: string, relationship: string) {
+    const context = this.tenantContext.get();
+    await this.assertStudent(client, context.tenant.tenantId, studentId);
+    const guardian = await client.query('SELECT id FROM guardians WHERE tenant_id = $1 AND id = $2', [context.tenant.tenantId, guardianId]);
+    if (!guardian.rows[0]) throw new NotFoundException('Guardian not found');
+    await client.query(
+      `INSERT INTO student_guardians (id, tenant_id, student_id, guardian_id, relationship, is_primary_contact, is_billing_contact)
+       VALUES ($1, $2, $3, $4, $5, FALSE, FALSE)
+       ON CONFLICT (tenant_id, student_id, guardian_id) DO NOTHING`,
+      [ulid(), context.tenant.tenantId, studentId, guardianId, relationship],
+    );
+    await this.audit.recordTenant(client, {
+      tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId,
+      actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId,
+      action: 'student.guardian_linked', entityType: 'STUDENT', entityId: studentId,
+      after: { guardianId, relationship, isPrimaryContact: false, isBillingContact: false },
+    });
+  }
+
   async link(studentId: string, guardianId: string, input: LinkGuardianDto) {
     return this.mutateLink(studentId, guardianId, input, false);
   }

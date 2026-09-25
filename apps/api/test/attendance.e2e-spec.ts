@@ -27,6 +27,7 @@ const ids = {
     studentA: '01JHZX3V8Q9K5M2N7R4T6W1Y1E',
     studentB: '01JHZX3V8Q9K5M2N7R4T6W1Y1F',
     studentC: '01JHZX3V8Q9K5M2N7R4T6W1Y1G',
+    studentT: '01JHZX3V8Q9K5M2N7R4T6W1Y1H',
   },
   beta: {
     classA: '01JHZX3V8Q9K5M2N7R4T6W1Y2A',
@@ -80,6 +81,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
     [tenantIds.studentA, { id: tenantIds.studentA, tenantId, code: 'ST001', fullName: 'Student A' }],
     [tenantIds.studentB, { id: tenantIds.studentB, tenantId, code: 'ST002', fullName: 'Student B' }],
     [tenantIds.studentC, { id: tenantIds.studentC, tenantId, code: 'ST003', fullName: 'Student C' }],
+    [tenantIds.studentT, { id: tenantIds.studentT, tenantId, code: 'ST004', fullName: 'Trial Student' }],
   ]);
   const schedules = new Map([
     [tenantIds.schedule, {
@@ -105,6 +107,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
   const sessions = new Map<string, SessionRecord>();
   const records = new Map<string, AttendanceRecord>();
   const sheets = new Map<string, AttendanceSheet>();
+  const entitlements: unknown[][] = [];
   const now = () => new Date('2026-09-15T00:00:00.000Z');
 
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
@@ -338,9 +341,15 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
       const [requestedTenantId, sessionId] = values;
       return {
         rows: [...records.values()]
-          .filter((record) => record.tenantId === requestedTenantId && record.attendanceSessionId === sessionId && record.status === 'ABSENT_EXCUSED' && record.source === 'REGULAR')
+          .filter((record) => record.tenantId === requestedTenantId && record.attendanceSessionId === sessionId && record.status === 'ABSENT_EXCUSED' && record.source === 'REGULAR'
+            && enrollments.get(record.studentId) !== 'TRIAL')
           .map((record) => ({ recordId: record.id, studentId: record.studentId, enrollmentId: record.studentId, sessionDate: sessions.get(record.attendanceSessionId)!.sessionDate })),
       };
+    }
+
+    if (sql.includes('INSERT INTO makeup_entitlements')) {
+      entitlements.push(values);
+      return { rows: [], rowCount: 1 };
     }
 
     if (sql.includes('FROM attendance_records') && sql.includes('LIMIT 1') && sql.includes('status')) {
@@ -399,6 +408,7 @@ function attendancePool(tenantId: string, tenantIds: (typeof ids)[keyof typeof i
     enrollments,
     sessions,
     records,
+    entitlements,
   };
 }
 
@@ -554,6 +564,34 @@ describe('attendance', () => {
     await create({ scheduleId: ids.alpha.schedule, sessionDate: '2026-09-20' }, 'beta').expect(404);
     await create({ scheduleId: undefined, classId: ids.beta.classA, teacherId: ids.alpha.teacher, startTime: '18:00', endTime: '20:00', sessionDate: '2026-09-20' }, 'beta').expect(404);
     expect(record.status).not.toBe('ABSENT_UNEXCUSED');
+  });
+
+  it('grants no makeup entitlement for TRIAL enrollment absences but keeps ACTIVE entitlements', async () => {
+    alpha.enrollments.set(ids.alpha.studentA, 'WITHDRAWN');
+    alpha.enrollments.set(ids.alpha.studentB, 'ACTIVE');
+    alpha.enrollments.set(ids.alpha.studentC, 'ACTIVE');
+    alpha.enrollments.set(ids.alpha.studentT, 'TRIAL');
+    const entitlementsBefore = alpha.entitlements.length;
+
+    const trialSession = (await create({ sessionDate: '2026-09-29' }).expect(201)).body;
+    expect(trialSession.records.map((record: AttendanceRecord) => record.studentId)).toEqual([ids.alpha.studentB, ids.alpha.studentC, ids.alpha.studentT]);
+    for (const record of trialSession.records) {
+      await authorized('patch', `/attendance-records/${record.id}`)
+        .send({ status: record.studentId === ids.alpha.studentT ? 'ABSENT_EXCUSED' : 'PRESENT' })
+        .expect(200);
+    }
+    await authorized('post', `/attendance-sessions/${trialSession.id}/finalize`).expect(200);
+    expect(alpha.entitlements.length).toBe(entitlementsBefore);
+
+    const activeSession = (await create({ sessionDate: '2026-10-06' }).expect(201)).body;
+    for (const record of activeSession.records) {
+      await authorized('patch', `/attendance-records/${record.id}`)
+        .send({ status: record.studentId === ids.alpha.studentB ? 'ABSENT_EXCUSED' : 'PRESENT' })
+        .expect(200);
+    }
+    await authorized('post', `/attendance-sessions/${activeSession.id}/finalize`).expect(200);
+    expect(alpha.entitlements.length).toBe(entitlementsBefore + 1);
+    expect(alpha.entitlements.at(-1)![2]).toBe(ids.alpha.studentB);
   });
 
   it('rejects invalid record updates and unauthenticated access', async () => {
