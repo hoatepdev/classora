@@ -16,7 +16,7 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-08 | Billing / Tuition | DONE |
 | LOCAL-09 | Teacher Compensation | DONE |
 | LOCAL-10 | CRM | DONE |
-| LOCAL-11 | Communication | Planned |
+| LOCAL-11 | Communication | DONE |
 | LOCAL-12 | Parent / Student Portal | Planned |
 | LOCAL-13 | Progress / Assessment | Planned |
 | LOCAL-14 | Dashboard | Planned |
@@ -31,6 +31,28 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-11 notes
+
+Adds the tenant-scoped communication path from a fixed event registry through
+recipient resolution, safe allowlisted templates, immutable rendered message
+snapshots, durable `CommunicationMessage` rows, and `IN_APP` / `EMAIL` channel
+adapters. Immediate integrations cover payment receipt, finalized absence,
+reschedule, and cancellation without allowing communication failure to roll
+back valid domain work; internal contracts cover session, tuition, trial, and
+enrollment reminders for LOCAL-18 to schedule later. Tenant overrides support
+preview, enable/disable, reset, and audit history. Recipient precedence,
+missing-email handling, shared-mailbox dedupe, concurrent dispatch, immutable
+retry, provider-error sanitization, permissions, and cross-tenant isolation are
+covered by the real PostgreSQL acceptance suite. The Communication workspace,
+message detail, templates, Student 360 history, and CRM Lead history were
+browser-verified on the demo tenant, including a 390px narrow viewport with no
+page overflow or application console errors (the existing missing favicon still
+returns 404). The tenant schema gate passed fresh deployment,
+supported upgrade, catalog equivalence, drift rejection, and idempotent rerun;
+repository typechecks and builds passed, and the API suite passed 27 files / 245
+tests. EMAIL remains the no-network `LOCAL` provider; automation remains
+LOCAL-18 and external providers remain LOCAL-22. LOCAL-12 was not implemented.
 
 ## LOCAL-10 notes
 

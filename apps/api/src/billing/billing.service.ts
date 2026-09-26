@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { ulid } from 'ulid';
 import type { Pool, PoolClient } from 'pg';
 import { AuditService } from '../audit/audit.service.js';
+import { CommunicationService } from '../communication/communication.service.js';
 import { TenantContextService } from '../tenant/tenant-context.service.js';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto.js';
 import type { CreatePricingPlanDto } from './dto/create-pricing-plan.dto.js';
@@ -10,6 +11,7 @@ import type { CreateDiscountDto, DisableDiscountDto } from './dto/create-discoun
 import type { CreateEnrollmentDiscountDto, CreateEnrollmentPricingDto } from './dto/create-enrollment-pricing.dto.js';
 import type { AllocatePaymentBatchDto, RecordPaymentDto, ReversePaymentDto } from './dto/record-payment.dto.js';
 import type { InvoiceCommandDto } from './dto/invoice-command.dto.js';
+import { ledgerCreditSql, ledgerPaidSql } from './billing-ledger.js';
 
 const money = (value: string | undefined, positive = false) => {
   if (!value || !/^\d+$/.test(value) || (positive ? BigInt(value) <= 0n : BigInt(value) < 0n)) throw new BadRequestException('VND amounts must be integer strings');
@@ -26,22 +28,6 @@ const actor = (context: ReturnType<TenantContextService['get']>) => ({ tenantId:
 const serialize = (row: Record<string, unknown>) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === 'bigint' ? v.toString() : v instanceof Date ? v.toISOString() : v]));
 const isUniqueViolation = (error: unknown) => typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 type InvoiceRead = Record<string, unknown> & { status: string; total_vnd: unknown; credit_vnd: unknown; paid_vnd: unknown; due_date: unknown };
-const ledgerPaidSql = `COALESCE((SELECT SUM(pa.amount_vnd)
-  FROM payment_allocations pa
-  JOIN payments p ON p.tenant_id = pa.tenant_id AND p.id = pa.payment_id
-  WHERE pa.tenant_id = i.tenant_id AND pa.invoice_id = i.id
-    AND NOT EXISTS (SELECT 1 FROM payment_reversals pr WHERE pr.tenant_id = p.tenant_id AND pr.payment_id = p.id)), 0)
-  - COALESCE((SELECT SUM(ra.amount_vnd)
-  FROM refund_allocations ra
-  JOIN payment_allocations pa
-    ON pa.tenant_id = ra.tenant_id AND pa.id = ra.payment_allocation_id
-  JOIN refunds rf
-    ON rf.tenant_id = ra.tenant_id AND rf.id = ra.refund_id
-  WHERE ra.tenant_id = i.tenant_id AND pa.invoice_id = i.id
-    AND NOT EXISTS (SELECT 1 FROM payment_reversals pr WHERE pr.tenant_id = rf.tenant_id AND pr.payment_id = rf.payment_id)), 0)`;
-const ledgerCreditSql = `COALESCE((SELECT SUM(cn.amount_vnd) FROM credit_notes cn
-  WHERE cn.tenant_id = i.tenant_id AND cn.invoice_id = i.id AND cn.status = 'ISSUED'
-    AND NOT EXISTS (SELECT 1 FROM credit_note_voids cv WHERE cv.tenant_id = cn.tenant_id AND cv.credit_note_id = cn.id)), 0)`;
 const invoiceSelect = `SELECT i.*, s.full_name AS "studentName", i.total_vnd AS "totalVnd", i.student_id AS "studentId", i.status AS "status", i.due_date AS "dueDate", ${ledgerPaidSql} AS paid_vnd, ${ledgerCreditSql} AS credit_vnd FROM invoices i LEFT JOIN students s ON s.tenant_id = i.tenant_id AND s.id = i.student_id`;
 const invoiceSelectAt = (asOfPlaceholder: string) => `WITH historical_refunds AS (
   SELECT pa.tenant_id, pa.invoice_id, SUM(ra.amount_vnd) AS amount_vnd
@@ -110,7 +96,11 @@ const invoiceResponse = (row: InvoiceRead, asOf?: string) => {
 
 @Injectable()
 export class BillingService {
-  constructor(private readonly tenantContext: TenantContextService, private readonly audit: AuditService) {}
+  constructor(
+    private readonly tenantContext: TenantContextService,
+    private readonly audit: AuditService,
+    private readonly communication: CommunicationService,
+  ) {}
 
   async plans() {
     const { tenant, pool } = this.tenantContext.get();
@@ -714,7 +704,9 @@ export class BillingService {
       const id = await this.insertPayment(client, c, input, invoiceId, input.studentId ?? inv.rows[0].studentId);
       await this.insertAllocation(client, c.tenant.tenantId, id, invoiceId, input.amountVnd);
       await this.audit.recordTenant(client, { ...actor(c), action: 'billing.payment_recorded', entityType: 'Payment', entityId: id, after: { invoiceId, amountVnd: input.amountVnd } });
+      const dispatch = await this.communication.dispatchWithinTransaction(client, { eventType: 'PAYMENT_RECEIVED', sourceEntityId: id });
       await client.query('COMMIT');
+      await this.communication.deliver(dispatch.messageIds);
       return this.payment(id);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => undefined);

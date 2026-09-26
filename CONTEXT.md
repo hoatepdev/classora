@@ -68,12 +68,12 @@ These belong to each training center:
 - CRM / leads (Lead -> Qualification -> Trial over real Session/Enrollment/Attendance -> Conversion)
 - payments / tuition
 - teacher compensation (completed Session/Class -> period -> statement -> payable)
+- communications / transactional notifications
 
 Potential later domains:
 
 - accounting / expenses
 - reporting
-- notifications
 - marketing automation
 
 Do not implement later domains until there is a concrete requirement.
@@ -153,6 +153,28 @@ command require `crm.write`; SALE staff cannot reach Student/Enrollment write
 APIs directly. Small CRM lookup endpoints (courses, branches, classes,
 assignees, future trial sessions) serve CRM selectors without broad academic
 permissions.
+
+### Communication
+
+Communication is a tenant-scoped transactional history built from a fixed event
+registry, recipient resolution, safe allowlisted templates, immutable rendered
+message snapshots, and channel adapters. `IN_APP` is represented by the
+persisted message row. `EMAIL` currently uses the deterministic, no-network
+`LOCAL` adapter; `SENT` means accepted by that adapter, not delivered to a real
+mailbox.
+
+Payment receipt, finalized absence, reschedule, and cancellation create durable
+message intents inside their owning business transaction under a savepoint;
+communication failure cannot roll back the valid business operation. Session,
+tuition, trial, and enrollment reminder contracts are available internally,
+while LOCAL-18 owns scheduling them. Recipient rules use billing contacts for
+financial events and primary guardians for academic events, with student and
+Lead fallbacks only where explicitly defined. Missing email suppresses only the
+EMAIL row, not the IN_APP message. Tenant-qualified dedupe keys make dispatch
+idempotent, and manual retry reuses the same message, destination, and content
+snapshot. Communication reads use `communication.read`; tenant template changes
+and retries use `communication.manage`. See
+`docs/product/local-11-communication.md` for the full contract.
 
 ## Multi-Tenancy
 

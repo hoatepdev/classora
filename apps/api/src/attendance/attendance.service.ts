@@ -7,6 +7,7 @@ import {
 import type { PoolClient, QueryResultRow } from "pg";
 import { ulid } from "ulid";
 import { AuditService } from "../audit/audit.service.js";
+import { CommunicationService } from "../communication/communication.service.js";
 import { TenantContextService } from "../tenant/tenant-context.service.js";
 import type { CorrectAttendanceDto } from "./dto/correct-attendance.dto.js";
 import type { CreateAttendanceSessionDto } from "./dto/create-attendance-session.dto.js";
@@ -132,6 +133,7 @@ export class AttendanceService {
   constructor(
     private readonly tenantContext: TenantContextService,
     private readonly audit: AuditService,
+    private readonly communication: CommunicationService,
   ) {}
 
   async create(input: CreateAttendanceSessionDto) {
@@ -349,7 +351,12 @@ export class AttendanceService {
         entityId: id,
         after: { sessionId: id, status: "LOCKED" },
       });
+      const dispatch = await this.communication.dispatchWithinTransaction(client, {
+        eventType: "ATTENDANCE_ABSENCE",
+        sourceEntityId: id,
+      });
       await client.query("COMMIT");
+      await this.communication.deliver(dispatch.messageIds);
       return this.get(id);
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);

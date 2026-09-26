@@ -11,6 +11,7 @@ import { ControlDatabaseService } from '../src/database/control-database.service
 import { TenantContextService, type TenantContext } from '../src/tenant/tenant-context.service.js';
 import type { ResolvedTenant } from '../src/tenant/tenant-resolver.service.js';
 import { BillingService } from '../src/billing/billing.service.js';
+import { CommunicationService } from '../src/communication/communication.service.js';
 
 const enabled = process.env.B5_TEST_DATABASE === '1';
 
@@ -76,7 +77,7 @@ describe.skipIf(!enabled)('LOCAL-08 billing hard gates (real PostgreSQL)', () =>
     poolA = new Pool({ ...connection, database: dbNameA, max: 12 });
     poolB = new Pool({ ...connection, database: dbNameB, max: 12 });
     tenantContext = new TenantContextService();
-    service = new BillingService(tenantContext, new AuditService({} as ControlDatabaseService, tenantContext));
+    service = new BillingService(tenantContext, new AuditService({} as ControlDatabaseService, tenantContext), new CommunicationService(tenantContext, new AuditService({} as ControlDatabaseService, tenantContext)));
   }, 120_000);
 
   afterAll(async () => {

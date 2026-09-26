@@ -11,6 +11,7 @@ import { postgresConfig } from '../src/config.js';
 import { AuditService } from '../src/audit/audit.service.js';
 import { ControlDatabaseService } from '../src/database/control-database.service.js';
 import { SchedulesService } from '../src/schedules/schedules.service.js';
+import { CommunicationService } from '../src/communication/communication.service.js';
 import { TenantContextService, type TenantContext } from '../src/tenant/tenant-context.service.js';
 import type { ResolvedTenant } from '../src/tenant/tenant-resolver.service.js';
 
@@ -92,7 +93,7 @@ describe.skipIf(!enabled)('LOCAL-06 schedules integration (real PostgreSQL)', ()
     tenantContext = new TenantContextService();
     // recordTenant only uses the pool client; the control-database dependency is unused on this path.
     const audit = new AuditService({} as ControlDatabaseService, tenantContext);
-    service = new SchedulesService(tenantContext, audit);
+    service = new SchedulesService(tenantContext, audit, new CommunicationService(tenantContext, audit));
   }, 120_000);
 
   afterAll(async () => {

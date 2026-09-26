@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import type { PoolClient, QueryResultRow } from 'pg';
 import { ulid } from 'ulid';
 import { AuditService } from '../audit/audit.service.js';
+import { CommunicationService } from '../communication/communication.service.js';
 import { TenantContextService } from '../tenant/tenant-context.service.js';
 import {
   type CreateScheduleDto,
@@ -267,6 +268,7 @@ export class SchedulesService {
   constructor(
     private readonly tenantContext: TenantContextService,
     private readonly audit: AuditService,
+    private readonly communication: CommunicationService,
   ) {}
 
   async get(id: string) {
@@ -945,7 +947,9 @@ export class SchedulesService {
         [tenant.tenantId, id, input.reason ?? null],
       );
       await this.auditSession(client, 'schedule.session.rescheduled', replacement.rows[0], updated.rows[0], input.reason);
+      const dispatch = await this.communication.dispatchWithinTransaction(client, { eventType: 'SCHEDULE_CHANGED', sourceEntityId: replacementId });
       await client.query('COMMIT');
+      await this.communication.deliver(dispatch.messageIds);
       return serializeSession(replacement.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
@@ -1011,7 +1015,11 @@ export class SchedulesService {
         );
       }
       await this.auditSession(client, action, result.rows[0], session, reason);
+      const dispatch = status === SessionStatus.CANCELLED
+        ? await this.communication.dispatchWithinTransaction(client, { eventType: 'SCHEDULE_CHANGED', sourceEntityId: id, dedupeScope: 'CANCELLED' })
+        : { messageIds: [] as string[], skippedNoDestination: 0 };
       await client.query('COMMIT');
+      await this.communication.deliver(dispatch.messageIds);
       return serializeSession(result.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');

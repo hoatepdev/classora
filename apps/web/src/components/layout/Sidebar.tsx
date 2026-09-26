@@ -1,4 +1,4 @@
-import { BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
+import { BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
@@ -14,6 +14,7 @@ const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap;
   { to: "/branches", label: "Chi nhánh", icon: Building2, permission: "branch.read" },
   { to: "/rooms", label: "Phòng học", icon: DoorOpen, permission: "room.read" },
   { to: "/billing", label: "Tài chính", icon: CircleDollarSign, permission: "billing.read", alternatePermission: "compensation.read" },
+  { to: "/communications", label: "Thông báo", icon: BellRing, permission: "communication.read" },
 ];
 
 export function Sidebar({ centerName, hostname, user, activeMembership, onNavigate, onLogout }: {

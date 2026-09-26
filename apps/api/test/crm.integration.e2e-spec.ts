@@ -11,6 +11,7 @@ import { ControlDatabaseService } from '../src/database/control-database.service
 import { TenantContextService, type TenantContext } from '../src/tenant/tenant-context.service.js';
 import type { ResolvedTenant } from '../src/tenant/tenant-resolver.service.js';
 import { AttendanceService } from '../src/attendance/attendance.service.js';
+import { CommunicationService } from '../src/communication/communication.service.js';
 import { EnrollmentsService } from '../src/enrollments/enrollments.service.js';
 import { StudentsService } from '../src/students/students.service.js';
 import { StudentRelationshipsService } from '../src/students/relationships.service.js';
@@ -162,7 +163,7 @@ describe.skipIf(!enabled)('LOCAL-10 CRM hard gates (real PostgreSQL)', () => {
     const studentsService = new StudentsService(tenantContext, audit);
     const relationshipsService = new StudentRelationshipsService(tenantContext, audit);
     const enrollmentsService = new EnrollmentsService(tenantContext, audit);
-    attendanceA = new AttendanceService(tenantContext, audit);
+    attendanceA = new AttendanceService(tenantContext, audit, new CommunicationService(tenantContext, audit));
     enrollmentsA = enrollmentsService;
     crmA = new CrmService(tenantContext, audit, control, studentsService, relationshipsService, enrollmentsService);
     trialsA = new CrmTrialsService(tenantContext, audit, crmA, enrollmentsService);

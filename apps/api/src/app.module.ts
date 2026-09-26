@@ -11,6 +11,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ClassesModule } from './classes/classes.module.js';
+import { CommunicationModule } from './communication/communication.module.js';
 import { CompensationModule } from './compensation/compensation.module.js';
 import { CrmModule } from './crm/crm.module.js';
 import { CoursesModule } from './courses/courses.module.js';
@@ -44,6 +45,7 @@ import { TeamModule } from './team/team.module.js';
     AuditModule,
     BillingModule,
     CompensationModule,
+    CommunicationModule,
     BranchesModule,
     RoomsModule,
     CrmModule,

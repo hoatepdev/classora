@@ -34,6 +34,9 @@ import { LeadsPage } from "./features/crm/LeadsPage.js";
 import { CompensationPage } from "./features/compensation/CompensationPage.js";
 import { CompensationPeriodPage } from "./features/compensation/CompensationPeriodPage.js";
 import { CompensationStatementPage } from "./features/compensation/CompensationStatementPage.js";
+import { CommunicationMessagePage } from "./features/communications/CommunicationMessagePage.js";
+import { CommunicationsPage } from "./features/communications/CommunicationsPage.js";
+import { CommunicationTemplatesPage } from "./features/communications/CommunicationTemplatesPage.js";
 
 export function App() {
   return <Routes>
@@ -80,6 +83,9 @@ export function App() {
         <Route path="/rooms/new" element={<ProtectedRoute permission="room.write"><RoomForm /></ProtectedRoute>} />
         <Route path="/rooms/:id" element={<ProtectedRoute permission="room.read"><RoomDetail /></ProtectedRoute>} />
         <Route path="/rooms/:id/edit" element={<ProtectedRoute permission="room.write"><RoomForm /></ProtectedRoute>} />
+        <Route path="/communications" element={<ProtectedRoute permission="communication.read"><CommunicationsPage /></ProtectedRoute>} />
+        <Route path="/communications/templates" element={<ProtectedRoute permission="communication.read"><CommunicationTemplatesPage /></ProtectedRoute>} />
+        <Route path="/communications/:id" element={<ProtectedRoute permission="communication.read"><CommunicationMessagePage /></ProtectedRoute>} />
       </Route>
     </Route>
     <Route path="*" element={<Navigate to="/students" replace />} />

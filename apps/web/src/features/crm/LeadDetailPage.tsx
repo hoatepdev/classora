@@ -19,6 +19,7 @@ import {
   addLeadNote, bookTrial, cancelTrialBooking, contactLead, convertLead, getLead, leadDuplicates, leadQueryKey, lookupCrmAssignees, lookupCrmClasses, lookupTrialSessions, lostLead, qualifyLead, recordTrialOutcome, updateLead,
 } from "./api.js";
 import { bookingStatusLabels, guardianRelationshipLabels, leadEventLabels, leadSourceLabels, leadStatusLabels, lostReasonLabels, trialOutcomeLabels } from "./labels.js";
+import { CommunicationsPage } from "../communications/CommunicationsPage.js";
 import type { GuardianRelationship, LeadDetail, LostReason, TrialBooking, TrialOutcomeValue } from "./types.js";
 
 const dateFormatter = new Intl.DateTimeFormat("vi-VN");
@@ -32,6 +33,7 @@ export function LeadDetailPage() {
   const tenant = useQuery({ queryKey: currentTenantQueryKey(), queryFn: getCurrentTenant });
   const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
   const canWrite = can(membership, "crm.write");
+  const canCommunicationRead = can(membership, "communication.read");
   const assignees = useQuery({ queryKey: ["crm-assignees", window.location.hostname], queryFn: lookupCrmAssignees });
   const classes = useQuery({ queryKey: ["crm-classes", window.location.hostname], queryFn: lookupCrmClasses });
   const duplicates = useQuery({ queryKey: ["lead-duplicates", window.location.hostname, id], queryFn: () => leadDuplicates(id!), enabled: Boolean(id) && (leadQuery.data?.status === "QUALIFIED" || leadQuery.data?.status === "TRIAL_COMPLETED") });
@@ -151,6 +153,14 @@ export function LeadDetailPage() {
     </section>
 
     <LeadNotesSection leadId={lead.id} notes={lead.notes} canWrite={canWrite && active} onInvalidated={invalidate} />
+    {canCommunicationRead && (
+      <section className="mt-7">
+        <SectionHeader title="Thông báo" />
+        <p className="subtitle">Thông báo đã gửi liên quan đến khách tiềm năng này.</p>
+        <CommunicationsPage leadId={lead.id} compact />
+      </section>
+    )}
+
     <section className="mt-7">
       <SectionHeader title="Hoạt động" />
       {lead.events.length === 0 ? <div className="rounded-xl border border-[#e2e8f0] bg-white px-5 py-8 text-center text-sm text-[#64748b]">Chưa có hoạt động.</div> : (

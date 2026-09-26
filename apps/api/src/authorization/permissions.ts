@@ -30,6 +30,8 @@ export const PERMISSIONS = {
   COMPENSATION_MANAGE: 'compensation.manage',
   CRM_READ: 'crm.read',
   CRM_WRITE: 'crm.write',
+  COMMUNICATION_READ: 'communication.read',
+  COMMUNICATION_MANAGE: 'communication.manage',
   REPORT_FINANCE: 'report.finance',
   SETTINGS_READ: 'settings.read',
   SETTINGS_MANAGE: 'settings.manage',

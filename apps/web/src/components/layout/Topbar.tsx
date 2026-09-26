@@ -8,6 +8,7 @@ const sectionNames: Record<string, string> = {
   classes: "Lớp học",
   schedule: "Lịch học",
   "attendance-sessions": "Điểm danh",
+  communications: "Thông báo",
 };
 
 function initials(name: string) {
