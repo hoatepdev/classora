@@ -25,6 +25,8 @@ import { TenantConnectionInterceptor } from './tenant/tenant-connection.intercep
 import { TenantMembershipGuard } from './tenant/tenant-membership.guard.js';
 import { TenantModule } from './tenant/tenant.module.js';
 import { TeamModule } from './team/team.module.js';
+import { PortalAccessGuard } from './portal/portal-access.guard.js';
+import { PortalModule } from './portal/portal.module.js';
 
 @Module({
   imports: [
@@ -50,12 +52,14 @@ import { TeamModule } from './team/team.module.js';
     RoomsModule,
     CrmModule,
     TeamModule,
+    PortalModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useExisting: AuthGuard },
     { provide: APP_GUARD, useExisting: TenantMembershipGuard },
+    { provide: APP_GUARD, useExisting: PortalAccessGuard },
     { provide: APP_GUARD, useExisting: PermissionGuard },
     { provide: APP_INTERCEPTOR, useExisting: TenantConnectionInterceptor },
   ],

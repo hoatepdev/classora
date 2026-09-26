@@ -11,7 +11,7 @@ import type { CreateDiscountDto, DisableDiscountDto } from './dto/create-discoun
 import type { CreateEnrollmentDiscountDto, CreateEnrollmentPricingDto } from './dto/create-enrollment-pricing.dto.js';
 import type { AllocatePaymentBatchDto, RecordPaymentDto, ReversePaymentDto } from './dto/record-payment.dto.js';
 import type { InvoiceCommandDto } from './dto/invoice-command.dto.js';
-import { ledgerCreditSql, ledgerPaidSql } from './billing-ledger.js';
+import { invoiceBalance, ledgerCreditSql, ledgerPaidSql } from './billing-ledger.js';
 
 const money = (value: string | undefined, positive = false) => {
   if (!value || !/^\d+$/.test(value) || (positive ? BigInt(value) <= 0n : BigInt(value) < 0n)) throw new BadRequestException('VND amounts must be integer strings');
@@ -76,8 +76,6 @@ LEFT JOIN historical_credit hc ON hc.tenant_id = i.tenant_id AND hc.invoice_id =
 LEFT JOIN historical_status hs ON hs.tenant_id = i.tenant_id AND hs.invoice_id = i.id`;
 const invoiceResponse = (row: InvoiceRead, asOf?: string) => {
   const totalVnd = asAmount(row.total_vnd);
-  const creditVnd = asAmount(row.credit_vnd);
-  const paidVnd = asAmount(row.paid_vnd);
   const historicalStatus = (row as InvoiceRead & { statusAt?: string | null }).statusAt;
   const status = historicalStatus ?? (asOf ? 'DRAFT' : row.status);
   return {
@@ -87,10 +85,7 @@ const invoiceResponse = (row: InvoiceRead, asOf?: string) => {
     issueDate: row.issue_date,
     dueDate: row.due_date,
     totalVnd: totalVnd.toString(),
-    paidVnd: paidVnd.toString(),
-    creditVnd: creditVnd.toString(),
-    outstandingVnd: (totalVnd - creditVnd - paidVnd).toString(),
-    effectiveStatus: effectiveStatus(status, row.total_vnd, row.credit_vnd, row.paid_vnd, row.due_date, asOf ? new Date(asOf).getTime() : Date.now()),
+    ...invoiceBalance(status, row.total_vnd, row.credit_vnd, row.paid_vnd, row.due_date, asOf ? new Date(asOf).getTime() : Date.now()),
   };
 };
 
@@ -967,4 +962,4 @@ export class BillingService {
   private async requireStudent(client:PoolClient,tenantId:string,id:string){if(!(await client.query('SELECT 1 FROM students WHERE tenant_id=$1 AND id=$2',[tenantId,id])).rows[0])throw new NotFoundException('Student not found');}
   private async requireEnrollment(client:PoolClient,tenantId:string,id:string,studentId:string){if(!(await client.query('SELECT 1 FROM enrollments WHERE tenant_id=$1 AND id=$2 AND student_id=$3',[tenantId,id,studentId])).rows[0])throw new BadRequestException('Enrollment does not belong to student');}
 }
-function effectiveStatus(status:string,total:unknown,credit:unknown,paid:unknown,dueDate:unknown,now=Date.now()){if(status==='VOID')return 'VOID';const netDue=asAmount(total)-asAmount(credit);const collected=asAmount(paid);if(collected>=netDue)return 'PAID';if(collected>0n)return 'PARTIALLY_PAID';if(status==='ISSUED'&&dueDate&&new Date(String(dueDate)).getTime()<now)return 'OVERDUE';return status;}
+function effectiveStatus(status:string,total:unknown,credit:unknown,paid:unknown,dueDate:unknown,now=Date.now()){return invoiceBalance(status,total,credit,paid,dueDate,now).effectiveStatus;}

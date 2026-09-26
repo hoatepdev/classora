@@ -21,7 +21,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(undefined, (error) => {
   if (error.response?.status === 401 && error.config?.headers?.Authorization) {
     localStorage.removeItem(accessTokenKey);
-    if (window.location.pathname !== "/login") window.location.assign("/login");
+    const login = window.location.pathname.startsWith("/portal") ? "/portal/login" : "/login";
+    if (window.location.pathname !== login) window.location.assign(login);
   }
   return Promise.reject(error);
 });

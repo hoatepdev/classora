@@ -13,6 +13,6 @@ import { TenantResolverService } from './tenant-resolver.service.js';
     TenantMembershipGuard,
     TenantConnectionInterceptor,
   ],
-  exports: [TenantContextService, TenantMembershipGuard, TenantConnectionInterceptor],
+  exports: [TenantContextService, TenantMembershipGuard, TenantConnectionInterceptor, TenantResolverService, TenantConnectionManager],
 })
 export class TenantModule {}

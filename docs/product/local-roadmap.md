@@ -17,8 +17,8 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-09 | Teacher Compensation | DONE |
 | LOCAL-10 | CRM | DONE |
 | LOCAL-11 | Communication | DONE |
-| LOCAL-12 | Parent / Student Portal | Planned |
-| LOCAL-13 | Progress / Assessment | Planned |
+| LOCAL-12 | Parent / Student Portal | DONE |
+| LOCAL-13 | Progress / Assessment | NEXT |
 | LOCAL-14 | Dashboard | Planned |
 | LOCAL-15 | Reporting | Planned |
 | LOCAL-16 | Import / Export | Planned |
@@ -31,6 +31,51 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-12 notes
+
+Adds the parent/student portal as a separate authorization branch over the same
+global User, JWT, hostname tenant resolution, and tenant databases:
+`User → PortalAccess → Guardian/Student` never becomes a TenantMembership or
+TenantRole. The control database gains PortalAccess (one row per tenant
+subject, disable/re-enable/remove without touching the global User or staff
+membership) and PortalInvitation (SHA-256 token hashes, 48h expiry, resend
+revokes the previous token, subject advisory lock plus a partial unique
+pending-subject index, conditional single-use acceptance so concurrent
+acceptance yields exactly one access row). Guardian invitations and acceptance
+validate the subject and its current normalized email inside the
+hostname-resolved tenant database. Staff administration runs on the new
+`portal.manage` permission (OWNER/CENTER_ADMIN/ACADEMIC_MANAGER only) with
+control audit events for invite/resend/revoke/activate/disable/enable/remove;
+the raw activation token is returned once and never persisted or logged.
+Portal routes use an explicit `@PortalTenantRoute()` marker with a dedicated
+PortalAccessGuard that re-derives accessible Students from current
+StudentGuardian rows on every request, while `@TenantRoute()` staff
+authorization remains unchanged and rejects portal-only users. Portal
+projections are dedicated allowlisted DTOs: profile/enrollment summary,
+bounded schedule filtered to current TRIAL/ACTIVE participation, LOCKED
+attendance only (no notes, one shared summary formula), read-only makeup
+status, billing visible only while the current relationship has
+`isBillingContact = true` reusing the LOCAL-08 effective-ledger calculation,
+and LOCAL-11 IN_APP messages filtered to the exact authenticated subject
+recipient. The web app gains `/portal/*` routes with a lightweight
+mobile-first shell, portal login/acceptance pages reusing the same
+`/auth/login`, a child switcher, and a staff `/settings/portal-access` page
+with one-time activation-link copying. Real PostgreSQL coverage includes
+token hashing, new/existing-user acceptance, replay, resend revocation,
+concurrent acceptance, dual staff/portal identity, relationship and
+billing-contact revocation, recipient isolation, cross-tenant subject/Student
+rejection, and an HTTP-level guard-pipeline test over the booted
+application. Browser verification covered staff invite/resend/revoke/
+disable/enable, new and existing-user activation, parent two-child switcher,
+schedule, locked attendance, makeup, billing allow/deny, notifications,
+student self-only access with direct billing/staff API denial, and
+desktop/tablet/390px responsive checks with no horizontal overflow. The
+control migration passed fresh deploy, LOCAL-11 upgrade on the local
+database, and idempotent rerun; tenant schemas are unchanged and the tenant
+equivalence gate still passes fresh/legacy/drift/idempotency. Repository
+typecheck, build, and the full 30-file/255-test suite (including the
+real-DB portal gates) passed. LOCAL-13 was not implemented.
 
 ## LOCAL-11 notes
 

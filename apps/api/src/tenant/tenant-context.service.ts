@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { ResolvedTenant } from './tenant-resolver.service.js';
+import type { PortalContext } from '../portal/portal.types.js';
 
 export type TenantContext = {
   tenant: ResolvedTenant;
@@ -10,6 +11,7 @@ export type TenantContext = {
   actorMembershipId?: string;
   actorName?: string;
   actorEmail?: string;
+  portal?: PortalContext;
   requestId?: string;
 };
 

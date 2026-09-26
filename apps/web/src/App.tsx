@@ -37,11 +37,32 @@ import { CompensationStatementPage } from "./features/compensation/CompensationS
 import { CommunicationMessagePage } from "./features/communications/CommunicationMessagePage.js";
 import { CommunicationsPage } from "./features/communications/CommunicationsPage.js";
 import { CommunicationTemplatesPage } from "./features/communications/CommunicationTemplatesPage.js";
+import { PortalAccessPage } from "./features/settings/PortalAccessPage.js";
+import { PortalAcceptInvitationPage } from "./features/portal/PortalAcceptInvitationPage.js";
+import { PortalAttendancePage } from "./features/portal/PortalAttendancePage.js";
+import { PortalBillingPage } from "./features/portal/PortalBillingPage.js";
+import { PortalHomePage } from "./features/portal/PortalHomePage.js";
+import { PortalLoginPage } from "./features/portal/PortalLoginPage.js";
+import { PortalNotificationsPage } from "./features/portal/PortalNotificationsPage.js";
+import { PortalProtectedRoute } from "./features/portal/PortalProtectedRoute.js";
+import { PortalSchedulePage } from "./features/portal/PortalSchedulePage.js";
+import { PortalShell } from "./features/portal/PortalShell.js";
 
 export function App() {
   return <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
+    <Route path="/portal/login" element={<PortalLoginPage />} />
+    <Route path="/portal/accept-invitation" element={<PortalAcceptInvitationPage />} />
+    <Route element={<PortalProtectedRoute />}>
+      <Route element={<PortalShell />}>
+        <Route path="/portal" element={<PortalHomePage />} />
+        <Route path="/portal/schedule" element={<PortalSchedulePage />} />
+        <Route path="/portal/attendance" element={<PortalAttendancePage />} />
+        <Route path="/portal/billing" element={<PortalBillingPage />} />
+        <Route path="/portal/notifications" element={<PortalNotificationsPage />} />
+      </Route>
+    </Route>
     <Route element={<ProtectedRoute />}>
       <Route element={<AppShell />}>
         <Route path="/students" element={<StudentsPage />} />
@@ -70,6 +91,7 @@ export function App() {
         <Route path="/settings/team" element={<ProtectedRoute permission="team.read"><TeamPage /></ProtectedRoute>} />
         <Route path="/settings/roles" element={<ProtectedRoute permission="team.read"><RolesPage /></ProtectedRoute>} />
         <Route path="/settings/security" element={<ProtectedRoute permission="settings.read"><SecurityPage /></ProtectedRoute>} />
+        <Route path="/settings/portal-access" element={<ProtectedRoute permission="portal.manage"><PortalAccessPage /></ProtectedRoute>} />
         <Route path="/settings/audit-log" element={<ProtectedRoute permission="audit.read"><AuditPage /></ProtectedRoute>} />
         <Route path="/teachers" element={<ProtectedRoute permission="teacher.read"><TeachersPage /></ProtectedRoute>} />
         <Route path="/teachers/new" element={<ProtectedRoute permission="teacher.write"><TeacherForm /></ProtectedRoute>} />

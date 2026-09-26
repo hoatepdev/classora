@@ -13,6 +13,7 @@ import { TenantConnectionManager } from './tenant-connection-manager.service.js'
 import { TenantContextService } from './tenant-context.service.js';
 import type { TenantRequest } from './tenant-membership.guard.js';
 import type { RequestWithId } from '../request-logging.js';
+import type { PortalRequest } from '../portal/portal.types.js';
 
 @Injectable()
 export class TenantConnectionInterceptor implements NestInterceptor {
@@ -29,7 +30,7 @@ export class TenantConnectionInterceptor implements NestInterceptor {
     ]);
     if (!isDatabaseRoute) return next.handle();
 
-    const request = context.switchToHttp().getRequest<TenantRequest & RequestWithId>();
+    const request = context.switchToHttp().getRequest<TenantRequest & PortalRequest & RequestWithId>();
     const tenant = request.tenant;
     if (!tenant) throw new UnauthorizedException();
 
@@ -54,6 +55,7 @@ export class TenantConnectionInterceptor implements NestInterceptor {
             actorMembershipId: request.membership?.id,
             actorName: request.membership?.user?.name,
             actorEmail: request.membership?.user?.email,
+            portal: request.portal,
             requestId: request.requestId,
           }, () => {
             subscription = next.handle().subscribe(subscriber);

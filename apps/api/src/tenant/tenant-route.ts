@@ -1,12 +1,19 @@
 import { applyDecorators, SetMetadata } from '@nestjs/common';
 
 export const IS_TENANT_ROUTE = 'isTenantRoute';
+export const IS_PORTAL_TENANT_ROUTE = 'isPortalTenantRoute';
 export const TENANT_DATABASE_ROUTE = 'tenantDatabaseRoute';
 
 export const TenantRoute = (options: { database?: boolean } = {}) =>
   applyDecorators(
     SetMetadata(IS_TENANT_ROUTE, true),
     SetMetadata(TENANT_DATABASE_ROUTE, options.database !== false),
+  );
+
+export const PortalTenantRoute = () =>
+  applyDecorators(
+    SetMetadata(IS_PORTAL_TENANT_ROUTE, true),
+    SetMetadata(TENANT_DATABASE_ROUTE, true),
   );
 
 export const TenantDatabaseRoute = () => SetMetadata(TENANT_DATABASE_ROUTE, true);

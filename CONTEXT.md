@@ -154,6 +154,12 @@ APIs directly. Small CRM lookup endpoints (courses, branches, classes,
 assignees, future trial sessions) serve CRM selectors without broad academic
 permissions.
 
+### Parent / Student Portal
+
+Portal identity reuses the global User and JWT but is authorized separately from staff: `User -> PortalAccess -> Guardian/Student`, never through a fake TenantMembership or TenantRole. A Guardian's visible Students are derived on every request from current StudentGuardian rows; a Student subject is self-only. PortalAccess subject IDs are cross-database validated scalars, checked in the hostname-resolved tenant database when invited, activated, and loaded.
+
+Portal APIs are dedicated read-only allowlisted projections. They expose profile and enrollment summaries, bounded authoritative Sessions, finalized LOCKED attendance without staff notes, read-only makeup status, billing only for current billing-contact Guardians, and LOCAL-11 IN_APP messages addressed to the authenticated subject. Staff permissions never expand portal scope, and portal access never authorizes staff routes. See `docs/adr/0007-portal-identity-and-authorization.md` and `docs/product/local-12-portal.md`.
+
 ### Communication
 
 Communication is a tenant-scoped transactional history built from a fixed event

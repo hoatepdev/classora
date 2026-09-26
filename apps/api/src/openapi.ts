@@ -1011,6 +1011,36 @@ export const openApiSchemas = {
     },
     required: ['eventType', 'channel', 'subject', 'body', 'variables'],
   },
+  PortalSubjectType: { type: 'string', enum: ['GUARDIAN', 'STUDENT'] },
+  PortalAccessStatus: { type: 'string', enum: ['ACTIVE', 'DISABLED'] },
+  PortalStudentSummary: {
+    type: 'object',
+    description: 'Allowlisted portal learner identity. Internal notes, source, CRM, tags and audit data are excluded.',
+    properties: { id: ulid, code: { type: 'string' }, fullName: { type: 'string' }, canViewBilling: { type: 'boolean' } },
+    required: ['id', 'code', 'fullName', 'canViewBilling'],
+  },
+  PortalIdentity: {
+    type: 'object',
+    description: 'Hostname-tenant portal identity derived from active PortalAccess and current tenant relationships. Staff roles and permissions are excluded.',
+    properties: {
+      user: { type: 'object', properties: { id: ulid, email: { type: 'string', format: 'email' }, name: { type: 'string' } }, required: ['id', 'email', 'name'] },
+      subjects: { type: 'array', items: { type: 'object', properties: { type: { $ref: '#/components/schemas/PortalSubjectType' }, id: ulid, name: { type: 'string' } }, required: ['type', 'id', 'name'] } },
+      students: { type: 'array', items: { $ref: '#/components/schemas/PortalStudentSummary' } },
+      portalType: { $ref: '#/components/schemas/PortalSubjectType' },
+    },
+    required: ['user', 'subjects', 'students', 'portalType'],
+  },
+  PortalNotification: {
+    type: 'object',
+    description: 'Immutable LOCAL-11 IN_APP render snapshot for the authenticated portal subject.',
+    properties: { eventType: { $ref: '#/components/schemas/CommunicationEventType' }, subject: nullableString, body: { type: 'string' }, createdAt: { type: 'string', format: 'date-time' } },
+    required: ['eventType', 'subject', 'body', 'createdAt'],
+  },
+  PortalNotifications: {
+    type: 'object',
+    properties: { data: { type: 'array', items: { $ref: '#/components/schemas/PortalNotification' } }, nextCursor: nullableString },
+    required: ['data', 'nextCursor'],
+  },
 } satisfies Record<string, SchemaObject>;
 
 export type OpenApiSchemaName = keyof typeof openApiSchemas;

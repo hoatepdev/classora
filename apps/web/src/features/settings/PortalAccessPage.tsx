@@ -1,0 +1,37 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, UserPlus } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
+import { getApiErrorMessage } from "@/lib/api";
+import { invitePortalSubject, listPortalAccess, portalAccessKey, removePortalAccess, resendPortalInvitation, revokePortalInvitation, searchPortalSubjects, setPortalAccessStatus, type PortalInvitationResult, type PortalSubjectType } from "./portal-api";
+
+export function PortalAccessPage() {
+  const client = useQueryClient(); const query = useQuery({ queryKey: portalAccessKey(), queryFn: listPortalAccess });
+  const [type, setType] = useState<PortalSubjectType>("GUARDIAN"); const [search, setSearch] = useState(""); const [subjectId, setSubjectId] = useState(""); const [activation, setActivation] = useState<PortalInvitationResult | null>(null);
+  const subjects = useQuery({ queryKey: ["portal-access-subjects", type, search], queryFn: () => searchPortalSubjects(type, search) });
+  const finish = (result?: PortalInvitationResult) => { if (result) setActivation(result); void client.invalidateQueries({ queryKey: portalAccessKey() }); };
+  const invite = useMutation({ mutationFn: () => invitePortalSubject(type, subjectId), onSuccess: (result) => { finish(result); setSubjectId(""); toast.success("Đã tạo lời mời cổng thông tin."); }, onError: (error) => toast.error(getApiErrorMessage(error, "Không thể tạo lời mời.")) });
+  const resend = useMutation({ mutationFn: resendPortalInvitation, onSuccess: (result) => { finish(result); toast.success("Đã tạo liên kết kích hoạt mới."); }, onError: (error) => toast.error(getApiErrorMessage(error, "Không thể gửi lại lời mời.")) });
+  const action = useMutation({ mutationFn: ({ id, kind, status }: { id: string; kind: "revoke" | "remove" | "status"; status?: "ACTIVE" | "DISABLED" }) => kind === "revoke" ? revokePortalInvitation(id) : kind === "remove" ? removePortalAccess(id) : setPortalAccessStatus(id, status!), onSuccess: () => finish(), onError: (error) => toast.error(getApiErrorMessage(error, "Không thể cập nhật quyền truy cập.")) });
+  const activationLink = activation ? `${window.location.origin}/portal/accept-invitation?token=${activation.invitationToken}` : "";
+  return <PageContainer><PageHeader title="Cổng phụ huynh & học viên" description="Quản lý lời mời và quyền truy cập riêng biệt với tài khoản nhân viên." />
+    <form className="mb-6 grid gap-3 rounded-xl border border-[#e2e8f0] bg-white p-4 md:grid-cols-[170px_1fr_1fr_auto] md:items-end" onSubmit={(event) => { event.preventDefault(); if (subjectId) invite.mutate(); }}>
+      <label htmlFor="portal-subject-type">Loại hồ sơ<select className="input mt-1" id="portal-subject-type" name="subjectType" value={type} onChange={(event) => { setType(event.target.value as PortalSubjectType); setSubjectId(""); }}>{<><option value="GUARDIAN">Phụ huynh</option><option value="STUDENT">Học viên</option></>}</select></label>
+      <label htmlFor="portal-subject-search">Tìm kiếm<input className="input mt-1" id="portal-subject-search" name="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tên hoặc email" /></label>
+      <label htmlFor="portal-subject-id">Hồ sơ<select className="input mt-1" id="portal-subject-id" name="subjectId" required value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="">Chọn hồ sơ có email</option>{subjects.data?.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.email}</option>)}</select></label>
+      <Button type="submit" disabled={!subjectId || invite.isPending}><UserPlus size={16} />Mời truy cập</Button>
+    </form>
+    {activation && <section className="mb-6 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4"><h2 className="text-base">Liên kết kích hoạt mới</h2><p className="mt-1 text-sm text-[#334155]">Liên kết này chỉ hiển thị trong phiên làm việc hiện tại. Gửi bằng kênh riêng an toàn.</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><input className="input" id="portal-activation-link" name="activationLink" readOnly value={activationLink} aria-label="Liên kết kích hoạt" /><Button type="button" onClick={() => void navigator.clipboard.writeText(activationLink).then(() => toast.success("Đã sao chép liên kết."))}><Copy size={16} />Sao chép</Button></div></section>}
+    {query.isPending ? <LoadingState /> : query.isError ? <ErrorState title="Không thể tải quyền truy cập" message="Kiểm tra kết nối và thử lại." onRetry={() => void query.refetch()} /> : <div className="grid gap-7">
+      <section><h2>Lời mời đang chờ</h2><div className="mt-3">{query.data.invitations.length ? <div className="register"><table><thead><tr><th>Hồ sơ</th><th>Email</th><th>Hết hạn</th><th>Thao tác</th></tr></thead><tbody>{query.data.invitations.map((item) => <tr key={item.id}><td data-label="Hồ sơ"><strong>{item.subjectName ?? item.subjectId}</strong><br/><span className="text-xs text-[#64748b]">{item.subjectType} · {item.subjectEmail ?? "Không có email"}</span></td><td data-label="Email">{item.email}</td><td data-label="Hết hạn">{new Date(item.expiresAt).toLocaleString("vi-VN")}</td><td data-label="Thao tác"><div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => resend.mutate(item.id)}>Tạo lại liên kết</Button><Button size="sm" variant="destructive" onClick={() => action.mutate({ id: item.id, kind: "revoke" })}>Thu hồi</Button></div></td></tr>)}</tbody></table></div> : <EmptyState title="Không có lời mời đang chờ" />}</div></section>
+      <section><h2>Quyền đã kích hoạt</h2><div className="mt-3">{query.data.accesses.length ? <div className="register"><table><thead><tr><th>Hồ sơ</th><th>Tài khoản</th><th>Trạng thái</th><th>Tạo lúc</th><th>Thao tác</th></tr></thead><tbody>{query.data.accesses.map((item) => <tr key={item.id}><td data-label="Hồ sơ"><strong>{item.subjectName ?? item.subjectId}</strong><br/><span className="text-xs text-[#64748b]">{item.subjectType} · {item.subjectEmail ?? "Không có email"}</span></td><td data-label="Tài khoản">{item.user.name}<br/><span className="text-xs text-[#64748b]">{item.user.email}</span></td><td data-label="Trạng thái"><StatusBadge status={item.status}>{item.status === "ACTIVE" ? "Đang hoạt động" : "Đã vô hiệu hóa"}</StatusBadge></td><td data-label="Tạo lúc">{new Date(item.createdAt).toLocaleString("vi-VN")}</td><td data-label="Thao tác"><div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => action.mutate({ id: item.id, kind: "status", status: item.status === "ACTIVE" ? "DISABLED" : "ACTIVE" })}>{item.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt"}</Button><Button size="sm" variant="destructive" onClick={() => { if (window.confirm("Xóa quyền truy cập cổng thông tin?")) action.mutate({ id: item.id, kind: "remove" }); }}>Xóa</Button></div></td></tr>)}</tbody></table></div> : <EmptyState title="Chưa có quyền truy cập" />}</div></section>
+    </div>}
+  </PageContainer>;
+}

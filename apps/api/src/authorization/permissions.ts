@@ -32,6 +32,7 @@ export const PERMISSIONS = {
   CRM_WRITE: 'crm.write',
   COMMUNICATION_READ: 'communication.read',
   COMMUNICATION_MANAGE: 'communication.manage',
+  PORTAL_MANAGE: 'portal.manage',
   REPORT_FINANCE: 'report.finance',
   SETTINGS_READ: 'settings.read',
   SETTINGS_MANAGE: 'settings.manage',
@@ -66,6 +67,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.SCHEDULE_WRITE,
     PERMISSIONS.ENROLLMENT_READ,
     PERMISSIONS.ENROLLMENT_WRITE,
+    PERMISSIONS.PORTAL_MANAGE,
     PERMISSIONS.SETTINGS_READ,
   ],
   ACCOUNTANT: [

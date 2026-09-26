@@ -64,8 +64,12 @@ export function Sidebar({ centerName, hostname, user, activeMembership, onNaviga
         })}
         {membership && can(membership, "team.read") && <Link to="/settings/team" onClick={onNavigate} className={cn(
           "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
-          pathname.startsWith("/settings") && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
+          pathname === "/settings/team" && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
         )}><Settings size={18} aria-hidden="true" />Thiết lập</Link>}
+        {membership && can(membership, "portal.manage") && <Link to="/settings/portal-access" onClick={onNavigate} className={cn(
+          "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
+          pathname === "/settings/portal-access" && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
+        )}><Users size={18} aria-hidden="true" />Cổng phụ huynh</Link>}
         {membership && can(membership, "audit.read") && <Link to="/settings/audit-log" onClick={onNavigate} className={cn(
           "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
           pathname === "/settings/audit-log" && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",

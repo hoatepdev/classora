@@ -18,3 +18,18 @@ export const ledgerPaidSql = `COALESCE((SELECT SUM(pa.amount_vnd)
 export const ledgerCreditSql = `COALESCE((SELECT SUM(cn.amount_vnd) FROM credit_notes cn
   WHERE cn.tenant_id = i.tenant_id AND cn.invoice_id = i.id AND cn.status = 'ISSUED'
     AND NOT EXISTS (SELECT 1 FROM credit_note_voids cv WHERE cv.tenant_id = cn.tenant_id AND cv.credit_note_id = cn.id)), 0)`;
+
+const amount = (value: unknown) => BigInt(String(value ?? 0));
+
+export function invoiceBalance(status: string, total: unknown, credit: unknown, paid: unknown, dueDate: unknown, now = Date.now()) {
+  const totalVnd = amount(total);
+  const creditVnd = amount(credit);
+  const paidVnd = amount(paid);
+  const outstandingVnd = totalVnd - creditVnd - paidVnd;
+  let effectiveStatus = status;
+  if (status === 'VOID') effectiveStatus = 'VOID';
+  else if (paidVnd >= totalVnd - creditVnd) effectiveStatus = 'PAID';
+  else if (paidVnd > 0n) effectiveStatus = 'PARTIALLY_PAID';
+  else if (status === 'ISSUED' && dueDate && new Date(String(dueDate)).getTime() < now) effectiveStatus = 'OVERDUE';
+  return { paidVnd: paidVnd.toString(), creditVnd: creditVnd.toString(), outstandingVnd: outstandingVnd.toString(), effectiveStatus };
+}

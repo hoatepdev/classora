@@ -31,6 +31,16 @@ enum MembershipStatus {
   DISABLED
 }
 
+enum PortalSubjectType {
+  GUARDIAN
+  STUDENT
+}
+
+enum PortalAccessStatus {
+  ACTIVE
+  DISABLED
+}
+
 model Tenant {
   id             String             @id @db.Char(26)
   name           String
@@ -39,9 +49,11 @@ model Tenant {
   dbName         String             @unique @map("db_name")
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  memberships    TenantMembership[]
-  invitations    TenantInvitation[]
-  auditEvents    AuditEvent[]
+  memberships      TenantMembership[]
+  invitations      TenantInvitation[]
+  portalAccesses   PortalAccess[]
+  portalInvitations PortalInvitation[]
+  auditEvents      AuditEvent[]
 
   @@map("tenants")
 }
@@ -54,9 +66,11 @@ model User {
   status         UserStatus         @default(ACTIVE)
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  memberships        TenantMembership[]
-  createdInvitations TenantInvitation[] @relation("InvitationCreator")
-  auditEvents       AuditEvent[]
+  memberships              TenantMembership[]
+  portalAccesses           PortalAccess[]
+  createdInvitations       TenantInvitation[] @relation("InvitationCreator")
+  createdPortalInvitations PortalInvitation[] @relation("PortalInvitationCreator")
+  auditEvents              AuditEvent[]
 
   @@map("users")
 }
@@ -97,6 +111,46 @@ model TenantInvitation {
   @@index([tenantId, email, expiresAt])
   @@index([tenantId, revokedAt, acceptedAt])
   @@map("tenant_invitations")
+}
+
+model PortalAccess {
+  id          String             @id @default(ulid()) @db.Char(26)
+  tenantId    String             @map("tenant_id") @db.Char(26)
+  userId      String             @map("user_id") @db.Char(26)
+  subjectType PortalSubjectType  @map("subject_type")
+  subjectId   String             @map("subject_id") @db.Char(26)
+  status      PortalAccessStatus @default(ACTIVE)
+  disabledAt  DateTime?          @map("disabled_at") @db.Timestamptz
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, subjectType, subjectId])
+  @@index([tenantId, userId, status])
+  @@index([userId])
+  @@map("portal_accesses")
+}
+
+model PortalInvitation {
+  id          String            @id @default(ulid()) @db.Char(26)
+  tenantId    String            @map("tenant_id") @db.Char(26)
+  subjectType PortalSubjectType @map("subject_type")
+  subjectId   String            @map("subject_id") @db.Char(26)
+  email       String
+  tokenHash   String            @unique @map("token_hash")
+  expiresAt   DateTime          @map("expires_at") @db.Timestamptz
+  acceptedAt  DateTime?         @map("accepted_at") @db.Timestamptz
+  revokedAt   DateTime?         @map("revoked_at") @db.Timestamptz
+  createdById String            @map("created_by_id") @db.Char(26)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdBy   User              @relation("PortalInvitationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, subjectType, subjectId, expiresAt])
+  @@index([tenantId, revokedAt, acceptedAt])
+  @@map("portal_invitations")
 }
 
 model AuditEvent {
