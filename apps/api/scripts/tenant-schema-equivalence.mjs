@@ -698,13 +698,22 @@ async function assertLocal13ProgressConstraints(dbName, label) {
     await pool.query(`INSERT INTO assessments(id,tenant_id,class_id,type,title,scoring_mode,max_score) VALUES($1,$2,$3,'QUIZ','Progress','SIMPLE',10)`,[assessment,tenant,klass]);
     await pool.query(`INSERT INTO assessment_criteria(id,tenant_id,assessment_id,name,max_score,display_order) VALUES($1,$2,$3,'Criterion',10,0)`,[criterion,tenant,assessment]);
     await pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,8,'GRADED')`,[result,tenant,assessment,student,enrollment]);
+    await assert.rejects(pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,9,'GRADED')`,[ulid(),tenant,assessment,student,enrollment]));
+    await assert.rejects(pool.query(`INSERT INTO assessment_criteria(id,tenant_id,assessment_id,name,max_score,display_order) VALUES($1,$2,$3,'Duplicate',1,0)`,[ulid(),tenant,assessment]));
     await assert.rejects(pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,11,'GRADED')`,[ulid(),tenant,assessment,student,enrollment]));
     await assert.rejects(pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,1,'GRADED')`,[ulid(),tenant,assessment,otherStudent,enrollment]));
+    await pool.query(`INSERT INTO assessment_criterion_results(id,tenant_id,assessment_result_id,criterion_id,score) VALUES($1,$2,$3,$4,8)`,[ulid(),tenant,result,criterion]);
+    await assert.rejects(pool.query(`INSERT INTO assessment_criterion_results(id,tenant_id,assessment_result_id,criterion_id,score) VALUES($1,$2,$3,$4,7)`,[ulid(),tenant,result,criterion]));
     await assert.rejects(pool.query(`INSERT INTO assessment_criterion_results(id,tenant_id,assessment_result_id,criterion_id,score) VALUES($1,$2,$3,$4,11)`,[ulid(),tenant,result,criterion]));
     await assert.rejects(pool.query(`INSERT INTO progress_notes(id,tenant_id,student_id,enrollment_id,class_id,content) VALUES($1,$2,$3,$4,$5,'invalid')`,[ulid(),tenant,otherStudent,enrollment,klass]));
     const note=ulid(); await pool.query(`INSERT INTO progress_notes(id,tenant_id,student_id,content) VALUES($1,$2,$3,'private')`,[note,tenant,student]); await assert.rejects(pool.query('UPDATE progress_notes SET content=$1 WHERE id=$2',['changed',note]));
     await assert.rejects(pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end) VALUES($1,$2,$3,$4,$5,'Invalid','2026-01-01','2026-12-31')`,[ulid(),tenant,otherStudent,enrollment,klass]));
     const report=ulid(); await pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end) VALUES($1,$2,$3,$4,$5,'Report','2026-01-01','2026-12-31')`,[report,tenant,student,enrollment,klass]);
+    await pool.query(`UPDATE progress_reports SET status='PUBLISHED',snapshot='{}'::jsonb,published_at=CURRENT_TIMESTAMP WHERE id=$1`,[report]);
+    await assert.rejects(pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end,status,snapshot,published_at) VALUES($1,$2,$3,$4,$5,'Duplicate','2026-01-01','2026-12-31','PUBLISHED','{}',CURRENT_TIMESTAMP)`,[ulid(),tenant,student,enrollment,klass]));
+    const replacement=ulid(); await pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end,supersedes_report_id) VALUES($1,$2,$3,$4,$5,'Replacement','2027-01-01','2027-12-31',$6)`,[replacement,tenant,student,enrollment,klass,report]);
+    await assert.rejects(pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end,supersedes_report_id) VALUES($1,$2,$3,$4,$5,'Branch','2028-01-01','2028-12-31',$6)`,[ulid(),tenant,student,enrollment,klass,report]));
+    const revision=ulid(); await pool.query(`INSERT INTO assessment_result_revisions(id,tenant_id,assessment_result_id,before_snapshot,after_snapshot,reason) VALUES($1,$2,$3,'{}','{}','test')`,[revision,tenant,result]); await assert.rejects(pool.query(`DELETE FROM assessment_result_revisions WHERE id=$1`,[revision]));
     assert.equal((await pool.query('SELECT title FROM progress_reports WHERE id=$1',[report])).rows[0].title,'Report',`${label}: report data not preserved`);
   } finally { await pool.end(); }
 }

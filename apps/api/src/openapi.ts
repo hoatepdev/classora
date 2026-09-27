@@ -1036,6 +1036,15 @@ export const openApiSchemas = {
     properties: { eventType: { $ref: '#/components/schemas/CommunicationEventType' }, subject: nullableString, body: { type: 'string' }, createdAt: { type: 'string', format: 'date-time' } },
     required: ['eventType', 'subject', 'body', 'createdAt'],
   },
+  AssessmentType: { type: 'string', enum: ['QUIZ','TEST','EXAM','HOMEWORK','PROJECT','ORAL','OTHER'] },
+  AssessmentStatus: { type: 'string', enum: ['DRAFT','PUBLISHED','ARCHIVED'], description: 'Drafts are editable; published records require correction commands; archived records retain publication history.' },
+  ScoringMode: { type: 'string', enum: ['SIMPLE','RUBRIC'] },
+  ProgressReportStatus: { type: 'string', enum: ['DRAFT','PUBLISHED','SUPERSEDED'] },
+  AssessmentCriterion: { type: 'object', properties: { id: ulid, assessmentId: ulid, name: {type:'string'}, description: nullableString, maxScore: {type:'string',pattern:'^\\d{1,6}(\\.\\d{1,2})?$',example:'2.50'}, displayOrder:{type:'integer'} }, required:['id','assessmentId','name','maxScore','displayOrder'] },
+  AssessmentCriterionResult: { type:'object', properties:{ criterionId:ulid, score:{type:'string',example:'2.50'}, comment:nullableString }, required:['criterionId','score'] },
+  AssessmentResult: { type:'object', description:'Current authoritative result. Published changes use the correction endpoint and append a revision.', properties:{ id:ulid,assessmentId:ulid,studentId:ulid,enrollmentId:ulid,status:{type:'string',enum:['GRADED','EXEMPT']},score:{type:'string',nullable:true,example:'8.50'},comment:nullableString,criterionScores:{type:'array',items:{$ref:'#/components/schemas/AssessmentCriterionResult'}} }, required:['id','assessmentId','studentId','enrollmentId','status','score'] },
+  AssessmentResultRevision: { type:'object', description:'Staff-only immutable server snapshot of a published correction.', properties:{ id:ulid,beforeSnapshot:{type:'object'},afterSnapshot:{type:'object'},reason:{type:'string'},actorUserId:{...ulid,nullable:true},createdAt:timestamp }, required:['id','beforeSnapshot','afterSnapshot','reason','createdAt'] },
+  ProgressNote: { type:'object', description:'Append-only private staff note; never exposed through portal endpoints.', properties:{id:ulid,studentId:ulid,enrollmentId:{...ulid,nullable:true},classId:{...ulid,nullable:true},content:{type:'string'},authorName:nullableString,createdAt:timestamp},required:['id','studentId','content','createdAt'] },
   Assessment: {
     type: 'object',
     properties: { id: ulid, classId: ulid, type: { type: 'string', enum: ['QUIZ','TEST','EXAM','HOMEWORK','PROJECT','ORAL','OTHER'] }, title: { type: 'string' }, description: nullableString, scoringMode: { type: 'string', enum: ['SIMPLE','RUBRIC'] }, maxScore: { type: 'string', example: '10.00' }, assessmentDate: { type: 'string', format: 'date', nullable: true }, status: { type: 'string', enum: ['DRAFT','PUBLISHED','ARCHIVED'] } },
@@ -1054,8 +1063,8 @@ export const openApiSchemas = {
   PortalProgress: {
     type: 'object',
     description: 'Published-only student progress projection. Private notes are never included.',
-    properties: { results: { type: 'array', items: { type: 'object' } }, reports: { type: 'array', items: { type: 'object' } } },
-    required: ['results','reports'],
+    properties: { summary: { $ref: '#/components/schemas/ProgressSummary' }, assessments: { type: 'array', items: { $ref: '#/components/schemas/AssessmentResult' } }, reports: { type: 'array', items: { $ref: '#/components/schemas/ProgressReport' } } },
+    required: ['summary','assessments','reports'],
   },
   PortalNotifications: {
     type: 'object',

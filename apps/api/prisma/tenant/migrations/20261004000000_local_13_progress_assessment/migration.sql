@@ -132,7 +132,7 @@ CREATE TABLE progress_reports (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT progress_reports_tenant_id_id_key UNIQUE (tenant_id, id),
   CONSTRAINT progress_reports_period_check CHECK (period_end >= period_start),
-  CONSTRAINT progress_reports_published_requires_publication_check CHECK (status <> 'PUBLISHED' OR (published_at IS NOT NULL AND snapshot IS NOT NULL)),
+  CONSTRAINT progress_reports_published_requires_publication_check CHECK (status = 'DRAFT' OR (published_at IS NOT NULL AND snapshot IS NOT NULL)),
   CONSTRAINT progress_reports_student_fk FOREIGN KEY (tenant_id, student_id) REFERENCES students (tenant_id, id),
   CONSTRAINT progress_reports_enrollment_fk FOREIGN KEY (tenant_id, enrollment_id) REFERENCES enrollments (tenant_id, id),
   CONSTRAINT progress_reports_class_fk FOREIGN KEY (tenant_id, class_id) REFERENCES classes (tenant_id, id),
