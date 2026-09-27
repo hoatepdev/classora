@@ -49,8 +49,6 @@ import { PortalSchedulePage } from "./features/portal/PortalSchedulePage.js";
 import { PortalShell } from "./features/portal/PortalShell.js";
 import { GradebookPage } from "./features/progress/GradebookPage.js";
 import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
-import { GradebookPage } from "./features/progress/GradebookPage.js";
-import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
 
 export function App() {
   return <Routes>
