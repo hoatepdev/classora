@@ -47,6 +47,10 @@ import { PortalNotificationsPage } from "./features/portal/PortalNotificationsPa
 import { PortalProtectedRoute } from "./features/portal/PortalProtectedRoute.js";
 import { PortalSchedulePage } from "./features/portal/PortalSchedulePage.js";
 import { PortalShell } from "./features/portal/PortalShell.js";
+import { GradebookPage } from "./features/progress/GradebookPage.js";
+import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
+import { GradebookPage } from "./features/progress/GradebookPage.js";
+import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
 
 export function App() {
   return <Routes>
@@ -61,6 +65,7 @@ export function App() {
         <Route path="/portal/attendance" element={<PortalAttendancePage />} />
         <Route path="/portal/billing" element={<PortalBillingPage />} />
         <Route path="/portal/notifications" element={<PortalNotificationsPage />} />
+        <Route path="/portal/progress" element={<PortalProgressPage />} />
       </Route>
     </Route>
     <Route element={<ProtectedRoute />}>
@@ -85,6 +90,7 @@ export function App() {
         <Route path="/classes" element={<ProtectedRoute permission="class.read"><ClassesPage /></ProtectedRoute>} />
         <Route path="/classes/new" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/classes/:id" element={<ProtectedRoute permission="class.read"><ClassDetail /></ProtectedRoute>} />
+        <Route path="/assessments/:id/gradebook" element={<ProtectedRoute permission="class.read"><GradebookPage /></ProtectedRoute>} />
         <Route path="/classes/:id/edit" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/schedule" element={<ProtectedRoute permission="schedule.read"><SchedulePage /></ProtectedRoute>} />
         <Route path="/attendance-sessions/:id" element={<ProtectedRoute permission="attendance.read"><AttendanceSessionPage /></ProtectedRoute>} />

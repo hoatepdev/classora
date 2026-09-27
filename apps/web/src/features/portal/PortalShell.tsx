@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, CalendarDays, ClipboardCheck, CreditCard, Home, LogOut, Menu } from "lucide-react";
+import { Bell, CalendarDays, ClipboardCheck, CreditCard, Home, LogOut, Menu, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { accessTokenKey } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getPortalMe, portalMeKey } from "./api";
 
-const links = [{ to: "/portal", label: "Tổng quan", icon: Home }, { to: "/portal/schedule", label: "Lịch học", icon: CalendarDays }, { to: "/portal/attendance", label: "Điểm danh", icon: ClipboardCheck }, { to: "/portal/notifications", label: "Thông báo", icon: Bell }];
+const links = [{ to: "/portal", label: "Tổng quan", icon: Home }, { to: "/portal/progress", label: "Tiến độ", icon: TrendingUp }, { to: "/portal/schedule", label: "Lịch học", icon: CalendarDays }, { to: "/portal/attendance", label: "Điểm danh", icon: ClipboardCheck }, { to: "/portal/notifications", label: "Thông báo", icon: Bell }];
 
 export function PortalShell() {
   const query = useQuery({ queryKey: portalMeKey(), queryFn: getPortalMe });

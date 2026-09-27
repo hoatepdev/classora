@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 import { classQueryKey, completeClass, getClass } from "./api.js";
+import { AssessmentSection } from "../progress/AssessmentSection.js";
 
 const dateFormatter = new Intl.DateTimeFormat("vi-VN");
 const sessionDateFormatter = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
@@ -193,6 +194,7 @@ export function ClassDetail() {
     </section>
 
     <ClassSchedulesSection classId={classRecord.data.id} />
+    <AssessmentSection classId={classRecord.data.id} canWrite={canClassWrite} canPublish={canClassWrite} />
     <UpcomingSessionsSection query={upcomingSessions} />
     <ClassAttendanceSection classId={classRecord.data.id} />
 
