@@ -2,6 +2,7 @@ import { Menu } from "lucide-react";
 import type { CurrentUser } from "@/auth/api";
 
 const sectionNames: Record<string, string> = {
+  dashboard: "Tổng quan",
   students: "Học viên",
   teachers: "Giáo viên",
   courses: "Khóa học",

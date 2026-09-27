@@ -28,6 +28,7 @@ import { TeamModule } from './team/team.module.js';
 import { PortalAccessGuard } from './portal/portal-access.guard.js';
 import { PortalModule } from './portal/portal.module.js';
 import { ProgressModule } from './progress/progress.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ProgressModule } from './progress/progress.module.js';
     TeamModule,
     PortalModule,
     ProgressModule,
+    DashboardModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,10 +1,11 @@
-import { BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
+import { BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LayoutDashboard, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
 import { cn } from "@/lib/utils";
 
-const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap; permission: string; alternatePermission?: string }> = [
+const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap; permission?: string; alternatePermission?: string }> = [
+  { to: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/leads", label: "Tiềm năng", icon: UserRoundSearch, permission: "crm.read" },
   { to: "/students", label: "Học viên", icon: GraduationCap, permission: "student.read" },
   { to: "/teachers", label: "Giáo viên", icon: Users, permission: "teacher.read" },
@@ -31,7 +32,7 @@ export function Sidebar({ centerName, hostname, user, activeMembership, onNaviga
   const financePath = can(membership, "billing.read") ? "/billing" : "/billing/compensation";
   return <div className="flex h-full flex-col border-r border-[#e2e8f0] bg-white text-[#334155]">
     <div className="px-5 pt-5 pb-4">
-      <Link to="/students" onClick={onNavigate} className="inline-flex items-center gap-2.5 text-xl font-bold tracking-[-.03em] text-[#0f172a]">
+      <Link to="/dashboard" onClick={onNavigate} className="inline-flex items-center gap-2.5 text-xl font-bold tracking-[-.03em] text-[#0f172a]">
         <span className="grid size-8 place-items-center rounded-lg bg-[#2563eb] text-sm font-bold text-white">C</span>
         Classora
       </Link>

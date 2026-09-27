@@ -68,9 +68,20 @@ describe('OpenAPI', () => {
         'Student relationships',
         'Branches',
         'Rooms',
+        'Dashboard',
       ]),
     );
     expect(body.paths['/auth/login'].post.responses).toHaveProperty('200');
+    expect(body.paths['/dashboard'].get.responses['200'].content['application/json'].schema).toEqual({ $ref: '#/components/schemas/Dashboard' });
+    expect(body.paths['/dashboard'].get.security).toEqual([{ bearer: [] }]);
+    expect(body.components.schemas.Dashboard.properties.sections.properties).toEqual(
+      expect.objectContaining({
+        academic: { $ref: '#/components/schemas/DashboardAcademicSection' },
+        finance: { $ref: '#/components/schemas/DashboardFinanceSection' },
+        growth: { $ref: '#/components/schemas/DashboardGrowthSection' },
+        attention: expect.objectContaining({ type: 'array' }),
+      }),
+    );
     expect(body.paths['/students'].post.responses).toHaveProperty('201');
     expect(body.paths['/students'].get.responses['200'].content['application/json'].schema).toMatchObject({
       type: 'object',

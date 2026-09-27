@@ -9,5 +9,6 @@ import { BillingService } from './billing.service.js';
   imports: [TenantModule, AuditModule, CommunicationModule],
   controllers: [BillingController],
   providers: [BillingService],
+  exports: [BillingService],
 })
 export class BillingModule {}

@@ -48,6 +48,7 @@ import { PortalProtectedRoute } from "./features/portal/PortalProtectedRoute.js"
 import { PortalSchedulePage } from "./features/portal/PortalSchedulePage.js";
 import { PortalShell } from "./features/portal/PortalShell.js";
 import { GradebookPage } from "./features/progress/GradebookPage.js";
+import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
 
 export function App() {
@@ -68,6 +69,7 @@ export function App() {
     </Route>
     <Route element={<ProtectedRoute />}>
       <Route element={<AppShell />}>
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/leads" element={<ProtectedRoute permission="crm.read"><LeadsPage /></ProtectedRoute>} />
         <Route path="/leads/new" element={<ProtectedRoute permission="crm.write"><LeadForm /></ProtectedRoute>} />
@@ -114,6 +116,6 @@ export function App() {
         <Route path="/communications/:id" element={<ProtectedRoute permission="communication.read"><CommunicationMessagePage /></ProtectedRoute>} />
       </Route>
     </Route>
-    <Route path="*" element={<Navigate to="/students" replace />} />
+    <Route path="*" element={<Navigate to={window.location.pathname.startsWith("/portal") ? "/portal" : "/dashboard"} replace />} />
   </Routes>;
 }

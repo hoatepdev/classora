@@ -19,8 +19,8 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-11 | Communication | DONE |
 | LOCAL-12 | Parent / Student Portal | DONE |
 | LOCAL-13 | Progress / Assessment | DONE |
-| LOCAL-14 | Dashboard | NEXT |
-| LOCAL-15 | Reporting | Planned |
+| LOCAL-14 | Dashboard | DONE |
+| LOCAL-15 | Reporting | NEXT |
 | LOCAL-16 | Import / Export | Planned |
 | LOCAL-17 | Files | Planned |
 | LOCAL-18 | Automations | Planned |
@@ -31,6 +31,48 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-14 notes
+
+Adds the staff operational dashboard as a read-only, permission-aware
+projection at `GET /dashboard` plus the `/dashboard` web page that becomes the
+authenticated staff landing. The route has no dashboard permission: the
+existing staff `TenantRoute` membership chain stays authoritative, the
+controller forwards the trusted permission set, and the service executes only
+authorized section queries, so unauthorized aggregates are absent from the
+JSON (ACCOUNTANT receives finance only, SALE growth only, TEACHER/STAFF
+academic only) rather than hidden in React. One Vietnam-local
+(`Asia/Ho_Chi_Minh`) business clock derives `businessDate`, day bounds, and
+month bounds for every section; pending attendance means a non-cancelled,
+non-rescheduled Session that has already ended with no sheet or an OPEN sheet,
+and available makeups exclude entitlements past `expires_at`. Finance reuses
+`BillingService.overview()` and `receivables()` verbatim through an exported
+provider so dashboard numbers equal `/billing/overview` and `/receivables` by
+construction; compensation counts DRAFT periods, unresolved rows, and the
+stored payable of the latest FINALIZED period (payable is never paid). Growth
+mirrors the CRM follow-up day filters over the shared clock, counts the active
+pipeline excluding WON/LOST, upcoming BOOKED trials on future scheduled
+Sessions, and WON this month from `won_at`. The derived Needs Attention feed
+(pending attendance, overdue invoices via `daysOverdue > 0`, overdue
+follow-ups, failed communications, unresolved compensation, draft academic
+items) is never persisted, is bounded at 12, and deep-links to the owning
+workflow; every actionable row links to existing canonical screens. Teacher
+display names come only from Session snapshots — with no trustworthy
+Teacher↔User mapping the dashboard exposes no fabricated "my classes" views.
+Queries are bounded aggregates (`COUNT`/`FILTER`/`LIMIT` in PostgreSQL,
+window-count totals), independent sections run in parallel, and no schema
+migration, cache, or dashboard source-of-truth table was added: the tenant
+schema equivalence gate still passes fresh/legacy/drift/idempotent. API tests
+grew to 35 files / 284 tests, including dashboard fast e2e (role payload
+omission, portal-only 403, empty tenant, zero unauthorized query execution),
+a pure clock suite (midnight, month, and UTC+7 boundaries), and real
+PostgreSQL integration covering aggregates, pending-attendance semantics,
+billing equality, CRM classification, attention sources, cross-tenant
+isolation, and the empty tenant. Browser verification on the demo tenant
+covered owner/teacher/accountant/sale layouts, landing and catch-all
+redirection to `/dashboard`, the new Tổng quan nav entry and brand link,
+deep links, loading-free clean render, no console errors, and 390px / tablet /
+desktop with no horizontal overflow. LOCAL-15 was not started.
 
 ## LOCAL-13 notes
 

@@ -117,6 +117,14 @@ Future domains should attach through their own tenant-scoped relations rather
 than adding enrollment, scheduling, billing, communication, or portal state to
 Student or Guardian prematurely.
 
+### Dashboard
+
+The staff dashboard is a read-only, tenant-scoped projection at `GET /dashboard`. It requires an active staff membership through `TenantRoute`; it has no dashboard-specific permission. The controller passes the trusted membership permission set to the service, which omits unauthorized sections and fields and only executes queries owned by permitted domains. Academic, finance, growth, and communication attention data use one Vietnam business clock (`Asia/Ho_Chi_Minh`) per snapshot. Aggregates and lists are bounded, and the dashboard performs no writes or audit events.
+
+Academic metrics: active students count `Student.status = ACTIVE` only; active classes count `Class.status = ACTIVE`; sessions today break down Session statuses on the business date; pending attendance means a Session that has already ended (business-local time), is not cancelled or rescheduled, and has no sheet or an OPEN sheet; available makeups count AVAILABLE entitlements not yet past `expires_at`. Finance metrics reuse `BillingService.overview()` and `receivables()` verbatim, so dashboard numbers are the authoritative LOCAL-08 values; compensation counts DRAFT periods, unresolved rows, and the stored payable of the latest FINALIZED period (payable is never treated as paid). Growth metrics count the active pipeline excluding WON/LOST, follow-up buckets mirroring the CRM list filters over Vietnam-local day bounds, upcoming BOOKED trials on future scheduled Sessions, and WON this month from `won_at`.
+
+The Needs Attention feed is derived per request (no persisted task model) from pending attendance, overdue invoices, overdue follow-ups, failed communications, unresolved compensation, and draft assessments or progress reports, each deep-linking to the owning workflow. The dashboard maps CRM assignees through active control-database membership IDs. Teacher display names are resolved from the tenant session snapshot only; there is no trustworthy Teacher-to-User mapping yet, so the dashboard never fabricates "my classes" or "my students" views for teachers and exposes only tenant-level data their permissions already allow.
+
 ### CRM
 
 A Lead is the tenant-scoped sales prospect before and around conversion. The

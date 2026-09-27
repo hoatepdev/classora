@@ -13,5 +13,5 @@ export function ProtectedRoute({ permission, children }: { permission?: string; 
   if (!permission) return children ?? <Outlet />;
   if (user.isPending || tenant.isPending) return null;
   const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
-  return can(membership, permission) ? children ?? <Outlet /> : <Navigate to="/students" replace />;
+  return can(membership, permission) ? children ?? <Outlet /> : <Navigate to="/dashboard" replace />;
 }

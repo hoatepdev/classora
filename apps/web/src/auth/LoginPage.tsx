@@ -21,7 +21,7 @@ export function LoginPage() {
     try {
       const { data } = await api.post<{ accessToken: string }>("/auth/login", input);
       localStorage.setItem(accessTokenKey, data.accessToken);
-      navigate("/students", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       setError("root", {
         message: axios.isAxiosError(error) && error.response?.status === 401

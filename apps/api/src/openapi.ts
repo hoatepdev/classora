@@ -688,6 +688,75 @@ export const openApiSchemas = {
     },
     required: ['student', 'invoices', 'payments', 'availableCreditVnd'],
   },
+  Dashboard: {
+    type: 'object',
+    description: 'Permission-shaped, read-only tenant dashboard. Sections and individual fields are omitted when the membership lacks the owning domain permission; clients must not assume any section is present. businessDate is the shared Vietnam-local (Asia/Ho_Chi_Minh) business date.',
+    properties: {
+      generatedAt: timestamp,
+      businessDate: { type: 'string', format: 'date' },
+      sections: {
+        type: 'object',
+        properties: {
+          academic: { $ref: '#/components/schemas/DashboardAcademicSection' },
+          finance: { $ref: '#/components/schemas/DashboardFinanceSection' },
+          growth: { $ref: '#/components/schemas/DashboardGrowthSection' },
+          attention: { type: 'array', maxItems: 12, items: { $ref: '#/components/schemas/DashboardAttentionItem' } },
+        },
+        required: ['attention'],
+      },
+    },
+    required: ['generatedAt', 'businessDate', 'sections'],
+  },
+  DashboardAcademicSection: {
+    type: 'object',
+    description: 'Academic metrics; each field appears only when its permission is present (student.read, class.read, schedule.read, attendance.read, progress.read).',
+    properties: {
+      activeStudentCount: { type: 'integer' },
+      activeClassCount: { type: 'integer' },
+      sessionsToday: { type: 'object', properties: { total: { type: 'integer' }, scheduled: { type: 'integer' }, completed: { type: 'integer' }, cancelled: { type: 'integer' }, rescheduled: { type: 'integer' } }, required: ['total', 'scheduled', 'completed', 'cancelled', 'rescheduled'] },
+      upcomingSessions: { type: 'array', maxItems: 6, items: { type: 'object', properties: { id: ulid, date: { type: 'string', format: 'date' }, startTime: { type: 'string' }, endTime: { type: 'string' }, classId: ulid, className: nullableString, teacherName: nullableString, roomName: nullableString, branchName: nullableString, status: { type: 'string' } }, required: ['id', 'date', 'startTime', 'endTime', 'classId', 'status'] } },
+      pendingAttendanceCount: { type: 'integer' },
+      availableMakeupCount: { type: 'integer' },
+      draftAssessmentCount: { type: 'integer' },
+      draftProgressReportCount: { type: 'integer' },
+    },
+  },
+  DashboardFinanceSection: {
+    type: 'object',
+    description: 'Finance metrics; billing fields require billing.read and reuse the authoritative /billing/overview and /receivables calculations; compensation fields require compensation.read. VND amounts are decimal integer strings.',
+    properties: {
+      billing: { type: 'object', properties: { outstandingVnd: { type: 'string' }, overdueVnd: { type: 'string' }, collectedThisMonthVnd: { type: 'string' } }, required: ['outstandingVnd', 'overdueVnd', 'collectedThisMonthVnd'] },
+      overdueReceivables: { type: 'array', maxItems: 5, items: { type: 'object', properties: { invoiceId: ulid, invoiceNumber: nullableString, studentId: ulid, studentName: nullableString, dueDate: { type: 'string', format: 'date' }, outstandingVnd: { type: 'string' }, daysOverdue: { type: 'integer' } }, required: ['invoiceId', 'dueDate', 'outstandingVnd', 'daysOverdue'] } },
+      compensation: { type: 'object', properties: { draftPeriodCount: { type: 'integer' }, unresolvedIssueCount: { type: 'integer' }, latestFinalizedPayableVnd: { type: 'string' } }, required: ['draftPeriodCount', 'unresolvedIssueCount', 'latestFinalizedPayableVnd'] },
+    },
+  },
+  DashboardGrowthSection: {
+    type: 'object',
+    description: 'CRM metrics gated by crm.read. Active pipeline excludes WON and LOST; follow-up buckets use the shared Vietnam-local day bounds.',
+    properties: {
+      activeLeadCount: { type: 'integer' },
+      pipeline: { type: 'object', properties: { NEW: { type: 'integer' }, CONTACTED: { type: 'integer' }, QUALIFIED: { type: 'integer' }, TRIAL_BOOKED: { type: 'integer' }, TRIAL_COMPLETED: { type: 'integer' } }, required: ['NEW', 'CONTACTED', 'QUALIFIED', 'TRIAL_BOOKED', 'TRIAL_COMPLETED'] },
+      overdueFollowUpCount: { type: 'integer' },
+      followUpsTodayCount: { type: 'integer' },
+      upcomingTrialCount: { type: 'integer' },
+      wonThisMonthCount: { type: 'integer' },
+      followUps: { type: 'array', maxItems: 12, items: { type: 'object', properties: { leadId: ulid, studentName: nullableString, status: { type: 'string' }, assigneeName: nullableString, nextFollowUpAt: timestamp }, required: ['leadId'] } },
+      trials: { type: 'array', maxItems: 12, items: { type: 'object', properties: { id: ulid, leadId: ulid, leadName: nullableString, sessionId: ulid, sessionDate: { type: 'string', format: 'date' }, startTime: { type: 'string' }, className: nullableString, status: { type: 'string' } }, required: ['id', 'sessionDate'] } },
+    },
+  },
+  DashboardAttentionItem: {
+    type: 'object',
+    description: 'Derived, permission-aware attention entry; never persisted. Sources: pending attendance, overdue invoices, overdue follow-ups, failed communications, unresolved compensation, draft academic items.',
+    properties: {
+      type: { type: 'string', enum: ['PENDING_ATTENDANCE', 'OVERDUE_INVOICE', 'OVERDUE_FOLLOW_UP', 'FAILED_COMMUNICATION', 'UNRESOLVED_COMPENSATION', 'DRAFT_ASSESSMENT', 'DRAFT_PROGRESS_REPORT'] },
+      severity: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      date: { type: 'string', format: 'date' },
+      href: { type: 'string' },
+    },
+    required: ['type', 'severity', 'title', 'description', 'date', 'href'],
+  },
   BillingOverview: {
     type: 'object',
     properties: {
