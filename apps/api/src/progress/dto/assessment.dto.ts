@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsArray, IsDateString, IsDefined, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateNested, ArrayMaxSize, ArrayMinSize, ValidateIf } from 'class-validator';
 
 export enum AssessmentType {
@@ -84,6 +84,7 @@ export class CreateAssessmentDto {
   @ArrayMinSize(1)
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })
+  @Type(() => CriterionInputDto)
   criteria?: CriterionInputDto[];
 }
 
@@ -128,5 +129,6 @@ export class ReplaceCriteriaDto {
   @ArrayMinSize(1)
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })
+  @Type(() => CriterionInputDto)
   criteria!: CriterionInputDto[];
 }

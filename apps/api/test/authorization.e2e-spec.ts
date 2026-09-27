@@ -32,6 +32,24 @@ describe('authorization matrix', () => {
     expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.AUDIT_READ)).toBe(false);
   });
 
+  it('scopes LOCAL-13 progress permissions per role', () => {
+    for (const role of [TenantRole.OWNER, TenantRole.CENTER_ADMIN, TenantRole.ACADEMIC_MANAGER]) {
+      expect(hasPermission(role, PERMISSIONS.PROGRESS_READ)).toBe(true);
+      expect(hasPermission(role, PERMISSIONS.PROGRESS_WRITE)).toBe(true);
+      expect(hasPermission(role, PERMISSIONS.PROGRESS_PUBLISH)).toBe(true);
+    }
+
+    expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.PROGRESS_READ)).toBe(true);
+    expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.PROGRESS_WRITE)).toBe(true);
+    expect(hasPermission(TenantRole.TEACHER, PERMISSIONS.PROGRESS_PUBLISH)).toBe(false);
+
+    for (const role of [TenantRole.STAFF, TenantRole.ACCOUNTANT, TenantRole.SALE]) {
+      expect(hasPermission(role, PERMISSIONS.PROGRESS_READ)).toBe(false);
+      expect(hasPermission(role, PERMISSIONS.PROGRESS_WRITE)).toBe(false);
+      expect(hasPermission(role, PERMISSIONS.PROGRESS_PUBLISH)).toBe(false);
+    }
+  });
+
   it('serializes owner-changing membership mutations before checking the final-owner invariant', async () => {
     const calls: string[] = [];
     const target = {

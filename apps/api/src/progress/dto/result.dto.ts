@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
 
 export enum ResultStatus {
@@ -58,6 +58,7 @@ export class ResultInputDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
+  @Type(() => CriterionScoreInputDto)
   criterionScores?: CriterionScoreInputDto[];
 }
 
@@ -66,6 +67,7 @@ export class SaveResultsDto {
   @IsArray()
   @ArrayMaxSize(200)
   @ValidateNested({ each: true })
+  @Type(() => ResultInputDto)
   results!: ResultInputDto[];
 }
 
@@ -97,5 +99,6 @@ export class CorrectResultDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
+  @Type(() => CriterionScoreInputDto)
   criterionScores?: CriterionScoreInputDto[];
 }

@@ -18,8 +18,8 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-10 | CRM | DONE |
 | LOCAL-11 | Communication | DONE |
 | LOCAL-12 | Parent / Student Portal | DONE |
-| LOCAL-13 | Progress / Assessment | NEXT |
-| LOCAL-14 | Dashboard | Planned |
+| LOCAL-13 | Progress / Assessment | DONE |
+| LOCAL-14 | Dashboard | NEXT |
 | LOCAL-15 | Reporting | Planned |
 | LOCAL-16 | Import / Export | Planned |
 | LOCAL-17 | Files | Planned |
@@ -31,6 +31,47 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-13 notes
+
+Adds the tenant-scoped academic chain `Enrollment → Class → Assessment →
+AssessmentResult → Progress Summary → ProgressReport → Parent / Student Portal`.
+Assessments belong to concrete Classes and support the fixed assessment-type
+vocabulary, SIMPLE and RUBRIC scoring, exact PostgreSQL `NUMERIC(8,2)` scores
+exchanged as decimal strings, enrollment-safe bounded gradebook saves, derived
+rubric totals, and database constraints/triggers for tenant-qualified entity
+integrity and score bounds. Explicit publication freezes structure and ordinary
+result edits; published corrections require `progress.publish`, a reason,
+server-generated before/after revisions, row-lock serialization, and tenant
+audit events. Append-only ProgressNotes remain staff-only. The central summary
+reuses LOCAL-07 locked-attendance truth and computes an unweighted normalized
+average from PUBLISHED + GRADED results only.
+
+ProgressReports use DRAFT/PUBLISHED/SUPERSEDED lifecycle, authoritative
+server-side previews, immutable versioned publication snapshots, and deliberate
+replacement drafts that supersede the previous official report only when the
+replacement publishes. Permissions are `progress.read`, `progress.write`, and
+`progress.publish`: OWNER/CENTER_ADMIN/ACADEMIC_MANAGER receive all three,
+TEACHER receives read/write, and STAFF/ACCOUNTANT/SALE receive none. Teacher
+row-level ownership remains deferred because there is still no trustworthy
+Teacher↔User mapping. Dedicated Portal projections reuse current PortalAccess
+student authorization, expose only published current results/summaries and
+published/superseded report snapshots, and never expose drafts, ProgressNotes,
+correction reasons, revisions, or audit data.
+
+The tenant migration passed fresh deployment, supported legacy upgrade,
+catalog equivalence, drift rejection, idempotent rerun, tenant-qualified graph
+constraints, exact-score constraints, result/criterion uniqueness, append-only
+history, and report version invariants. Real PostgreSQL tests cover SIMPLE,
+RUBRIC, TRIAL exclusion, cross-entity/tenant rejection, publish/write ordering,
+serialized corrections, note privacy, report snapshot/replacement concurrency,
+and portal IDOR. Repository typecheck, web/API builds, and the canonical
+32-file/265-test suite passed. Browser acceptance covered Class assessment
+creation, gradebook save, publication, explicit correction + revision history,
+Student 360 summary/internal notes/report preview/publication, current corrected
+Portal result, report history, internal-note exclusion, no console errors, and
+no horizontal overflow at 390px, tablet, or desktop. LOCAL-14 remains
+unimplemented.
 
 ## LOCAL-12 notes
 

@@ -69,6 +69,7 @@ These belong to each training center:
 - payments / tuition
 - teacher compensation (completed Session/Class -> period -> statement -> payable)
 - communications / transactional notifications
+- academic progress / assessment
 
 Potential later domains:
 
