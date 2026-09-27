@@ -6,10 +6,11 @@ import { PortalAccessGuard } from './portal-access.guard.js';
 import { PortalAccessService } from './portal-access.service.js';
 import { PortalController } from './portal.controller.js';
 import { PortalService } from './portal.service.js';
+import { PortalProgressController } from '../progress/portal-progress.controller.js';
 
 @Module({
   imports: [AuditModule, TenantModule],
-  controllers: [PortalAccessAdminController, PortalInvitationController, PortalController],
+  controllers: [PortalAccessAdminController, PortalInvitationController, PortalController, PortalProgressController],
   providers: [PortalAccessGuard, PortalAccessService, PortalService],
   exports: [PortalAccessGuard],
 })

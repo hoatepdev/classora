@@ -27,6 +27,7 @@ import { TenantModule } from './tenant/tenant.module.js';
 import { TeamModule } from './team/team.module.js';
 import { PortalAccessGuard } from './portal/portal-access.guard.js';
 import { PortalModule } from './portal/portal.module.js';
+import { ProgressModule } from './progress/progress.module.js';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { PortalModule } from './portal/portal.module.js';
     CrmModule,
     TeamModule,
     PortalModule,
+    ProgressModule,
   ],
   controllers: [HealthController],
   providers: [

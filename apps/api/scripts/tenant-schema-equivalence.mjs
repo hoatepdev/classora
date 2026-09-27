@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { escapeIdentifier, Pool } from 'pg';
+import { ulid } from 'ulid';
 import { deployTenantSchema, tenantDatabaseUrl } from '../dist/database/tenant-migrations.js';
 import { postgresConfig } from '../dist/config.js';
 import { captureTenantSchemaCatalog } from '../dist/database/tenant-schema-catalog.js';
@@ -683,6 +684,31 @@ async function assertLocal09CompensationConstraints(dbName, label) {
   );
 }
 
+async function assertLocal13ProgressConstraints(dbName, label) {
+  const tables = await query(dbName, `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name = ANY($1::text[]) ORDER BY table_name`, [[
+    'assessments','assessment_criteria','assessment_results','assessment_criterion_results','assessment_result_revisions','progress_notes','progress_reports',
+  ]]);
+  assert.equal(tables.length, 7, `${label}: LOCAL-13 progress tables missing`);
+  const pool = databasePool(dbName);
+  const tenant = ulid(), student = ulid(), otherStudent = ulid(), klass = ulid(), otherClass = ulid(), enrollment = ulid(), assessment = ulid(), criterion = ulid(), result = ulid();
+  try {
+    await pool.query(`INSERT INTO students(id,tenant_id,code,full_name) VALUES($1,$2,$3,'Progress Student'),($4,$2,$5,'Other Student')`, [student,tenant,`P-${student.slice(-4)}`,otherStudent,`P-${otherStudent.slice(-4)}`]);
+    await pool.query(`INSERT INTO classes(id,tenant_id,code,name) VALUES($1,$2,$3,'Progress Class'),($4,$2,$5,'Other Class')`,[klass,tenant,`C-${klass.slice(-4)}`,otherClass,`C-${otherClass.slice(-4)}`]);
+    await pool.query(`INSERT INTO enrollments(id,tenant_id,student_id,class_id,status) VALUES($1,$2,$3,$4,'ACTIVE')`,[enrollment,tenant,student,klass]);
+    await pool.query(`INSERT INTO assessments(id,tenant_id,class_id,type,title,scoring_mode,max_score) VALUES($1,$2,$3,'QUIZ','Progress','SIMPLE',10)`,[assessment,tenant,klass]);
+    await pool.query(`INSERT INTO assessment_criteria(id,tenant_id,assessment_id,name,max_score,display_order) VALUES($1,$2,$3,'Criterion',10,0)`,[criterion,tenant,assessment]);
+    await pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,8,'GRADED')`,[result,tenant,assessment,student,enrollment]);
+    await assert.rejects(pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,11,'GRADED')`,[ulid(),tenant,assessment,student,enrollment]));
+    await assert.rejects(pool.query(`INSERT INTO assessment_results(id,tenant_id,assessment_id,student_id,enrollment_id,score,status) VALUES($1,$2,$3,$4,$5,1,'GRADED')`,[ulid(),tenant,assessment,otherStudent,enrollment]));
+    await assert.rejects(pool.query(`INSERT INTO assessment_criterion_results(id,tenant_id,assessment_result_id,criterion_id,score) VALUES($1,$2,$3,$4,11)`,[ulid(),tenant,result,criterion]));
+    await assert.rejects(pool.query(`INSERT INTO progress_notes(id,tenant_id,student_id,enrollment_id,class_id,content) VALUES($1,$2,$3,$4,$5,'invalid')`,[ulid(),tenant,otherStudent,enrollment,klass]));
+    const note=ulid(); await pool.query(`INSERT INTO progress_notes(id,tenant_id,student_id,content) VALUES($1,$2,$3,'private')`,[note,tenant,student]); await assert.rejects(pool.query('UPDATE progress_notes SET content=$1 WHERE id=$2',['changed',note]));
+    await assert.rejects(pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end) VALUES($1,$2,$3,$4,$5,'Invalid','2026-01-01','2026-12-31')`,[ulid(),tenant,otherStudent,enrollment,klass]));
+    const report=ulid(); await pool.query(`INSERT INTO progress_reports(id,tenant_id,student_id,enrollment_id,class_id,title,period_start,period_end) VALUES($1,$2,$3,$4,$5,'Report','2026-01-01','2026-12-31')`,[report,tenant,student,enrollment,klass]);
+    assert.equal((await pool.query('SELECT title FROM progress_reports WHERE id=$1',[report])).rows[0].title,'Report',`${label}: report data not preserved`);
+  } finally { await pool.end(); }
+}
+
 async function assertLocal10CrmConstraints(dbName, label) {
   const tenantId = '01J00000000000000000000001';
   const otherTenantId = '01J00000000000000000000002';
@@ -847,6 +873,8 @@ async function main() {
   await assertLocal09CompensationConstraints(legacy, 'legacy');
   await assertLocal10CrmConstraints(fresh, 'fresh');
   await assertLocal10CrmConstraints(legacy, 'legacy');
+  await assertLocal13ProgressConstraints(fresh, 'fresh');
+  await assertLocal13ProgressConstraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

@@ -1036,6 +1036,27 @@ export const openApiSchemas = {
     properties: { eventType: { $ref: '#/components/schemas/CommunicationEventType' }, subject: nullableString, body: { type: 'string' }, createdAt: { type: 'string', format: 'date-time' } },
     required: ['eventType', 'subject', 'body', 'createdAt'],
   },
+  Assessment: {
+    type: 'object',
+    properties: { id: ulid, classId: ulid, type: { type: 'string', enum: ['QUIZ','TEST','EXAM','HOMEWORK','PROJECT','ORAL','OTHER'] }, title: { type: 'string' }, description: nullableString, scoringMode: { type: 'string', enum: ['SIMPLE','RUBRIC'] }, maxScore: { type: 'string', example: '10.00' }, assessmentDate: { type: 'string', format: 'date', nullable: true }, status: { type: 'string', enum: ['DRAFT','PUBLISHED','ARCHIVED'] } },
+    required: ['id','classId','type','title','scoringMode','maxScore','assessmentDate','status'],
+  },
+  ProgressSummary: {
+    type: 'object',
+    properties: { attendanceRate: { type: 'number', nullable: true }, assessmentAverage: { type: 'number', nullable: true }, gradedAssessmentCount: { type: 'integer' } },
+    required: ['attendanceRate','assessmentAverage','gradedAssessmentCount'],
+  },
+  ProgressReport: {
+    type: 'object',
+    properties: { id: ulid, studentId: ulid, enrollmentId: ulid, classId: ulid, title: { type: 'string' }, periodStart: { type: 'string', format: 'date' }, periodEnd: { type: 'string', format: 'date' }, status: { type: 'string', enum: ['DRAFT','PUBLISHED','SUPERSEDED'] }, snapshot: { type: 'object', nullable: true } },
+    required: ['id','studentId','enrollmentId','classId','title','periodStart','periodEnd','status'],
+  },
+  PortalProgress: {
+    type: 'object',
+    description: 'Published-only student progress projection. Private notes are never included.',
+    properties: { results: { type: 'array', items: { type: 'object' } }, reports: { type: 'array', items: { type: 'object' } } },
+    required: ['results','reports'],
+  },
   PortalNotifications: {
     type: 'object',
     properties: { data: { type: 'array', items: { $ref: '#/components/schemas/PortalNotification' } }, nextCursor: nullableString },

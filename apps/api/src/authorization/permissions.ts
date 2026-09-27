@@ -33,6 +33,9 @@ export const PERMISSIONS = {
   COMMUNICATION_READ: 'communication.read',
   COMMUNICATION_MANAGE: 'communication.manage',
   PORTAL_MANAGE: 'portal.manage',
+  PROGRESS_READ: 'progress.read',
+  PROGRESS_WRITE: 'progress.write',
+  PROGRESS_PUBLISH: 'progress.publish',
   REPORT_FINANCE: 'report.finance',
   SETTINGS_READ: 'settings.read',
   SETTINGS_MANAGE: 'settings.manage',
@@ -68,6 +71,9 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.ENROLLMENT_READ,
     PERMISSIONS.ENROLLMENT_WRITE,
     PERMISSIONS.PORTAL_MANAGE,
+    PERMISSIONS.PROGRESS_READ,
+    PERMISSIONS.PROGRESS_WRITE,
+    PERMISSIONS.PROGRESS_PUBLISH,
     PERMISSIONS.SETTINGS_READ,
   ],
   ACCOUNTANT: [
@@ -91,6 +97,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.SCHEDULE_READ,
     PERMISSIONS.ENROLLMENT_READ,
+    PERMISSIONS.PROGRESS_READ,
   ],
   TEACHER: [
     PERMISSIONS.STUDENT_READ,
@@ -98,6 +105,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
     PERMISSIONS.SCHEDULE_READ,
+    PERMISSIONS.PROGRESS_READ,
+    PERMISSIONS.PROGRESS_WRITE,
   ],
 };
 
