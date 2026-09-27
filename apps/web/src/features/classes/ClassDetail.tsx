@@ -74,6 +74,8 @@ export function ClassDetail() {
   const membership = user.data?.memberships.find((item) => item.tenantId === tenant.data?.tenantId);
   const canEnrollmentWrite = can(membership, "enrollment.write");
   const canClassWrite = can(membership, "class.write");
+  const canProgressWrite = can(membership, "progress.write");
+  const canProgressPublish = can(membership, "progress.publish");
   const complete = useMutation({
     mutationFn: () => completeClass(id!, completedOn),
     onSuccess: async () => {
@@ -194,7 +196,7 @@ export function ClassDetail() {
     </section>
 
     <ClassSchedulesSection classId={classRecord.data.id} />
-    <AssessmentSection classId={classRecord.data.id} canWrite={canClassWrite} canPublish={canClassWrite} />
+    <AssessmentSection classId={classRecord.data.id} canRead={can(membership, "progress.read")} canWrite={canProgressWrite} canPublish={canProgressPublish} />
     <UpcomingSessionsSection query={upcomingSessions} />
     <ClassAttendanceSection classId={classRecord.data.id} />
 

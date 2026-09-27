@@ -88,7 +88,7 @@ export function App() {
         <Route path="/classes" element={<ProtectedRoute permission="class.read"><ClassesPage /></ProtectedRoute>} />
         <Route path="/classes/new" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/classes/:id" element={<ProtectedRoute permission="class.read"><ClassDetail /></ProtectedRoute>} />
-        <Route path="/assessments/:id/gradebook" element={<ProtectedRoute permission="class.read"><GradebookPage /></ProtectedRoute>} />
+        <Route path="/assessments/:id/gradebook" element={<ProtectedRoute permission="progress.read"><GradebookPage /></ProtectedRoute>} />
         <Route path="/classes/:id/edit" element={<ProtectedRoute permission="class.write"><ClassForm /></ProtectedRoute>} />
         <Route path="/schedule" element={<ProtectedRoute permission="schedule.read"><SchedulePage /></ProtectedRoute>} />
         <Route path="/attendance-sessions/:id" element={<ProtectedRoute permission="attendance.read"><AttendanceSessionPage /></ProtectedRoute>} />
