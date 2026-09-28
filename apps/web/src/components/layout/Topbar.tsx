@@ -10,6 +10,7 @@ const sectionNames: Record<string, string> = {
   schedule: "Lịch học",
   "attendance-sessions": "Điểm danh",
   communications: "Thông báo",
+  reports: "Báo cáo",
 };
 
 function initials(name: string) {

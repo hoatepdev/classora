@@ -20,8 +20,8 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-12 | Parent / Student Portal | DONE |
 | LOCAL-13 | Progress / Assessment | DONE |
 | LOCAL-14 | Dashboard | DONE |
-| LOCAL-15 | Reporting | NEXT |
-| LOCAL-16 | Import / Export | Planned |
+| LOCAL-15 | Reporting | DONE |
+| LOCAL-16 | Import / Export | NEXT |
 | LOCAL-17 | Files | Planned |
 | LOCAL-18 | Automations | Planned |
 | LOCAL-19 | Multi-branch | Planned |
@@ -31,6 +31,48 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-15 notes
+
+Adds the read-only staff reporting workspace at `GET /reports/catalog`, fixed
+`GET /reports/:key` endpoints, matching CSV exports, and `/reports`. The fixed
+catalog covers six academic reports (students/enrollments, locked attendance,
+class utilization, actual-Session teacher workload, published/graded progress,
+and explicit-event re-enrollment), three finance reports (billed/credits/cash,
+historical receivables aging, and payment allocation/refund/reversal detail),
+CRM cohort/pipeline analysis, and permission-shaped branch summary. Catalog,
+JSON, and CSV all enforce existing domain permissions; finance requires
+`billing.read + report.finance`; portal identities remain outside the staff
+route branch. Every query binds the trusted TenantContext tenant ID before data
+access, validates tenant-qualified filter relationships, uses the shared
+Asia/Ho_Chi_Minh half-open timestamp boundary and inclusive SQL DATE semantics,
+and bounds event-heavy history to 24 months.
+
+Finance extracts and reuses Billing's historical ledger projection so status,
+credits, allocations, refunds, reversals, outstanding, and post-cutoff behavior
+remain identical to LOCAL-08. Attendance reuses LOCAL-07's LOCKED formula,
+Progress matches LOCAL-13's PUBLISHED+GRADED normalized average, re-enrollment
+counts only later REENROLLED destination events, and CRM measures outcomes for
+the created-in-period cohort. Branch money uses only deterministic
+invoice/enrollment/class attribution; mixed or missing ownership remains
+Unassigned and Payments are never split across branches. CSV is UTF-8+BOM with
+CRLF/RFC quoting, formula-injection protection, summary/breakdown/detail parity,
+permission parity, and a 50,000-row bound. Queries aggregate in PostgreSQL and
+detail rows use server pagination; EXPLAIN ANALYZE confirmed existing payment
+and invoice-history indexes are used, so LOCAL-15 adds no migration, cache,
+snapshot table, warehouse, or reporting source of truth.
+
+Verification passed repository typecheck, 39 files / 309 tests, web/API builds,
+tenant fresh/legacy/drift/idempotent equivalence, and real PostgreSQL reporting
+plus Billing integration. Seeded acceptance covers LOCKED-vs-OPEN attendance,
+substitute teachers, 150 delivered minutes, 8/10 and unlimited occupancy,
+80% normalized progress with 50% attendance, 4/10 explicit re-enrollment,
+10/4 CRM cohort, reversal-after-cutoff historical finance, all aging bucket
+boundaries, deterministic branch attribution, CSV injection/parity, and
+cross-tenant exclusion. Browser acceptance covered OWNER/SALE/ACCOUNTANT
+catalogs, direct JSON/CSV 403s, working CSV download, deep report tables and
+summaries, clean console, and no application-wide overflow at 390px, tablet, or
+desktop. LOCAL-16 was not started.
 
 ## LOCAL-14 notes
 

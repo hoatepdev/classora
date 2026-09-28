@@ -69,11 +69,16 @@ describe('OpenAPI', () => {
         'Branches',
         'Rooms',
         'Dashboard',
+        'Reports',
       ]),
     );
     expect(body.paths['/auth/login'].post.responses).toHaveProperty('200');
     expect(body.paths['/dashboard'].get.responses['200'].content['application/json'].schema).toEqual({ $ref: '#/components/schemas/Dashboard' });
     expect(body.paths['/dashboard'].get.security).toEqual([{ bearer: [] }]);
+    expect(body.paths['/reports/catalog'].get.security).toEqual([{ bearer: [] }]);
+    expect(body.paths['/reports/{key}'].get.responses['200'].content['application/json'].schema).toEqual({ $ref: '#/components/schemas/ReportResult' });
+    expect(body.paths['/reports/{key}/export.csv'].get.security).toEqual([{ bearer: [] }]);
+    expect(body.components.schemas.ReportCatalogItem).toBeDefined();
     expect(body.components.schemas.Dashboard.properties.sections.properties).toEqual(
       expect.objectContaining({
         academic: { $ref: '#/components/schemas/DashboardAcademicSection' },

@@ -1,11 +1,12 @@
-import { BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LayoutDashboard, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
+import { BarChart3, BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LayoutDashboard, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
 import { cn } from "@/lib/utils";
 
-const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap; permission?: string; alternatePermission?: string }> = [
+const navigation: Array<{ to: string; label: string; icon: typeof GraduationCap; permission?: string; alternatePermission?: string; reportCatalog?: boolean }> = [
   { to: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
+  { to: "/reports", label: "Báo cáo", icon: BarChart3, reportCatalog: true },
   { to: "/leads", label: "Tiềm năng", icon: UserRoundSearch, permission: "crm.read" },
   { to: "/students", label: "Học viên", icon: GraduationCap, permission: "student.read" },
   { to: "/teachers", label: "Giáo viên", icon: Users, permission: "teacher.read" },
@@ -28,7 +29,19 @@ export function Sidebar({ centerName, hostname, user, activeMembership, onNaviga
 }) {
   const { pathname } = useLocation();
   const membership = activeMembership ?? user?.memberships.find((item) => item.tenant.slug === hostname.split('.')[0]);
-  const visibleNavigation = navigation.filter((item) => !item.permission || can(membership, item.permission) || (item.alternatePermission && can(membership, item.alternatePermission)));
+  const hasAnyReport = Boolean(membership) && (
+    can(membership, "attendance.read")
+    || can(membership, "progress.read")
+    || can(membership, "crm.read")
+    || can(membership, "branch.read")
+    || (can(membership, "student.read") && can(membership, "enrollment.read"))
+    || (can(membership, "class.read") && can(membership, "enrollment.read") && can(membership, "schedule.read"))
+    || (can(membership, "teacher.read") && can(membership, "schedule.read"))
+    || (can(membership, "billing.read") && can(membership, "report.finance"))
+  );
+  const visibleNavigation = navigation.filter((item) => item.reportCatalog
+    ? hasAnyReport
+    : !item.permission || can(membership, item.permission) || Boolean(item.alternatePermission && can(membership, item.alternatePermission)));
   const financePath = can(membership, "billing.read") ? "/billing" : "/billing/compensation";
   return <div className="flex h-full flex-col border-r border-[#e2e8f0] bg-white text-[#334155]">
     <div className="px-5 pt-5 pb-4">

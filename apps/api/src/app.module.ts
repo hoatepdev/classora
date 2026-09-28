@@ -29,6 +29,7 @@ import { PortalAccessGuard } from './portal/portal-access.guard.js';
 import { PortalModule } from './portal/portal.module.js';
 import { ProgressModule } from './progress/progress.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
     PortalModule,
     ProgressModule,
     DashboardModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [

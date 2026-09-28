@@ -1140,6 +1140,51 @@ export const openApiSchemas = {
     properties: { data: { type: 'array', items: { $ref: '#/components/schemas/PortalNotification' } }, nextCursor: nullableString },
     required: ['data', 'nextCursor'],
   },
+  ReportCatalogItem: {
+    type: 'object',
+    description: 'Fixed report definition returned only when the caller holds every required domain permission.',
+    properties: {
+      key: { type: 'string', enum: ['students-enrollments','attendance','class-utilization','teacher-workload','progress','reenrollment','finance','receivables','payments','crm','branches'] },
+      name: { type: 'string' },
+      description: { type: 'string' },
+      category: { type: 'string', enum: ['ACADEMIC','FINANCE','GROWTH','ORGANIZATION'] },
+      filters: { type: 'array', items: { type: 'string' } },
+      maxRangeMonths: { type: 'integer', example: 24 },
+    },
+    required: ['key','name','description','category','filters','maxRangeMonths'],
+  },
+  ReportColumn: {
+    type: 'object',
+    properties: { key: { type: 'string' }, label: { type: 'string' } },
+    required: ['key','label'],
+  },
+  ReportBreakdown: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      columns: { type: 'array', items: { $ref: '#/components/schemas/ReportColumn' } },
+      rows: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    },
+    required: ['name','columns','rows'],
+  },
+  ReportResult: {
+    type: 'object',
+    description: 'Read-only fixed report. Timestamp filters use [from 00:00, day-after-to 00:00) in Asia/Ho_Chi_Minh; DATE filters are inclusive. Money is represented as VND decimal integer strings and score/rate values are exact report projections.',
+    properties: {
+      report: { type: 'string' },
+      generatedAt: timestamp,
+      businessTimezone: { type: 'string', enum: ['Asia/Ho_Chi_Minh'] },
+      filters: { type: 'object', additionalProperties: true },
+      summary: { type: 'object', additionalProperties: true },
+      breakdowns: { type: 'array', nullable: true, items: { $ref: '#/components/schemas/ReportBreakdown' } },
+      columns: { type: 'array', items: { $ref: '#/components/schemas/ReportColumn' } },
+      rows: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      page: { type: 'integer', minimum: 1 },
+      pageSize: { type: 'integer', minimum: 1, maximum: 200 },
+      total: { type: 'integer', minimum: 0 },
+    },
+    required: ['report','generatedAt','businessTimezone','filters','summary','columns','rows'],
+  },
 } satisfies Record<string, SchemaObject>;
 
 export type OpenApiSchemaName = keyof typeof openApiSchemas;

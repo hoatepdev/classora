@@ -50,6 +50,8 @@ import { PortalShell } from "./features/portal/PortalShell.js";
 import { GradebookPage } from "./features/progress/GradebookPage.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
+import { ReportPage } from "./features/reports/ReportPage.js";
+import { ReportsPage } from "./features/reports/ReportsPage.js";
 
 export function App() {
   return <Routes>
@@ -70,6 +72,8 @@ export function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppShell />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/reports/:key" element={<ReportPage />} />
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/leads" element={<ProtectedRoute permission="crm.read"><LeadsPage /></ProtectedRoute>} />
         <Route path="/leads/new" element={<ProtectedRoute permission="crm.write"><LeadForm /></ProtectedRoute>} />
