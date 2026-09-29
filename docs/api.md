@@ -32,3 +32,21 @@ Branch, Room, Teacher, Course, CourseLevel, and Class endpoints are tenant route
 - `GET/POST/PATCH /classes` use `class.read`/`class.write`.
 
 Class relationship writes validate Course, CourseLevel, Branch, Room, Teacher, active status for new assignments, Room→Branch ownership, CourseLevel→Course ownership, TeacherBranch assignment, positive capacity, and date order. Existing legacy Classes without a Course or Branch remain readable. A Class default Room is not a scheduled occurrence assignment; the existing free-text `Schedule.room` field remains unchanged.
+
+## Data import and export
+
+Staff data-transfer endpoints live under `/data`. They never accept tenant IDs, tenant codes, database names, or database selectors; tenant scope is resolved from the authenticated hostname and active membership before the tenant database is opened.
+
+- `GET /data/import/types` and `GET /data/export/types` return only types for which the membership also has the target domain permission.
+- `GET /data/import/templates/:type.csv` returns a header-only UTF-8+BOM template.
+- `POST /data/import/batches` accepts multipart `type` + `file`; CSV is memory-only and limited to 5 MiB, 5,000 data rows, and 100 columns.
+- `GET /data/import/batches` and `GET /data/import/batches/:id` provide tenant-scoped history.
+- `PUT /data/import/batches/:id/mapping` stores explicit source-to-target mapping and invalidates previous validation when changed.
+- `POST /data/import/batches/:id/validate` performs a dry run and writes only staging results.
+- `GET /data/import/batches/:id/rows` paginates normalized preview rows; `GET /errors.csv` exports structured row errors.
+- `POST /data/import/batches/:id/confirm` revalidates and atomically writes through existing domain services; `POST /cancel` cancels an unconfirmed batch.
+- `GET /data/export/:type.csv` returns a bounded, fixed allowlisted entity export with portable relationship codes.
+
+Import requires `data.import` plus the target domain write permission. Export requires `data.export` plus the target domain read permission. Reporting CSV remains governed by Reporting permissions and does not require `data.export`. Portal identities cannot access staff data-transfer routes.
+
+Import is safe creation, not direct database loading or historical round-trip restore. Only PENDING, TRIAL, and ACTIVE are importable Enrollment initial states. Opening-balance and all other Billing imports are intentionally unsupported. See `docs/product/local-16-import-export.md`.

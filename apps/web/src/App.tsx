@@ -52,6 +52,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { PortalProgressPage } from "./features/progress/PortalProgressPage.js";
 import { ReportPage } from "./features/reports/ReportPage.js";
 import { ReportsPage } from "./features/reports/ReportsPage.js";
+import { DataTransferPage } from "./features/data-transfer/DataTransferPage.js";
 
 export function App() {
   return <Routes>
@@ -103,6 +104,7 @@ export function App() {
         <Route path="/settings/security" element={<ProtectedRoute permission="settings.read"><SecurityPage /></ProtectedRoute>} />
         <Route path="/settings/portal-access" element={<ProtectedRoute permission="portal.manage"><PortalAccessPage /></ProtectedRoute>} />
         <Route path="/settings/audit-log" element={<ProtectedRoute permission="audit.read"><AuditPage /></ProtectedRoute>} />
+        <Route path="/settings/data" element={<ProtectedRoute anyPermissions={["data.import", "data.export"]}><DataTransferPage /></ProtectedRoute>} />
         <Route path="/teachers" element={<ProtectedRoute permission="teacher.read"><TeachersPage /></ProtectedRoute>} />
         <Route path="/teachers/new" element={<ProtectedRoute permission="teacher.write"><TeacherForm /></ProtectedRoute>} />
         <Route path="/teachers/:id" element={<ProtectedRoute permission="teacher.read"><TeacherDetail /></ProtectedRoute>} />

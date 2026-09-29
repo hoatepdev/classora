@@ -21,8 +21,8 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-13 | Progress / Assessment | DONE |
 | LOCAL-14 | Dashboard | DONE |
 | LOCAL-15 | Reporting | DONE |
-| LOCAL-16 | Import / Export | NEXT |
-| LOCAL-17 | Files | Planned |
+| LOCAL-16 | Import / Export | DONE |
+| LOCAL-17 | Files | NEXT |
 | LOCAL-18 | Automations | Planned |
 | LOCAL-19 | Multi-branch | Planned |
 | LOCAL-20 | Tenant Administration | Planned |
@@ -31,6 +31,16 @@ verification gate; later work must not be started until its hard gates pass.
 | LOCAL-23 | AI Features | Planned |
 | LOCAL-24 | UX Consistency Pass | Planned |
 | LOCAL-25 | Full Local Acceptance | Planned |
+
+## LOCAL-16 notes
+
+Adds the tenant-scoped `/settings/data` migration workspace and focused `/data/import/*` and `/data/export/*` APIs. CSV upload is memory-only and bounded at 5 MiB, 5,000 data rows, and 100 columns; `csv-parse` handles UTF-8 BOM, LF/CRLF, quoted commas, escaped quotes, empty fields, and multiline values. Original bytes are SHA-256 fingerprinted for traceability/duplicate warnings and discarded. Tenant ImportBatch/ImportRow history stores explicit mapping, portable normalized previews, structured errors/warnings, counts, actor snapshots, status, and target IDs—not original files. Supported create-only imports are Students, Teachers, Courses, CourseLevels, Classes, and Enrollments; templates contain headers only and Teacher lists use one `|` delimiter.
+
+Validation is a dry run: it reuses existing DTO transforms/validators, detects normalized duplicates, bulk-resolves tenant-qualified relationship codes, validates CourseLevel/Course, Room/Branch, TeacherBranch, active states, date order, Enrollment operational uniqueness and grouped capacity, and paginates preview/error rows. Confirmation locks the batch, re-resolves every mutable reference, locks referenced Classes deterministically, and calls transaction-aware Student/Teacher/Course/CourseLevel/Class/Enrollment create methods so normal normalization, relationship checks, capacity, EnrollmentEvents, and entity audit remain authoritative. A savepoint rolls back all domain rows/events/audits on conflict while committing one FAILED batch; concurrent confirmation yields one import and subsequent idempotent completed results.
+
+Permissions are `data.import + target write` and `data.export + target read`; OWNER/CENTER_ADMIN/ACADEMIC_MANAGER receive bulk-data capabilities, while ordinary read/write permissions do not imply them. Portal routes remain separate. Fixed entity exports use portable relationship codes, tenant-validated filters, field allowlists, UTF-8+BOM/CRLF quoting, formula-injection protection, and the LOCAL-15 50,000-row bound; Reporting CSV permissions remain unchanged. Cross-tenant codes resolve as not found, and batch audit contains only batch IDs/type/hash/counts/result—not CSV PII. Opening balance import is explicitly deferred because Billing has no safe first-class command; no financial, scheduling, attendance, progress, CRM, communication, Files/R2, queue, XLSX/PDF, upsert, delete, or generic ETL work was added.
+
+Verification passed repository typecheck, the full 41-file/331-test API suite, 12 real-PostgreSQL import/export integration tests, web/API production builds, and tenant fresh/legacy/drift/idempotent schema equivalence with LOCAL-16 constraints and cross-tenant FK rejection. Browser acceptance on the demo tenant covered upload, exact auto-mapping, dry-run validation, normalized preview, explicit confirmation, completed history, invalid-row blocking, cancellation, structured error CSV, entity export, direct teacher 403s, clean console, and no application-wide overflow at the narrow browser minimum, tablet, or desktop. LOCAL-17 was not started.
 
 ## LOCAL-15 notes
 

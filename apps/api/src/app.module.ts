@@ -30,6 +30,7 @@ import { PortalModule } from './portal/portal.module.js';
 import { ProgressModule } from './progress/progress.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { DataTransferModule } from './data-transfer/data-transfer.module.js';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ReportsModule } from './reports/reports.module.js';
     ProgressModule,
     DashboardModule,
     ReportsModule,
+    DataTransferModule,
   ],
   controllers: [HealthController],
   providers: [

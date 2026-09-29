@@ -37,6 +37,8 @@ export const PERMISSIONS = {
   PROGRESS_WRITE: 'progress.write',
   PROGRESS_PUBLISH: 'progress.publish',
   REPORT_FINANCE: 'report.finance',
+  DATA_IMPORT: 'data.import',
+  DATA_EXPORT: 'data.export',
   SETTINGS_READ: 'settings.read',
   SETTINGS_MANAGE: 'settings.manage',
   AUDIT_READ: 'audit.read',
@@ -74,6 +76,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     PERMISSIONS.PROGRESS_READ,
     PERMISSIONS.PROGRESS_WRITE,
     PERMISSIONS.PROGRESS_PUBLISH,
+    PERMISSIONS.DATA_IMPORT,
+    PERMISSIONS.DATA_EXPORT,
     PERMISSIONS.SETTINGS_READ,
   ],
   ACCOUNTANT: [

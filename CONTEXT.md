@@ -117,6 +117,12 @@ Future domains should attach through their own tenant-scoped relations rather
 than adding enrollment, scheduling, billing, communication, or portal state to
 Student or Guardian prematurely.
 
+### Data Transfer
+
+LOCAL-16 provides a tenant-scoped CSV migration boundary for Students, Teachers, Courses, CourseLevels, Classes, and Enrollments. External CSV data is parsed in memory, explicitly mapped, normalized, dry-run validated, previewed, and confirmed before it reaches existing transaction-aware domain create methods. ImportBatch and ImportRow persist operational evidence and staged validation data, not original file bytes. Confirmation locks the batch, revalidates mutable invariants, and commits all domain rows/events/audits atomically or records one FAILED batch with zero partial domain writes.
+
+Import requires `data.import` plus the target domain write permission; export requires `data.export` plus the target domain read permission. Codes are resolved only inside the trusted current tenant database. Entity exports are fixed allowlisted CSV extracts with portable relationship codes, bounded rows, and spreadsheet-formula protection. Reporting CSV is not Data Export CSV, and Database backup/restore is not Import/Export. Opening-balance and all other financial-history import remain deferred because Billing has no first-class opening-balance command. See `docs/product/local-16-import-export.md`.
+
 ### Dashboard
 
 The staff dashboard is a read-only, tenant-scoped projection at `GET /dashboard`. It requires an active staff membership through `TenantRoute`; it has no dashboard-specific permission. The controller passes the trusted membership permission set to the service, which omits unauthorized sections and fields and only executes queries owned by permitted domains. Academic, finance, growth, and communication attention data use one Vietnam business clock (`Asia/Ho_Chi_Minh`) per snapshot. Aggregates and lists are bounded, and the dashboard performs no writes or audit events.

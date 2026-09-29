@@ -70,6 +70,7 @@ describe('OpenAPI', () => {
         'Rooms',
         'Dashboard',
         'Reports',
+        'DataTransfer',
       ]),
     );
     expect(body.paths['/auth/login'].post.responses).toHaveProperty('200');
@@ -119,6 +120,16 @@ describe('OpenAPI', () => {
     expect(body.components.schemas.Branch).toBeDefined();
     expect(body.components.schemas.Room).toBeDefined();
     expect(body.components.schemas.CourseLevel).toBeDefined();
+    for (const schema of ['ImportTypeDefinition', 'ImportBatch', 'ImportRow', 'ImportMapping', 'ImportValidationError', 'ImportBatchFailure', 'ExportTypeDefinition']) {
+      expect(body.components.schemas[schema]).toBeDefined();
+    }
+    expect(body.components.schemas.ImportBatchFailure.required).toEqual(['code', 'message']);
+    expect(body.components.schemas.ImportBatchFailure.properties.field.nullable).toBe(true);
+    expect(body.paths['/data/import/types'].get.security).toEqual([{ bearer: [] }]);
+    expect(body.paths['/data/import/batches'].post.requestBody.content['multipart/form-data'].schema).toMatchObject({ required: ['type', 'file'] });
+    expect(body.paths['/data/import/batches/{id}/validate'].post.security).toEqual([{ bearer: [] }]);
+    expect(body.paths['/data/import/batches/{id}/confirm'].post.security).toEqual([{ bearer: [] }]);
+    expect(body.paths['/data/export/{type}.csv'].get.security).toEqual([{ bearer: [] }]);
     for (const path of ['/branches', '/branches/{id}', '/rooms', '/rooms/{id}', '/courses/{id}/levels', '/courses/{id}/levels/{levelId}', '/teachers/{id}/branches', '/enrollments/{id}', '/enrollments/{id}/history']) {
       expect(body.paths[path]).toBeDefined();
       const operation = body.paths[path].get ?? body.paths[path].patch ?? body.paths[path].post;

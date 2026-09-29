@@ -51,24 +51,31 @@ export class ClassesService {
   async get(id: string) { const { tenant, pool } = this.tenantContext.get(); const result = await pool.query<ClassRow>(`${select} WHERE c.tenant_id = $1 AND c.id = $2`, [tenant.tenantId, id]); if (!result.rows[0]) throw new NotFoundException('Class not found'); return serialize(result.rows[0]); }
 
   async create(input: CreateClassDto) {
-    if (input.status === ClassStatus.COMPLETED) throw new BadRequestException('Use the class completion command');
-    const context = this.tenantContext.get(); const client = await context.pool.connect(); let id = ulid();
+    const context = this.tenantContext.get(); const client = await context.pool.connect();
+    let id = '';
     try {
       await client.query('BEGIN');
-      await this.validateRelationships(client, context.tenant.tenantId, input, true);
-      if (!input.branchId && input.courseLevelId === undefined && input.defaultRoomId === undefined && input.primaryTeacherId === undefined && input.capacity === undefined && input.startDate === undefined && input.expectedEndDate === undefined) {
-        await client.query(`INSERT INTO classes (id, tenant_id, course_id, code, name, description, status) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id, context.tenant.tenantId, input.courseId, input.code.toUpperCase(), input.name, input.description ?? null, input.status ?? ClassStatus.ACTIVE]);
-      } else {
-        await client.query(`INSERT INTO classes (id, tenant_id, course_id, branch_id, course_level_id, default_room_id, primary_teacher_id, code, name, description, capacity, start_date, expected_end_date, status)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-          [id, context.tenant.tenantId, input.courseId, input.branchId ?? null, input.courseLevelId ?? null, input.defaultRoomId ?? null, input.primaryTeacherId ?? null, input.code.toUpperCase(), input.name, input.description ?? null, input.capacity ?? null, input.startDate ?? null, input.expectedEndDate ?? null, input.status ?? ClassStatus.ACTIVE]);
-      }
-      const row = await this.lockedRow(client, context.tenant.tenantId, id);
-      await this.audit.recordTenant(client, { ...actor(context), action: 'class.created', entityType: 'CLASS', entityId: id, after: snapshot(row) });
+      id = await this.createInTransaction(client, input);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK').catch(() => undefined); if (isClassCodeConflict(error)) throw new ConflictException('Class code already exists'); throw error; }
     finally { client.release(); }
     return this.get(id);
+  }
+
+  async createInTransaction(client: PoolClient, input: CreateClassDto) {
+    if (input.status === ClassStatus.COMPLETED) throw new BadRequestException('Use the class completion command');
+    const context = this.tenantContext.get(); const id = ulid();
+    await this.validateRelationships(client, context.tenant.tenantId, input, true);
+    if (!input.branchId && input.courseLevelId === undefined && input.defaultRoomId === undefined && input.primaryTeacherId === undefined && input.capacity === undefined && input.startDate === undefined && input.expectedEndDate === undefined) {
+      await client.query(`INSERT INTO classes (id, tenant_id, course_id, code, name, description, status) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id, context.tenant.tenantId, input.courseId, input.code.toUpperCase(), input.name, input.description ?? null, input.status ?? ClassStatus.ACTIVE]);
+    } else {
+      await client.query(`INSERT INTO classes (id, tenant_id, course_id, branch_id, course_level_id, default_room_id, primary_teacher_id, code, name, description, capacity, start_date, expected_end_date, status)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [id, context.tenant.tenantId, input.courseId, input.branchId ?? null, input.courseLevelId ?? null, input.defaultRoomId ?? null, input.primaryTeacherId ?? null, input.code.toUpperCase(), input.name, input.description ?? null, input.capacity ?? null, input.startDate ?? null, input.expectedEndDate ?? null, input.status ?? ClassStatus.ACTIVE]);
+    }
+    const row = await this.lockedRow(client, context.tenant.tenantId, id);
+    await this.audit.recordTenant(client, { ...actor(context), action: 'class.created', entityType: 'CLASS', entityId: id, after: snapshot(row) });
+    return id;
   }
 
   async complete(id: string, completedOn: string) {

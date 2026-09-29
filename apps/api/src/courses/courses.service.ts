@@ -141,23 +141,29 @@ export class CoursesService {
     const client = await context.pool.connect();
     try {
       await client.query('BEGIN');
-      await this.ensureCourse(client, context.tenant.tenantId, courseId);
-      const inserted = await client.query<CourseLevelRow>(
-        `INSERT INTO course_levels (id, tenant_id, course_id, code, name, display_order, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id, tenant_id AS "tenantId", course_id AS "courseId", code, name,
-           display_order AS "displayOrder", description, status, created_at AS "createdAt", updated_at AS "updatedAt"`,
-        [ulid(), context.tenant.tenantId, courseId, input.code.toUpperCase(), input.name, input.displayOrder ?? 0, input.description ?? null, input.status ?? CourseLevelStatus.ACTIVE],
-      );
-      const row = inserted.rows[0];
-      await this.audit.recordTenant(client, { ...actor(context), action: 'course_level.created', entityType: 'COURSE_LEVEL', entityId: row.id, after: levelSnapshot(row) });
+      const level = await this.createLevelInTransaction(client, courseId, input);
       await client.query('COMMIT');
-      return serializeLevel(row);
+      return level;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       if (isCourseLevelConflict(error)) throw new ConflictException('Course level code already exists');
       throw error;
     } finally { client.release(); }
+  }
+
+  async createLevelInTransaction(client: PoolClient, courseId: string, input: CreateCourseLevelDto) {
+    const context = this.tenantContext.get();
+    await this.ensureCourse(client, context.tenant.tenantId, courseId);
+    const inserted = await client.query<CourseLevelRow>(
+      `INSERT INTO course_levels (id, tenant_id, course_id, code, name, display_order, description, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, tenant_id AS "tenantId", course_id AS "courseId", code, name,
+         display_order AS "displayOrder", description, status, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [ulid(), context.tenant.tenantId, courseId, input.code.toUpperCase(), input.name, input.displayOrder ?? 0, input.description ?? null, input.status ?? CourseLevelStatus.ACTIVE],
+    );
+    const row = inserted.rows[0];
+    await this.audit.recordTenant(client, { ...actor(context), action: 'course_level.created', entityType: 'COURSE_LEVEL', entityId: row.id, after: levelSnapshot(row) });
+    return serializeLevel(row);
   }
 
   async updateLevel(courseId: string, levelId: string, input: UpdateCourseLevelDto) {
@@ -224,37 +230,43 @@ export class CoursesService {
     const client = await context.pool.connect();
     try {
       await client.query('BEGIN');
-      const result = await client.query<CourseRow>(
-        `INSERT INTO courses
-          (id, tenant_id, code, name, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING
-           id,
-           tenant_id AS "tenantId",
-           code,
-           name,
-           description,
-           status,
-           created_at AS "createdAt",
-           updated_at AS "updatedAt"`,
-        [
-          ulid(),
-          context.tenant.tenantId,
-          input.code.toUpperCase(),
-          input.name,
-          input.description ?? null,
-          input.status ?? CourseStatus.ACTIVE,
-        ],
-      );
-      const row = result.rows[0];
-      await this.audit.recordTenant(client, { ...actor(context), action: 'course.created', entityType: 'COURSE', entityId: row.id, after: courseSnapshot(row) });
+      const course = await this.createInTransaction(client, input);
       await client.query('COMMIT');
-      return serialize(row);
+      return course;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       if (isCourseCodeConflict(error)) throw new ConflictException('Course code already exists');
       throw error;
     } finally { client.release(); }
+  }
+
+  async createInTransaction(client: PoolClient, input: CreateCourseDto) {
+    const context = this.tenantContext.get();
+    const result = await client.query<CourseRow>(
+      `INSERT INTO courses
+        (id, tenant_id, code, name, description, status)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING
+         id,
+         tenant_id AS "tenantId",
+         code,
+         name,
+         description,
+         status,
+         created_at AS "createdAt",
+         updated_at AS "updatedAt"`,
+      [
+        ulid(),
+        context.tenant.tenantId,
+        input.code.toUpperCase(),
+        input.name,
+        input.description ?? null,
+        input.status ?? CourseStatus.ACTIVE,
+      ],
+    );
+    const row = result.rows[0];
+    await this.audit.recordTenant(client, { ...actor(context), action: 'course.created', entityType: 'COURSE', entityId: row.id, after: courseSnapshot(row) });
+    return serialize(row);
   }
 
   async update(id: string, input: UpdateCourseDto) {

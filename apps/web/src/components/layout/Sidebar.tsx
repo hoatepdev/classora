@@ -1,4 +1,4 @@
-import { BarChart3, BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, DoorOpen, GraduationCap, LayoutDashboard, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
+import { BarChart3, BellRing, BookOpen, Building2, CalendarDays, CircleDollarSign, Database, DoorOpen, GraduationCap, LayoutDashboard, LogOut, School, Settings, UserRoundSearch, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { CurrentUser } from "@/auth/api";
 import { can } from "@/auth/permissions";
@@ -88,6 +88,10 @@ export function Sidebar({ centerName, hostname, user, activeMembership, onNaviga
           "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
           pathname === "/settings/audit-log" && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
         )}><Settings size={18} aria-hidden="true" />Nhật ký hoạt động</Link>}
+        {membership && (can(membership, "data.import") || can(membership, "data.export")) && <Link to="/settings/data" onClick={onNavigate} className={cn(
+          "flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f172a]",
+          pathname === "/settings/data" && "bg-[#eff6ff] font-semibold text-[#2563eb] hover:bg-[#eff6ff] hover:text-[#2563eb]",
+        )}><Database size={18} aria-hidden="true" />Dữ liệu</Link>}
       </div>
     </nav>
 

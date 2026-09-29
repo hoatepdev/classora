@@ -819,6 +819,76 @@ async function assertLocal10CrmConstraints(dbName, label) {
   );
 }
 
+async function assertLocal16ImportConstraints(dbName, label) {
+  const tenantId = '01J00000000000000000000001';
+  const otherTenantId = '01J00000000000000000000002';
+  const batchId = '01J00000000000000000000J0';
+  const otherBatchId = '01J00000000000000000000J1';
+  const rowId = '01J00000000000000000000J2';
+
+  await execute(dbName, `
+    INSERT INTO import_batches (id, tenant_id, type, file_name, file_sha256)
+    VALUES ('${batchId}', '${tenantId}', 'STUDENTS', 'students.csv', '${'a'.repeat(64)}');
+  `);
+  await execute(dbName, `
+    INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data)
+    VALUES ('${rowId}', '${tenantId}', '${batchId}', 1, '{"code": "ST001"}'::jsonb);
+  `);
+
+  const rejects = async (sql, message) =>
+    assert.rejects(() => execute(dbName, sql), undefined, `${label}: ${message}`);
+  await rejects(
+    `INSERT INTO import_batches (id, tenant_id, type, file_name, file_sha256) VALUES ('01J00000000000000000000J3', '${tenantId}', 'INVOICES', 'x.csv', '${'b'.repeat(64)}')`,
+    'unsupported import type was allowed',
+  );
+  await rejects(
+    `UPDATE import_batches SET status = 'RUNNING' WHERE id = '${batchId}'`,
+    'invalid import batch status was allowed',
+  );
+  await rejects(
+    `INSERT INTO import_batches (id, tenant_id, type, status, file_name, file_sha256) VALUES ('01J00000000000000000000J4', '${tenantId}', 'CLASSES', 'FAILED', 'x.csv', '${'c'.repeat(64)}')`,
+    'FAILED batch without failure detail was allowed',
+  );
+  await rejects(
+    `UPDATE import_batches SET total_rows = -1 WHERE id = '${batchId}'`,
+    'negative batch row count was allowed',
+  );
+  await rejects(
+    `UPDATE import_batches SET valid_rows = total_rows + 1 WHERE id = '${batchId}'`,
+    'valid + invalid rows exceeding total rows was allowed',
+  );
+  await rejects(
+    `INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data) VALUES ('01J00000000000000000000J5', '${tenantId}', '${batchId}', 0, '{}'::jsonb)`,
+    'non-positive import row number was allowed',
+  );
+  await rejects(
+    `INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data) VALUES ('01J00000000000000000000J6', '${tenantId}', '${batchId}', 1, '{}'::jsonb)`,
+    'duplicate batch + row number was allowed',
+  );
+  await rejects(
+    `INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data, status) VALUES ('01J00000000000000000000J7', '${tenantId}', '${batchId}', 2, '{}'::jsonb, 'DONE')`,
+    'invalid import row status was allowed',
+  );
+  await rejects(
+    `INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data, action) VALUES ('01J00000000000000000000J8', '${tenantId}', '${batchId}', 2, '{}'::jsonb, 'UPSERT')`,
+    'invalid import row action was allowed',
+  );
+  await rejects(
+    `INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data) VALUES ('01J00000000000000000000J9', '${otherTenantId}', '${batchId}', 3, '{}'::jsonb)`,
+    'cross-tenant ImportRow → ImportBatch relationship was allowed',
+  );
+  await execute(dbName, `
+    INSERT INTO import_batches (id, tenant_id, type, file_name, file_sha256)
+    VALUES ('${otherBatchId}', '${otherTenantId}', 'TEACHERS', 'teachers.csv', '${'d'.repeat(64)}');
+    INSERT INTO import_rows (id, tenant_id, batch_id, row_number, source_data)
+    VALUES ('01J00000000000000000000K0', '${otherTenantId}', '${otherBatchId}', 1, '{}'::jsonb);
+  `);
+  await rejects(
+    `DELETE FROM import_batches WHERE id = '${batchId}'`,
+    'deleting a batch with staged rows was allowed',
+  );
+}
+
 async function assertBaselineNotRecorded(dbName, label) {
   const rows = await query(
     dbName,
@@ -884,6 +954,8 @@ async function main() {
   await assertLocal10CrmConstraints(legacy, 'legacy');
   await assertLocal13ProgressConstraints(fresh, 'fresh');
   await assertLocal13ProgressConstraints(legacy, 'legacy');
+  await assertLocal16ImportConstraints(fresh, 'fresh');
+  await assertLocal16ImportConstraints(legacy, 'legacy');
   await assertAppendOnly(fresh, 'fresh');
   await assertAppendOnly(legacy, 'legacy');
 

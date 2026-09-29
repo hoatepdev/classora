@@ -8,5 +8,6 @@ import { TeachersService } from './teachers.service.js';
   imports: [TenantModule, AuditModule],
   controllers: [TeachersController],
   providers: [TeachersService],
+  exports: [TeachersService],
 })
 export class TeachersModule {}

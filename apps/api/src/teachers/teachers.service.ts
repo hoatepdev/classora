@@ -77,31 +77,36 @@ export class TeachersService {
   ) {}
 
   async replaceBranches(id: string, input: ReplaceTeacherBranchesDto) {
-    const context = this.tenantContext.get();
     const branchIds = [...new Set(input.branchIds)];
     if (branchIds.length !== input.branchIds.length) throw new BadRequestException('Duplicate branch IDs are not allowed');
+    const context = this.tenantContext.get();
     const client = await context.pool.connect();
     try {
       await client.query('BEGIN');
-      const teacher = await client.query<TeacherRow>('SELECT id, tenant_id AS "tenantId", code, name, phone, email, note, specialties, status, created_at AS "createdAt", updated_at AS "updatedAt" FROM teachers WHERE tenant_id = $1 AND id = $2 FOR UPDATE', [context.tenant.tenantId, id]);
-      if (!teacher.rows[0]) throw new NotFoundException('Teacher not found');
-      const branches = await client.query<{ id: string }>('SELECT id FROM branches WHERE tenant_id = $1 AND id = ANY($2::char(26)[])', [context.tenant.tenantId, branchIds]);
-      if (branches.rows.length !== branchIds.length) throw new NotFoundException('Branch not found');
-      const current = await client.query<{ branchId: string }>('SELECT branch_id AS "branchId" FROM teacher_branches WHERE tenant_id = $1 AND teacher_id = $2', [context.tenant.tenantId, id]);
-      const existing = new Set(current.rows.map((row) => row.branchId));
-      const requested = new Set(branchIds);
-      await client.query('DELETE FROM teacher_branches WHERE tenant_id = $1 AND teacher_id = $2', [context.tenant.tenantId, id]);
-      if (branchIds.length) await client.query('INSERT INTO teacher_branches (id, tenant_id, teacher_id, branch_id) SELECT * FROM UNNEST($1::char(26)[], $2::char(26)[], $3::char(26)[], $4::char(26)[])', [branchIds.map(() => ulid()), branchIds.map(() => context.tenant.tenantId), branchIds.map(() => id), branchIds]);
-      for (const branchId of branchIds) {
-        if (!existing.has(branchId)) await this.audit.recordTenant(client, { tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId, actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId, action: 'teacher.branch_assigned', entityType: 'TEACHER_BRANCH', entityId: id, after: { teacherId: id, branchId } });
-      }
-      for (const branchId of existing) {
-        if (!requested.has(branchId)) await this.audit.recordTenant(client, { tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId, actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId, action: 'teacher.branch_unassigned', entityType: 'TEACHER_BRANCH', entityId: id, before: { teacherId: id, branchId } });
-      }
+      await this.replaceBranchesInTransaction(client, id, branchIds);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; }
     finally { client.release(); }
     return this.get(id);
+  }
+
+  async replaceBranchesInTransaction(client: PoolClient, id: string, branchIds: string[]) {
+    const context = this.tenantContext.get();
+    const teacher = await client.query<TeacherRow>('SELECT id, tenant_id AS "tenantId", code, name, phone, email, note, specialties, status, created_at AS "createdAt", updated_at AS "updatedAt" FROM teachers WHERE tenant_id = $1 AND id = $2 FOR UPDATE', [context.tenant.tenantId, id]);
+    if (!teacher.rows[0]) throw new NotFoundException('Teacher not found');
+    const branches = await client.query<{ id: string }>('SELECT id FROM branches WHERE tenant_id = $1 AND id = ANY($2::char(26)[])', [context.tenant.tenantId, branchIds]);
+    if (branches.rows.length !== branchIds.length) throw new NotFoundException('Branch not found');
+    const current = await client.query<{ branchId: string }>('SELECT branch_id AS "branchId" FROM teacher_branches WHERE tenant_id = $1 AND teacher_id = $2', [context.tenant.tenantId, id]);
+    const existing = new Set(current.rows.map((row) => row.branchId));
+    const requested = new Set(branchIds);
+    await client.query('DELETE FROM teacher_branches WHERE tenant_id = $1 AND teacher_id = $2', [context.tenant.tenantId, id]);
+    if (branchIds.length) await client.query('INSERT INTO teacher_branches (id, tenant_id, teacher_id, branch_id) SELECT * FROM UNNEST($1::char(26)[], $2::char(26)[], $3::char(26)[], $4::char(26)[])', [branchIds.map(() => ulid()), branchIds.map(() => context.tenant.tenantId), branchIds.map(() => id), branchIds]);
+    for (const branchId of branchIds) {
+      if (!existing.has(branchId)) await this.audit.recordTenant(client, { tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId, actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId, action: 'teacher.branch_assigned', entityType: 'TEACHER_BRANCH', entityId: id, after: { teacherId: id, branchId } });
+    }
+    for (const branchId of existing) {
+      if (!requested.has(branchId)) await this.audit.recordTenant(client, { tenantId: context.tenant.tenantId, actorUserId: context.actorUserId, actorMembershipId: context.actorMembershipId, actorName: context.actorName, actorEmail: context.actorEmail, requestId: context.requestId, action: 'teacher.branch_unassigned', entityType: 'TEACHER_BRANCH', entityId: id, before: { teacherId: id, branchId } });
+    }
   }
 
   async listBranches(id: string) {
@@ -139,43 +144,49 @@ export class TeachersService {
     const client = await context.pool.connect();
     try {
       await client.query('BEGIN');
-      const result = await client.query<TeacherRow>(
-        `INSERT INTO teachers
-          (id, tenant_id, code, name, phone, email, note, status, specialties)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING
-           id,
-           tenant_id AS "tenantId",
-           code,
-           name,
-           phone,
-           email,
-           note,
-           specialties,
-           status,
-           created_at AS "createdAt",
-           updated_at AS "updatedAt"`,
-        [
-          ulid(),
-          context.tenant.tenantId,
-          input.code.toUpperCase(),
-          input.name,
-          input.phone ?? null,
-          input.email ?? null,
-          input.note ?? null,
-          input.status ?? TeacherStatus.ACTIVE,
-          input.specialties ?? [],
-        ],
-      );
-      const row = result.rows[0];
-      await this.audit.recordTenant(client, { ...actor(context), action: 'teacher.created', entityType: 'TEACHER', entityId: row.id, after: snapshot(row) });
+      const teacher = await this.createInTransaction(client, input);
       await client.query('COMMIT');
-      return serialize(row);
+      return teacher;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       if (isTeacherCodeConflict(error)) throw new ConflictException('Teacher code already exists');
       throw error;
     } finally { client.release(); }
+  }
+
+  async createInTransaction(client: PoolClient, input: CreateTeacherDto) {
+    const context = this.tenantContext.get();
+    const result = await client.query<TeacherRow>(
+      `INSERT INTO teachers
+        (id, tenant_id, code, name, phone, email, note, status, specialties)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING
+         id,
+         tenant_id AS "tenantId",
+         code,
+         name,
+         phone,
+         email,
+         note,
+         specialties,
+         status,
+         created_at AS "createdAt",
+         updated_at AS "updatedAt"`,
+      [
+        ulid(),
+        context.tenant.tenantId,
+        input.code.toUpperCase(),
+        input.name,
+        input.phone ?? null,
+        input.email ?? null,
+        input.note ?? null,
+        input.status ?? TeacherStatus.ACTIVE,
+        input.specialties ?? [],
+      ],
+    );
+    const row = result.rows[0];
+    await this.audit.recordTenant(client, { ...actor(context), action: 'teacher.created', entityType: 'TEACHER', entityId: row.id, after: snapshot(row) });
+    return serialize(row);
   }
 
   async update(id: string, input: UpdateTeacherDto) {

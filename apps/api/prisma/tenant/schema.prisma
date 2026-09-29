@@ -989,3 +989,60 @@ model AuditEvent {
   @@index([tenantId, entityId, occurredAt, id])
   @@map("audit_events")
 }
+
+// LOCAL-16 staged CSV migration. Original file bytes are never persisted;
+// rows keep only mapped source values, portable normalized values, and
+// structured validation issues.
+model ImportBatch {
+  id                    String    @id @db.Char(26)
+  tenantId              String    @map("tenant_id") @db.Char(26)
+  type                  String
+  status                String    @default("UPLOADED")
+  fileName              String    @map("file_name")
+  fileSha256            String    @map("file_sha256") @db.Char(64)
+  mapping               Json      @default("{}")
+  totalRows             Int       @default(0) @map("total_rows")
+  validRows             Int       @default(0) @map("valid_rows")
+  invalidRows           Int       @default(0) @map("invalid_rows")
+  importedRows          Int       @default(0) @map("imported_rows")
+  failure               Json?
+  createdByUserId       String?   @map("created_by_user_id") @db.Char(26)
+  createdByMembershipId String?   @map("created_by_membership_id") @db.Char(26)
+  createdByName         String?   @map("created_by_name")
+  validatedAt           DateTime? @map("validated_at") @db.Timestamptz
+  confirmedAt           DateTime? @map("confirmed_at") @db.Timestamptz
+  completedAt           DateTime? @map("completed_at") @db.Timestamptz
+  cancelledAt           DateTime? @map("cancelled_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  rows                  ImportRow[]
+
+  @@unique([tenantId, id], map: "import_batches_tenant_id_id_key")
+  @@index([tenantId, createdAt, id], map: "import_batches_tenant_created_idx")
+  @@index([tenantId, status, createdAt, id], map: "import_batches_tenant_status_idx")
+  @@index([tenantId, fileSha256], map: "import_batches_tenant_hash_idx")
+  @@map("import_batches")
+}
+
+model ImportRow {
+  id             String      @id @db.Char(26)
+  tenantId       String      @map("tenant_id") @db.Char(26)
+  batchId        String      @map("batch_id") @db.Char(26)
+  rowNumber      Int         @map("row_number")
+  sourceData     Json        @map("source_data")
+  normalizedData Json?       @map("normalized_data")
+  status         String      @default("PENDING")
+  action         String      @default("CREATE")
+  errors         Json        @default("[]")
+  warnings       Json        @default("[]")
+  targetEntityId String?     @map("target_entity_id") @db.Char(26)
+  sourceKey      String?     @map("source_key")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  batch          ImportBatch @relation(fields: [tenantId, batchId], references: [tenantId, id])
+
+  @@unique([tenantId, id], map: "import_rows_tenant_id_id_key")
+  @@unique([batchId, rowNumber], map: "import_rows_batch_row_key")
+  @@index([batchId, status, rowNumber], map: "import_rows_batch_status_idx")
+  @@map("import_rows")
+}
